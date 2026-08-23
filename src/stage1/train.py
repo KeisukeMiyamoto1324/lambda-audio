@@ -14,17 +14,16 @@ from transformers import (
     SequenceFeatureExtractor,
 )
 
-from src.config import TrainingConfig
-from src.lambda_audio import LambdaAudioModel
-from src.lfm2_decoder import AudioLfm2ForCausalLM
-from src.training import LambdaAudioDataModule, LambdaAudioLightningModule
+from src.shared.lambda_audio import LambdaAudioModel
+from src.shared.lfm2_decoder import AudioLfm2ForCausalLM
+from src.shared.training import LambdaAudioDataModule
+from src.stage1.config import Stage1Config
+from src.stage1.training import Stage1LightningModule
 
 
-def parse_arguments() -> TrainingConfig:
+def parse_arguments() -> Stage1Config:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", type=int, choices=(1, 2), required=True)
-    parser.add_argument("--output-dir", type=Path, default=Path("outputs"))
-    parser.add_argument("--initialization-checkpoint", type=Path)
+    parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage1"))
     parser.add_argument("--dataset-config", default="tiny")
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--validation-batch-size", type=int, default=2)
@@ -32,22 +31,14 @@ def parse_arguments() -> TrainingConfig:
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=4)
-    parser.add_argument(
-        "--precision",
-        choices=("bf16-mixed", "16-mixed"),
-        default="bf16-mixed",
-    )
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
     arguments = parser.parse_args()
 
-    if arguments.stage == 2 and arguments.initialization_checkpoint is None:
-        parser.error("Stage 2 requires --initialization-checkpoint.")
     if arguments.dataloader_workers < 1:
         parser.error("--dataloader-workers must be at least 1.")
 
-    return TrainingConfig(
-        stage=arguments.stage,
+    return Stage1Config(
         output_dir=arguments.output_dir,
-        initialization_checkpoint=arguments.initialization_checkpoint,
         dataset_config=arguments.dataset_config,
         train_batch_size=arguments.batch_size,
         validation_batch_size=arguments.validation_batch_size,
@@ -55,7 +46,7 @@ def parse_arguments() -> TrainingConfig:
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
-        precision=arguments.precision,
+        learning_rate=arguments.learning_rate,
     )
 
 
@@ -89,35 +80,14 @@ def main() -> None:
         dtype=torch.float32,
     )
     model = LambdaAudioModel(encoder, decoder)
-
-    # ---------------------------------------------------------
-    # Build each DDP stage separately so all trainable weights synchronize.
-    # ---------------------------------------------------------
-    model.set_backbones_trainable(config.stage == 2)
+    model.set_backbones_trainable(False)
     model.decoder.config.use_cache = False
-    if config.stage == 2:
-        model.decoder.gradient_checkpointing_enable(
-            gradient_checkpointing_kwargs={"use_reentrant": False}
-        )
 
-    lightning_model = LambdaAudioLightningModule(model, config)
-    if config.initialization_checkpoint is not None:
-        checkpoint = torch.load(
-            config.initialization_checkpoint,
-            map_location="cpu",
-            weights_only=True,
-        )
-        lightning_model.load_state_dict(checkpoint["state_dict"], strict=True)
-
-    data_module = LambdaAudioDataModule(
-        feature_extractor,
-        tokenizer,
-        config,
-    )
-    stage_directory = config.output_dir / f"stage-{config.stage}"
-    stage_directory.mkdir(parents=True, exist_ok=True)
+    lightning_model = Stage1LightningModule(model, config)
+    data_module = LambdaAudioDataModule(feature_extractor, tokenizer, config)
+    config.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_callback = ModelCheckpoint(
-        dirpath=stage_directory,
+        dirpath=config.output_dir,
         filename="model",
         every_n_train_steps=config.save_steps,
         save_top_k=1,
@@ -129,7 +99,7 @@ def main() -> None:
         accelerator="gpu",
         devices="auto",
         strategy="auto",
-        precision=config.precision,
+        precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,
         callbacks=[checkpoint_callback],
@@ -146,10 +116,7 @@ def main() -> None:
         default_root_dir=config.output_dir,
     )
     trainer.fit(lightning_model, datamodule=data_module)
-    trainer.save_checkpoint(
-        stage_directory / "model.ckpt",
-        weights_only=True,
-    )
+    trainer.save_checkpoint(config.output_dir / "model.ckpt", weights_only=True)
 
 
 if __name__ == "__main__":

@@ -3,18 +3,13 @@ from typing import Any
 import lightning as L
 import torch
 from datasets import IterableDataset
-from torch.optim import AdamW
 from torch.utils.data import DataLoader
-from transformers import (
-    PreTrainedTokenizerBase,
-    SequenceFeatureExtractor,
-    get_cosine_schedule_with_warmup,
-)
+from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
-from src.collator import AudioTextCollator
-from src.config import TrainingConfig
-from src.dataset import load_streaming_datasets
-from src.lambda_audio import LambdaAudioModel
+from src.shared.collator import AudioTextCollator
+from src.shared.config import BaseTrainingConfig
+from src.shared.dataset import load_streaming_datasets
+from src.shared.lambda_audio import LambdaAudioModel
 
 
 class LambdaAudioDataModule(L.LightningDataModule):
@@ -22,7 +17,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self,
         feature_extractor: SequenceFeatureExtractor,
         tokenizer: PreTrainedTokenizerBase,
-        config: TrainingConfig,
+        config: BaseTrainingConfig,
     ) -> None:
         super().__init__()
         self.config = config
@@ -77,8 +72,8 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.training_dataset.set_epoch(epoch)
 
 
-class LambdaAudioLightningModule(L.LightningModule):
-    def __init__(self, model: LambdaAudioModel, config: TrainingConfig) -> None:
+class BaseLambdaAudioLightningModule(L.LightningModule):
+    def __init__(self, model: LambdaAudioModel, config: BaseTrainingConfig) -> None:
         super().__init__()
         self.model = model
         self.config = config
@@ -126,42 +121,3 @@ class LambdaAudioLightningModule(L.LightningModule):
         if not isinstance(data_module, LambdaAudioDataModule):
             raise TypeError("LambdaAudioDataModule is required.")
         data_module.set_epoch(self.current_epoch)
-
-    def configure_optimizers(self) -> dict[str, Any]:
-        # ---------------------------------------------------------
-        # Use a lower learning rate for pretrained backbone weights.
-        # ---------------------------------------------------------
-        parameter_groups: dict[tuple[float, float], list[torch.nn.Parameter]] = {}
-        for name, parameter in self.model.named_parameters():
-            if not parameter.requires_grad:
-                continue
-
-            is_audio_module = name.startswith("adapter.") or ".cross_attention." in name
-            learning_rate = (
-                self.config.adapter_learning_rate
-                if is_audio_module
-                else self.config.backbone_learning_rate
-            )
-            weight_decay = self.config.weight_decay if parameter.ndim >= 2 else 0.0
-            group_key = (learning_rate, weight_decay)
-            parameter_groups.setdefault(group_key, []).append(parameter)
-
-        groups = [
-            {
-                "params": parameters,
-                "lr": learning_rate,
-                "weight_decay": weight_decay,
-            }
-            for (learning_rate, weight_decay), parameters in parameter_groups.items()
-        ]
-        optimizer = AdamW(groups, betas=(0.9, 0.95))
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=self.config.warmup_steps,
-            num_training_steps=self.config.max_steps,
-        )
-
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
-        }

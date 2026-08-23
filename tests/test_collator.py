@@ -5,7 +5,7 @@ from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 from transformers import PreTrainedTokenizerFast, Wav2Vec2FeatureExtractor
 
-from src.collator import AudioTextCollator
+from src.shared.collator import AudioTextCollator
 
 
 def test_collator_pads_audio_and_masks_text_labels() -> None:

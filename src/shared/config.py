@@ -3,10 +3,8 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class TrainingConfig:
-    stage: int
+class BaseTrainingConfig:
     output_dir: Path
-    initialization_checkpoint: Path | None
     dataset_name: str = "reazon-research/reazonspeech"
     dataset_config: str = "tiny"
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
@@ -20,11 +18,8 @@ class TrainingConfig:
     validation_batch_size: int = 2
     dataloader_workers: int = 4
     gradient_accumulation_steps: int = 8
-    precision: str = "bf16-mixed"
     max_steps: int = 10_000
     warmup_steps: int = 500
-    adapter_learning_rate: float = 1e-4
-    backbone_learning_rate: float = 1e-6
     weight_decay: float = 0.01
     max_grad_norm: float = 1.0
     log_steps: int = 10

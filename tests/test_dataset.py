@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.dataset import ValidAudioExample
+from src.shared.dataset import ValidAudioExample
 
 
 def test_valid_audio_example_checks_length_and_text() -> None:

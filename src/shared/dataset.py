@@ -3,7 +3,7 @@ from typing import Any
 from datasets import IterableDataset, load_dataset
 from datasets.distributed import split_dataset_by_node
 
-from src.config import TrainingConfig
+from src.shared.config import BaseTrainingConfig
 
 
 class ValidAudioExample:
@@ -19,7 +19,7 @@ class ValidAudioExample:
 
 
 def load_streaming_datasets(
-    config: TrainingConfig,
+    config: BaseTrainingConfig,
     rank: int,
     world_size: int,
 ) -> tuple[IterableDataset, IterableDataset]:
