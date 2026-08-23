@@ -4,7 +4,7 @@ from typing import cast
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from transformers import (
     AutoFeatureExtractor,
     AutoTokenizer,
@@ -25,9 +25,9 @@ def parse_arguments() -> Stage1Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage1"))
     parser.add_argument("--dataset-config", default="tiny")
-    parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--validation-batch-size", type=int, default=2)
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
     parser.add_argument("--bucket-buffer-multiplier", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
@@ -114,7 +114,11 @@ def main() -> None:
         precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,
-        callbacks=[checkpoint_callback, early_stopping_callback],
+        callbacks=[
+            checkpoint_callback,
+            early_stopping_callback,
+            TQDMProgressBar(),
+        ],
         logger=False,
         accumulate_grad_batches=config.gradient_accumulation_steps,
         gradient_clip_val=config.max_grad_norm,

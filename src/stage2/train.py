@@ -4,7 +4,7 @@ from typing import cast
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from transformers import (
     AutoFeatureExtractor,
     AutoTokenizer,
@@ -128,7 +128,11 @@ def main() -> None:
         precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,
-        callbacks=[checkpoint_callback, early_stopping_callback],
+        callbacks=[
+            checkpoint_callback,
+            early_stopping_callback,
+            TQDMProgressBar(),
+        ],
         logger=False,
         accumulate_grad_batches=config.gradient_accumulation_steps,
         gradient_clip_val=config.max_grad_norm,
