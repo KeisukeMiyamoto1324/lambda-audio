@@ -7,13 +7,12 @@ import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from transformers import (
     AutoFeatureExtractor,
-    AutoModel,
     AutoTokenizer,
-    PreTrainedModel,
     PreTrainedTokenizerBase,
     SequenceFeatureExtractor,
 )
 
+from src.encoders.zipformer import ZipformerModel
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.lfm2_decoder import AudioLfm2ForCausalLM
 from src.shared.training import LambdaAudioDataModule
@@ -76,10 +75,7 @@ def main() -> None:
         PreTrainedTokenizerBase,
         AutoTokenizer.from_pretrained(config.decoder_model_id),
     )
-    encoder = cast(
-        PreTrainedModel,
-        AutoModel.from_pretrained(config.encoder_model_id, trust_remote_code=True),
-    )
+    encoder = ZipformerModel.from_pretrained(config.encoder_model_id)
     decoder = AudioLfm2ForCausalLM.from_pretrained(
         config.decoder_model_id,
         attn_implementation="sdpa",
