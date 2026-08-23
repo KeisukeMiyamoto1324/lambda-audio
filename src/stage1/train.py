@@ -29,7 +29,7 @@ def parse_arguments() -> Stage1Config:
         type=Path,
         default=Path("data/prepared/reazonspeech-tiny"),
     )
-    parser.add_argument("--max-batch-audio-seconds", type=float, default=480.0)
+    parser.add_argument("--max-batch-audio-seconds", type=float, default=720)
     parser.add_argument(
         "--validation-max-batch-audio-seconds",
         type=float,
@@ -42,12 +42,15 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=64)
+    parser.add_argument("--prefetch-factor", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--early-stopping-patience", type=int, default=5)
     arguments = parser.parse_args()
 
     if arguments.dataloader_workers < 1:
         parser.error("--dataloader-workers must be at least 1.")
+    if arguments.prefetch_factor < 1:
+        parser.error("--prefetch-factor must be at least 1.")
     if arguments.max_batch_audio_seconds <= 0:
         parser.error("--max-batch-audio-seconds must be positive.")
     if arguments.validation_max_batch_audio_seconds <= 0:
@@ -73,6 +76,7 @@ def parse_arguments() -> Stage1Config:
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
+        prefetch_factor=arguments.prefetch_factor,
         learning_rate=arguments.learning_rate,
         early_stopping_patience=arguments.early_stopping_patience,
     )

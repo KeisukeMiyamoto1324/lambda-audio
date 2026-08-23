@@ -17,6 +17,7 @@ class BaseTrainingConfig:
     validation_max_batch_examples: int = 64
     bucket_window_size: int = 256
     dataloader_workers: int = 4
+    prefetch_factor: int = 128
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000
     warmup_steps: int = 500

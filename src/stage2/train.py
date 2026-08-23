@@ -43,6 +43,7 @@ def parse_arguments() -> Stage2Config:
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=4)
+    parser.add_argument("--prefetch-factor", type=int, default=128)
     parser.add_argument("--adapter-learning-rate", type=float, default=1e-4)
     parser.add_argument("--backbone-learning-rate", type=float, default=1e-6)
     parser.add_argument("--early-stopping-patience", type=int, default=5)
@@ -50,6 +51,8 @@ def parse_arguments() -> Stage2Config:
 
     if arguments.dataloader_workers < 1:
         parser.error("--dataloader-workers must be at least 1.")
+    if arguments.prefetch_factor < 1:
+        parser.error("--prefetch-factor must be at least 1.")
     if arguments.max_batch_audio_seconds <= 0:
         parser.error("--max-batch-audio-seconds must be positive.")
     if arguments.validation_max_batch_audio_seconds <= 0:
@@ -76,6 +79,7 @@ def parse_arguments() -> Stage2Config:
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
+        prefetch_factor=arguments.prefetch_factor,
         adapter_learning_rate=arguments.adapter_learning_rate,
         backbone_learning_rate=arguments.backbone_learning_rate,
         early_stopping_patience=arguments.early_stopping_patience,

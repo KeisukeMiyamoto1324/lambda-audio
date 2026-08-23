@@ -82,6 +82,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             batch_sampler=self.training_sampler,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
+            prefetch_factor=self.config.prefetch_factor,
             pin_memory=True,
             persistent_workers=True,
         )
@@ -95,6 +96,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             batch_sampler=self.validation_sampler,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
+            prefetch_factor=self.config.prefetch_factor,
             pin_memory=True,
             persistent_workers=True,
         )
