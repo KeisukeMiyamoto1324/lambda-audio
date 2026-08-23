@@ -2,8 +2,8 @@ from typing import cast
 
 from transformers import AutoModel, PreTrainedModel
 
-from str.lambda_audio import LambdaAudioModel
-from str.lfm2_decoder import AudioLfm2ForCausalLM
+from lambda_audio import LambdaAudioModel
+from lfm2_decoder import AudioLfm2ForCausalLM
 
 
 ENCODER_MODEL_ID = "reazon-research/japanese-zipformer-base-k2"

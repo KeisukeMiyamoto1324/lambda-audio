@@ -6,7 +6,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 from transformers.models.lfm2.modeling_lfm2 import Lfm2DecoderLayer, Lfm2ForCausalLM
 
-from str.cross_attention import GatedCrossAttention
+from cross_attention import GatedCrossAttention
 
 
 class AudioLfm2DecoderLayer(Lfm2DecoderLayer):

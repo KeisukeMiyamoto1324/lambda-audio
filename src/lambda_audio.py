@@ -5,9 +5,9 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from str.adapter import AudioAdapter
-from str.cross_attention import GatedCrossAttention
-from str.lfm2_decoder import AudioLfm2ForCausalLM, add_cross_attention
+from adapter import AudioAdapter
+from cross_attention import GatedCrossAttention
+from lfm2_decoder import AudioLfm2ForCausalLM, add_cross_attention
 
 
 class LambdaAudioModel(nn.Module):

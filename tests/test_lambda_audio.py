@@ -5,8 +5,8 @@ import torch
 from torch import nn
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
-from str.lambda_audio import LambdaAudioModel
-from str.lfm2_decoder import AudioLfm2ForCausalLM
+from lambda_audio import LambdaAudioModel
+from lfm2_decoder import AudioLfm2ForCausalLM
 
 
 class DummyEncoder(nn.Module):

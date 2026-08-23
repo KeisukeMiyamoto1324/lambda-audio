@@ -20,7 +20,7 @@
 - Do NOT write doc string unless the user requests.
 - Avoid create deep nesting by using method other than creating functions.
 - NEVER write fallback logic, as it adds unnecessary complexity to the code.
-- Write main logic in main.py. Use str/ to organize architecture.
+- Write main logic in main.py. Use src/ to organize architecture.
 
 ## Scripts
 - Use scripts/ to write one time code. This folder should be use only when the user clearly ask for.

@@ -1,6 +1,6 @@
 import torch
 
-from str.adapter import AudioAdapter
+from adapter import AudioAdapter
 
 
 def test_adapter_output_shape() -> None:
