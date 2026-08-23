@@ -21,12 +21,12 @@
 
 ### エンコーダ部分
 - reazon-research/japanese-zipformer-base-k2 
-  - https://huggingface.co/LiquidAI/LFM2.5-230M-Base
+  - https://huggingface.co/reazon-research/japanese-zipformer-base-k2
   - 出力・隠れ次元は768
 
 ### デコーダ部分
 - LiquidAI/LFM2.5-230M-Base
-  - https://huggingface.co/LiquidAI/LFM2.5-230M
+  - https://huggingface.co/LiquidAI/LFM2.5-230M-Base
   - 出力・隠れ次元は1024
 
 
@@ -48,7 +48,7 @@ LayerNorm(1024)
 
 
 ## Gated cross attention
-- 30Mと350Mにはどちらもfull_attention層が6個あるため、そのすべてに cross attention
+- LFM2.5-230M-Baseにはfull_attention層が6個あるため、そのすべてに cross attention
 - Self-AttentionとFFNの間でLFM側の隠れ状態と統合
 - Scalar Gate
 - LFMに合わせてnum_heads = 16, head_dim = 64
@@ -56,7 +56,7 @@ LayerNorm(1024)
 
 ## 学習対象
 - Adapter＋Cross-Attention＋LFM2.5+Zipformer すべて
-- ただし最初はLFM, encoderを固定し、その他のみを学習させる。安定してきたらLFM, adapterの重みも学習を開始する
+- ただし最初はLFM, encoderを固定し、その他のみを学習させる。安定してきたらLFM, encoderの重みも学習を開始する
 
 
 ## Loss
