@@ -128,7 +128,12 @@ def main() -> None:
         use_distributed_sampler=False,
         default_root_dir=config.output_dir,
     )
-    trainer.fit(lightning_model, datamodule=data_module)
+
+    # ---------------------------------------------------------
+    # Compile the complete training step with dynamic sequence shapes.
+    # ---------------------------------------------------------
+    compiled_model = torch.compile(lightning_model, dynamic=True)
+    trainer.fit(compiled_model, datamodule=data_module)
 
 
 if __name__ == "__main__":
