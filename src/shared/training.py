@@ -2,13 +2,12 @@ from typing import Any
 
 import lightning as L
 import torch
-from datasets import IterableDataset
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.shared.collator import AudioTextCollator
 from src.shared.config import BaseTrainingConfig
-from src.shared.dataset import load_streaming_datasets
+from src.shared.dataset import LengthBucketBatchDataset, load_streaming_datasets
 from src.shared.lambda_audio import LambdaAudioModel
 
 
@@ -27,17 +26,29 @@ class LambdaAudioDataModule(L.LightningDataModule):
             config.sampling_rate,
             config.max_text_length,
         )
-        self.training_dataset: IterableDataset | None = None
-        self.validation_dataset: IterableDataset | None = None
+        self.training_dataset: LengthBucketBatchDataset | None = None
+        self.validation_dataset: LengthBucketBatchDataset | None = None
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
 
-        self.training_dataset, self.validation_dataset = load_streaming_datasets(
+        training_dataset, validation_dataset = load_streaming_datasets(
             self.config,
             self.trainer.global_rank,
             self.trainer.world_size,
+        )
+        self.training_dataset = LengthBucketBatchDataset(
+            training_dataset,
+            self.config.train_batch_size,
+            self.config.bucket_buffer_multiplier,
+            self.config.seed,
+        )
+        self.validation_dataset = LengthBucketBatchDataset(
+            validation_dataset,
+            self.config.validation_batch_size,
+            self.config.bucket_buffer_multiplier,
+            self.config.seed,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
@@ -46,7 +57,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
 
         return DataLoader(
             self.training_dataset,
-            batch_size=self.config.train_batch_size,
+            batch_size=None,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
             pin_memory=True,
@@ -59,7 +70,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
 
         return DataLoader(
             self.validation_dataset,
-            batch_size=self.config.validation_batch_size,
+            batch_size=None,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
             pin_memory=True,

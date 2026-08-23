@@ -16,6 +16,7 @@ class BaseTrainingConfig:
     shuffle_buffer_size: int = 10_000
     train_batch_size: int = 2
     validation_batch_size: int = 2
+    bucket_buffer_multiplier: int = 64
     dataloader_workers: int = 4
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000

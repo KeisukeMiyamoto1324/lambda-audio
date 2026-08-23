@@ -28,6 +28,7 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--validation-batch-size", type=int, default=2)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
+    parser.add_argument("--bucket-buffer-multiplier", type=int, default=64)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=4)
@@ -37,6 +38,8 @@ def parse_arguments() -> Stage1Config:
 
     if arguments.dataloader_workers < 1:
         parser.error("--dataloader-workers must be at least 1.")
+    if arguments.bucket_buffer_multiplier < 1:
+        parser.error("--bucket-buffer-multiplier must be at least 1.")
 
     return Stage1Config(
         output_dir=arguments.output_dir,
@@ -44,6 +47,7 @@ def parse_arguments() -> Stage1Config:
         train_batch_size=arguments.batch_size,
         validation_batch_size=arguments.validation_batch_size,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,
+        bucket_buffer_multiplier=arguments.bucket_buffer_multiplier,
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
