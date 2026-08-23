@@ -36,3 +36,10 @@ LayerNorm(1024)
 
 ## Gated cross attention
 - 30Mと350Mにはどちらもfull_attention層が6個あるため、そのすべてに cross attention
+- Self-AttentionとFFNの間でLFM側の隠れ状態と統合
+- Scalar Gate
+- LFMに合わせてnum_heads = 16, head_dim = 64
+
+## 学習対象
+- Adapter＋Cross-Attention＋LFM2.5+Zipformer すべて
+- ただし最初はLFMを固定し、その他のみを学習させる。安定してきたらLFMの重みも学習を開始する
