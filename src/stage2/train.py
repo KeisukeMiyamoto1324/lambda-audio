@@ -143,10 +143,10 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # Compile after loading Stage 1 weights to preserve checkpoint keys.
+    # Compile only the model after loading Stage 1 weights.
     # ---------------------------------------------------------
-    compiled_model = torch.compile(lightning_model, dynamic=True)
-    trainer.fit(compiled_model, datamodule=data_module)
+    lightning_model.model = torch.compile(lightning_model.model)
+    trainer.fit(lightning_model, datamodule=data_module)
 
 
 if __name__ == "__main__":

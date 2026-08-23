@@ -129,10 +129,10 @@ def main() -> None:
     )
 
     # ---------------------------------------------------------
-    # Compile the complete training step with dynamic sequence shapes.
+    # Compile only the model to keep Lightning hooks outside Dynamo.
     # ---------------------------------------------------------
-    compiled_model = torch.compile(lightning_model, dynamic=True)
-    trainer.fit(compiled_model, datamodule=data_module)
+    lightning_model.model = torch.compile(lightning_model.model)
+    trainer.fit(lightning_model, datamodule=data_module)
 
 
 if __name__ == "__main__":
