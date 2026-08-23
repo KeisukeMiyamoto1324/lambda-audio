@@ -42,4 +42,4 @@ LayerNorm(1024)
 
 ## 学習対象
 - Adapter＋Cross-Attention＋LFM2.5+Zipformer すべて
-- ただし最初はLFMを固定し、その他のみを学習させる。安定してきたらLFMの重みも学習を開始する
+- ただし最初はLFM, encoderを固定し、その他のみを学習させる。安定してきたらLFM, adapterの重みも学習を開始する
