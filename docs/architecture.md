@@ -21,11 +21,11 @@
 
 ### エンコーダ部分
 - reazon-research/japanese-zipformer-base-k2 
-  - https://huggingface.co/reazon-research/japanese-zipformer-base-k2
+  - https://huggingface.co/LiquidAI/LFM2.5-230M-Base
   - 出力・隠れ次元は768
 
 ### デコーダ部分
-- LiquidAI/LFM2.5-230M 
+- LiquidAI/LFM2.5-230M-Base
   - https://huggingface.co/LiquidAI/LFM2.5-230M
   - 出力・隠れ次元は1024
 
