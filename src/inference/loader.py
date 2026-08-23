@@ -12,6 +12,7 @@ from transformers import (
 
 from src.encoders.zipformer import ZipformerModel
 from src.inference.config import InferenceConfig
+from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.lfm2_decoder import AudioLfm2ForCausalLM
 
@@ -50,19 +51,21 @@ def load_components(
     # ---------------------------------------------------------
     # Build the training architecture before restoring learned weights.
     # ---------------------------------------------------------
+    hf_token = load_hf_token()
     feature_extractor = cast(
         SequenceFeatureExtractor,
-        AutoFeatureExtractor.from_pretrained(config.encoder_model_id),
+        AutoFeatureExtractor.from_pretrained(config.encoder_model_id, token=hf_token),
     )
     tokenizer = cast(
         PreTrainedTokenizerBase,
-        AutoTokenizer.from_pretrained(config.decoder_model_id),
+        AutoTokenizer.from_pretrained(config.decoder_model_id, token=hf_token),
     )
-    encoder = ZipformerModel.from_pretrained(config.encoder_model_id)
+    encoder = ZipformerModel.from_pretrained(config.encoder_model_id, token=hf_token)
     decoder = AudioLfm2ForCausalLM.from_pretrained(
         config.decoder_model_id,
         attn_implementation="sdpa",
         dtype=torch.float32,
+        token=hf_token,
     )
     model = LambdaAudioModel(encoder, decoder)
     load_checkpoint_weights(model, config.checkpoint_path)

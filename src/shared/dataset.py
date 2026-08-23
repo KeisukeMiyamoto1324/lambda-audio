@@ -9,6 +9,7 @@ from torch.utils.data import IterableDataset as TorchIterableDataset
 from torch.utils.data import get_worker_info
 
 from src.shared.config import BaseTrainingConfig
+from src.shared.environment import load_hf_token
 
 
 class ValidAudioExample:
@@ -96,6 +97,7 @@ def load_streaming_datasets(
         split="train",
         streaming=True,
         trust_remote_code=True,
+        token=load_hf_token(),
     )
     if not isinstance(dataset, IterableDataset):
         raise TypeError("A streaming IterableDataset is required.")
