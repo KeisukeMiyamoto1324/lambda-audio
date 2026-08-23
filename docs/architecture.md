@@ -33,3 +33,6 @@ Linear(768 → 1024)
 LayerNorm(1024)
   ↓
 音声特徴 [B, ceil(T/2), 1024]
+
+## Gated cross attention
+- 30Mと350Mにはどちらもfull_attention層が6個あるため、そのすべてに cross attention
