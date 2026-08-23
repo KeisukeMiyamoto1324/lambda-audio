@@ -1,6 +1,6 @@
 import torch
 
-from cross_attention import GatedCrossAttention
+from src.cross_attention import GatedCrossAttention
 
 
 def test_zero_gate_preserves_hidden_states() -> None:

@@ -1,3 +1,3 @@
-from lambda_audio import LambdaAudioModel
+from src.lambda_audio import LambdaAudioModel
 
 __all__ = ["LambdaAudioModel"]

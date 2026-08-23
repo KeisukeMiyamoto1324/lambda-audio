@@ -1,6 +1,6 @@
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
-from lfm2_decoder import (
+from src.lfm2_decoder import (
     AudioLfm2DecoderLayer,
     AudioLfm2ForCausalLM,
     add_cross_attention,
