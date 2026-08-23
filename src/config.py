@@ -20,7 +20,7 @@ class TrainingConfig:
     validation_batch_size: int = 2
     dataloader_workers: int = 4
     gradient_accumulation_steps: int = 8
-    mixed_precision: str = "bf16"
+    precision: str = "bf16-mixed"
     max_steps: int = 10_000
     warmup_steps: int = 500
     adapter_learning_rate: float = 1e-4

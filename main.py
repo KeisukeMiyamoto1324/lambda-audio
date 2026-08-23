@@ -2,9 +2,9 @@ import argparse
 from pathlib import Path
 from typing import cast
 
+import lightning as L
 import torch
-from accelerate import Accelerator
-from accelerate.utils import set_seed
+from lightning.pytorch.callbacks import ModelCheckpoint
 from transformers import (
     AutoFeatureExtractor,
     AutoModel,
@@ -14,12 +14,10 @@ from transformers import (
     SequenceFeatureExtractor,
 )
 
-from src.collator import AudioTextCollator
 from src.config import TrainingConfig
-from src.dataset import load_streaming_datasets
 from src.lambda_audio import LambdaAudioModel
 from src.lfm2_decoder import AudioLfm2ForCausalLM
-from src.training import create_dataloader, create_optimizer, create_scheduler, train
+from src.training import LambdaAudioDataModule, LambdaAudioLightningModule
 
 
 def parse_arguments() -> TrainingConfig:
@@ -28,13 +26,17 @@ def parse_arguments() -> TrainingConfig:
     parser.add_argument("--output-dir", type=Path, default=Path("outputs"))
     parser.add_argument("--initialization-checkpoint", type=Path)
     parser.add_argument("--dataset-config", default="tiny")
-    parser.add_argument("--train-batch-size", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--validation-batch-size", type=int, default=2)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=4)
-    parser.add_argument("--mixed-precision", choices=("bf16", "fp16"), default="bf16")
+    parser.add_argument(
+        "--precision",
+        choices=("bf16-mixed", "16-mixed"),
+        default="bf16-mixed",
+    )
     arguments = parser.parse_args()
 
     if arguments.stage == 2 and arguments.initialization_checkpoint is None:
@@ -47,24 +49,19 @@ def parse_arguments() -> TrainingConfig:
         output_dir=arguments.output_dir,
         initialization_checkpoint=arguments.initialization_checkpoint,
         dataset_config=arguments.dataset_config,
-        train_batch_size=arguments.train_batch_size,
+        train_batch_size=arguments.batch_size,
         validation_batch_size=arguments.validation_batch_size,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
-        mixed_precision=arguments.mixed_precision,
+        precision=arguments.precision,
     )
 
 
 def main() -> None:
     config = parse_arguments()
-    accelerator = Accelerator(
-        mixed_precision=config.mixed_precision,
-        gradient_accumulation_steps=config.gradient_accumulation_steps,
-        step_scheduler_with_optimizer=False,
-    )
-    if accelerator.device.type != "cuda":
+    if not torch.cuda.is_available():
         raise RuntimeError("Training requires an NVIDIA CUDA GPU.")
 
     # ---------------------------------------------------------
@@ -72,7 +69,7 @@ def main() -> None:
     # ---------------------------------------------------------
     torch.set_float32_matmul_precision("high")
     torch.backends.cuda.matmul.allow_tf32 = True
-    set_seed(config.seed)
+    L.seed_everything(config.seed, workers=True)
 
     feature_extractor = cast(
         SequenceFeatureExtractor,
@@ -96,14 +93,6 @@ def main() -> None:
     # ---------------------------------------------------------
     # Build each DDP stage separately so all trainable weights synchronize.
     # ---------------------------------------------------------
-    if config.initialization_checkpoint is not None:
-        state_dict = torch.load(
-            config.initialization_checkpoint,
-            map_location="cpu",
-            weights_only=True,
-        )
-        model.load_state_dict(state_dict, strict=True)
-
     model.set_backbones_trainable(config.stage == 2)
     model.decoder.config.use_cache = False
     if config.stage == 2:
@@ -111,45 +100,55 @@ def main() -> None:
             gradient_checkpointing_kwargs={"use_reentrant": False}
         )
 
-    training_dataset, validation_dataset = load_streaming_datasets(config)
-    collator = AudioTextCollator(
+    lightning_model = LambdaAudioLightningModule(model, config)
+    if config.initialization_checkpoint is not None:
+        checkpoint = torch.load(
+            config.initialization_checkpoint,
+            map_location="cpu",
+            weights_only=True,
+        )
+        lightning_model.load_state_dict(checkpoint["state_dict"], strict=True)
+
+    data_module = LambdaAudioDataModule(
         feature_extractor,
         tokenizer,
-        config.sampling_rate,
-        config.max_text_length,
-    )
-    training_dataloader = create_dataloader(
-        training_dataset,
-        collator,
-        config.train_batch_size,
         config,
     )
-    validation_dataloader = create_dataloader(
-        validation_dataset,
-        collator,
-        config.validation_batch_size,
-        config,
+    stage_directory = config.output_dir / f"stage-{config.stage}"
+    stage_directory.mkdir(parents=True, exist_ok=True)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=stage_directory,
+        filename="model",
+        every_n_train_steps=config.save_steps,
+        save_top_k=1,
+        save_weights_only=True,
+        save_on_train_epoch_end=False,
+        enable_version_counter=False,
     )
-    optimizer = create_optimizer(model, config)
-    scheduler = create_scheduler(optimizer, config)
-
-    model, optimizer, training_dataloader, validation_dataloader, scheduler = (
-        accelerator.prepare(
-            model,
-            optimizer,
-            training_dataloader,
-            validation_dataloader,
-            scheduler,
-        )
+    trainer = L.Trainer(
+        accelerator="gpu",
+        devices="auto",
+        strategy="auto",
+        precision=config.precision,
+        max_epochs=-1,
+        max_steps=config.max_steps,
+        callbacks=[checkpoint_callback],
+        logger=False,
+        accumulate_grad_batches=config.gradient_accumulation_steps,
+        gradient_clip_val=config.max_grad_norm,
+        log_every_n_steps=config.log_steps,
+        val_check_interval=config.evaluation_steps
+        * config.gradient_accumulation_steps,
+        check_val_every_n_epoch=None,
+        limit_val_batches=config.validation_batches,
+        num_sanity_val_steps=0,
+        use_distributed_sampler=False,
+        default_root_dir=config.output_dir,
     )
-    train(
-        model,
-        training_dataloader,
-        validation_dataloader,
-        optimizer,
-        scheduler,
-        accelerator,
-        config,
+    trainer.fit(lightning_model, datamodule=data_module)
+    trainer.save_checkpoint(
+        stage_directory / "model.ckpt",
+        weights_only=True,
     )
 
 

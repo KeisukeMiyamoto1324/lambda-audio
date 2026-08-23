@@ -1,6 +1,7 @@
 from typing import Any
 
 from datasets import IterableDataset, load_dataset
+from datasets.distributed import split_dataset_by_node
 
 from src.config import TrainingConfig
 
@@ -19,6 +20,8 @@ class ValidAudioExample:
 
 def load_streaming_datasets(
     config: TrainingConfig,
+    rank: int,
+    world_size: int,
 ) -> tuple[IterableDataset, IterableDataset]:
     # ---------------------------------------------------------
     # Stream and shuffle samples without storing the corpus locally.
@@ -45,5 +48,6 @@ def load_streaming_datasets(
     # ---------------------------------------------------------
     validation_dataset = dataset.take(config.validation_samples)
     training_dataset = dataset.skip(config.validation_samples)
+    training_dataset = split_dataset_by_node(training_dataset, rank, world_size)
 
     return training_dataset, validation_dataset

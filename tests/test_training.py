@@ -3,7 +3,7 @@ from pathlib import Path
 from torch import nn
 
 from src.config import TrainingConfig
-from src.training import create_optimizer
+from src.training import LambdaAudioLightningModule
 
 
 class DummyTrainingModel(nn.Module):
@@ -19,8 +19,9 @@ def test_optimizer_uses_separate_learning_rates() -> None:
         output_dir=Path("outputs"),
         initialization_checkpoint=Path("stage-1/model.pt"),
     )
-    optimizer = create_optimizer(DummyTrainingModel(), config)
-    learning_rates = {group["lr"] for group in optimizer.param_groups}
+    module = LambdaAudioLightningModule(DummyTrainingModel(), config)  # type: ignore[arg-type]
+    optimizer = module.configure_optimizers()["optimizer"]
+    learning_rates = {group["initial_lr"] for group in optimizer.param_groups}
 
     assert learning_rates == {
         config.adapter_learning_rate,
