@@ -29,19 +29,19 @@ def parse_arguments() -> Stage1Config:
         type=Path,
         default=Path("data/prepared/reazonspeech-tiny"),
     )
-    parser.add_argument("--max-batch-audio-seconds", type=float, default=240.0)
+    parser.add_argument("--max-batch-audio-seconds", type=float, default=480.0)
     parser.add_argument(
         "--validation-max-batch-audio-seconds",
         type=float,
         default=120.0,
     )
-    parser.add_argument("--max-batch-examples", type=int, default=64)
+    parser.add_argument("--max-batch-examples", type=int, default=128)
     parser.add_argument("--validation-max-batch-examples", type=int, default=64)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
     parser.add_argument("--bucket-window-size", type=int, default=256)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
-    parser.add_argument("--dataloader-workers", type=int, default=4)
+    parser.add_argument("--dataloader-workers", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--early-stopping-patience", type=int, default=5)
     arguments = parser.parse_args()
