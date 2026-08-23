@@ -1,3 +1,8 @@
+# LambdaAudio
+
+## Purpose
+日本語ASRモデルを構築する。
+
 ## Coding Style
 - For Python, comments may be written for each processing block (NOT line by line) in the following format:
 
