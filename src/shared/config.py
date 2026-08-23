@@ -5,7 +5,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class BaseTrainingConfig:
     output_dir: Path
-    data_dir: Path = Path("data/prepared/reazonspeech-tiny")
+    data_dir: Path = Path("data/prepared/reazonspeech-small")
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
     decoder_model_id: str = "LiquidAI/LFM2.5-230M-Base"
     sampling_rate: int = 16_000

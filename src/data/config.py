@@ -6,7 +6,7 @@ from pathlib import Path
 class DataPreparationConfig:
     output_dir: Path
     dataset_name: str = "reazon-research/reazonspeech"
-    dataset_config: str = "tiny"
+    dataset_config: str = "small"
     sampling_rate: int = 16_000
     max_audio_seconds: float = 30.0
     validation_samples: int = 256

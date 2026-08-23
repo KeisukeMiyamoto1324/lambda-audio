@@ -28,7 +28,7 @@ def parse_arguments() -> Stage2Config:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=Path("data/prepared/reazonspeech-tiny"),
+        default=Path("data/prepared/reazonspeech-small"),
     )
     parser.add_argument("--max-batch-audio-seconds", type=float, default=120.0)
     parser.add_argument(

@@ -43,10 +43,10 @@ def parse_arguments() -> DataPreparationConfig:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/prepared/reazonspeech-tiny"),
+        default=Path("data/prepared/reazonspeech-small"),
     )
     parser.add_argument("--dataset-name", default="reazon-research/reazonspeech")
-    parser.add_argument("--dataset-config", default="tiny")
+    parser.add_argument("--dataset-config", default="small")
     parser.add_argument("--sampling-rate", type=int, default=16_000)
     parser.add_argument("--max-audio-seconds", type=float, default=30.0)
     parser.add_argument("--validation-samples", type=int, default=256)
