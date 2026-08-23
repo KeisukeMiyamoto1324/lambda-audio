@@ -1,7 +1,11 @@
 # LambdaAudio
 
 ## Purpose
-日本語ASRモデルを構築する。
+- 日本語ASRモデルを構築する。
+- 以下のモデルを参考にする。
+  - OpenAI Whisper
+  - Cohere Transcribe
+
 
 ## Coding Style
 - For Python, comments may be written for each processing block (NOT line by line) in the following format:
