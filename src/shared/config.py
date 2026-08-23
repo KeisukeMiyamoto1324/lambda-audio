@@ -11,9 +11,11 @@ class BaseTrainingConfig:
     sampling_rate: int = 16_000
     max_audio_seconds: float = 30.0
     max_text_length: int = 256
-    train_batch_size: int = 2
-    validation_batch_size: int = 2
-    bucket_buffer_multiplier: int = 64
+    train_max_batch_audio_seconds: float = 240.0
+    validation_max_batch_audio_seconds: float = 120.0
+    train_max_batch_examples: int = 64
+    validation_max_batch_examples: int = 64
+    bucket_window_size: int = 256
     dataloader_workers: int = 4
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000

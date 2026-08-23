@@ -47,8 +47,12 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.training_sampler = LengthBucketBatchSampler(
             training_dataset["audio_length"],
             training_dataset["text_length"],
-            self.config.train_batch_size,
-            self.config.bucket_buffer_multiplier,
+            int(
+                self.config.train_max_batch_audio_seconds
+                * self.config.sampling_rate
+            ),
+            self.config.train_max_batch_examples,
+            self.config.bucket_window_size,
             self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,
@@ -57,8 +61,12 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_sampler = LengthBucketBatchSampler(
             validation_dataset["audio_length"],
             validation_dataset["text_length"],
-            self.config.validation_batch_size,
-            self.config.bucket_buffer_multiplier,
+            int(
+                self.config.validation_max_batch_audio_seconds
+                * self.config.sampling_rate
+            ),
+            self.config.validation_max_batch_examples,
+            self.config.bucket_window_size,
             self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,

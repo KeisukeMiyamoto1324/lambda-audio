@@ -3,3 +3,4 @@ __pycache__/
 venv/
 setup.sh
 data/prepared/
+**.png
