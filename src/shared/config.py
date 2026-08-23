@@ -26,4 +26,5 @@ class BaseTrainingConfig:
     evaluation_steps: int = 500
     save_steps: int = 500
     validation_batches: int = 32
+    early_stopping_patience: int = 5
     seed: int = 42

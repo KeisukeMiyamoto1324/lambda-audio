@@ -4,7 +4,7 @@ from typing import cast
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from transformers import (
     AutoFeatureExtractor,
     AutoModel,
@@ -32,6 +32,7 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--dataloader-workers", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--early-stopping-patience", type=int, default=5)
     arguments = parser.parse_args()
 
     if arguments.dataloader_workers < 1:
@@ -47,6 +48,7 @@ def parse_arguments() -> Stage1Config:
         warmup_steps=arguments.warmup_steps,
         dataloader_workers=arguments.dataloader_workers,
         learning_rate=arguments.learning_rate,
+        early_stopping_patience=arguments.early_stopping_patience,
     )
 
 
@@ -89,11 +91,18 @@ def main() -> None:
     checkpoint_callback = ModelCheckpoint(
         dirpath=config.output_dir,
         filename="model",
+        monitor="validation_loss",
+        mode="min",
         every_n_train_steps=config.save_steps,
         save_top_k=1,
         save_weights_only=True,
         save_on_train_epoch_end=False,
         enable_version_counter=False,
+    )
+    early_stopping_callback = EarlyStopping(
+        monitor="validation_loss",
+        mode="min",
+        patience=config.early_stopping_patience,
     )
     trainer = L.Trainer(
         accelerator="gpu",
@@ -102,7 +111,7 @@ def main() -> None:
         precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, early_stopping_callback],
         logger=False,
         accumulate_grad_batches=config.gradient_accumulation_steps,
         gradient_clip_val=config.max_grad_norm,
@@ -116,7 +125,6 @@ def main() -> None:
         default_root_dir=config.output_dir,
     )
     trainer.fit(lightning_model, datamodule=data_module)
-    trainer.save_checkpoint(config.output_dir / "model.ckpt", weights_only=True)
 
 
 if __name__ == "__main__":
