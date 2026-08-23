@@ -142,10 +142,7 @@ def main() -> None:
         default_root_dir=config.output_dir,
     )
 
-    # ---------------------------------------------------------
-    # Compile only the model after loading Stage 1 weights.
-    # ---------------------------------------------------------
-    lightning_model.model = torch.compile(lightning_model.model)
+    # lightning_model.model = torch.compile(lightning_model.model)
     trainer.fit(lightning_model, datamodule=data_module)
 
 
