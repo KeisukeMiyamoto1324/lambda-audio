@@ -13,6 +13,9 @@
 - NEVER write fallback logic, as it adds unnecessary complexity to the code.
 - Write main logic in main.py. Use str/ to organize architecture.
 
+## Scripts
+- Use scripts/ to write one time code. This folder should be use only when the user clearly ask for.
+
 ## Testing
 - Use pytest for testing your code. Write test code under tests/ directory.
 
