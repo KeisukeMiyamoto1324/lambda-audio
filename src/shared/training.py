@@ -103,7 +103,7 @@ class BaseLambdaAudioLightningModule(L.LightningModule):
             output.loss,
             on_step=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=False,
             batch_size=batch["input_ids"].shape[0],
         )
         return output.loss
