@@ -17,11 +17,15 @@ class ValidAudioExample:
         self.max_audio_samples = max_audio_samples
 
     def __call__(self, example: dict[str, Any]) -> bool:
-        audio = example["audio"]
         transcription = example["transcription"]
-        sample_count = len(audio["array"])
+        sample_count = len(example["audio_array"])
 
         return 0 < sample_count <= self.max_audio_samples and bool(transcription.strip())
+
+
+class PrepareAudioExample:
+    def __call__(self, example: dict[str, Any]) -> dict[str, Any]:
+        return {"audio_array": example["audio"]["array"]}
 
 
 class LengthBucketBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
@@ -65,7 +69,7 @@ class LengthBucketBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
         buffer: list[dict[str, Any]],
         random_generator: random.Random,
     ) -> Iterator[list[dict[str, Any]]]:
-        buffer.sort(key=lambda example: len(example["audio"]["array"]))
+        buffer.sort(key=lambda example: len(example["audio_array"]))
         batches: list[list[dict[str, Any]]] = []
 
         for start in range(0, len(buffer), self.audio_window_size):
@@ -103,6 +107,7 @@ def load_streaming_datasets(
         raise TypeError("A streaming IterableDataset is required.")
 
     max_audio_samples = int(config.sampling_rate * config.max_audio_seconds)
+    dataset = dataset.map(PrepareAudioExample())
     dataset = dataset.filter(ValidAudioExample(max_audio_samples))
     dataset = dataset.shuffle(
         seed=config.seed,

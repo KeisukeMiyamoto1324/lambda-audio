@@ -32,11 +32,11 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
     batch = collator(
         [
             {
-                "audio": {"array": np.ones(4, dtype=np.float32)},
+                "audio_array": np.ones(4, dtype=np.float32),
                 "transcription": "test test",
             },
             {
-                "audio": {"array": np.ones(2, dtype=np.float32)},
+                "audio_array": np.ones(2, dtype=np.float32),
                 "transcription": "test",
             },
         ]

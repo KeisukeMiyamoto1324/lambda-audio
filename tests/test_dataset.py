@@ -9,13 +9,13 @@ def test_valid_audio_example_checks_length_and_text() -> None:
 
     assert validator(
         {
-            "audio": {"array": np.ones(4, dtype=np.float32)},
+            "audio_array": np.ones(4, dtype=np.float32),
             "transcription": "音声",
         }
     )
     assert not validator(
         {
-            "audio": {"array": np.ones(5, dtype=np.float32)},
+            "audio_array": np.ones(5, dtype=np.float32),
             "transcription": "音声",
         }
     )
@@ -24,7 +24,7 @@ def test_valid_audio_example_checks_length_and_text() -> None:
 def test_length_bucket_batch_dataset_groups_audio_and_text_lengths() -> None:
     examples = [
         {
-            "audio": {"array": np.ones(audio_length, dtype=np.float32)},
+            "audio_array": np.ones(audio_length, dtype=np.float32),
             "transcription": "a" * text_length,
         }
         for audio_length, text_length in zip(

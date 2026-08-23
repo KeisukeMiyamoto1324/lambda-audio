@@ -24,7 +24,7 @@ class AudioTextCollator:
         # ---------------------------------------------------------
         # Pad raw audio and convert its attention mask to padding mask.
         # ---------------------------------------------------------
-        audio_arrays = [example["audio"]["array"] for example in examples]
+        audio_arrays = [example["audio_array"] for example in examples]
         audio_batch = self.feature_extractor(
             audio_arrays,
             sampling_rate=self.sampling_rate,
