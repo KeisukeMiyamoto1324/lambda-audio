@@ -25,7 +25,11 @@ def parse_arguments() -> Stage2Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--initialization-checkpoint", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage2"))
-    parser.add_argument("--dataset-config", default="tiny")
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("data/prepared/reazonspeech-tiny"),
+    )
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--validation-batch-size", type=int, default=2)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
@@ -46,7 +50,7 @@ def parse_arguments() -> Stage2Config:
     return Stage2Config(
         output_dir=arguments.output_dir,
         initialization_checkpoint=arguments.initialization_checkpoint,
-        dataset_config=arguments.dataset_config,
+        data_dir=arguments.data_dir,
         train_batch_size=arguments.batch_size,
         validation_batch_size=arguments.validation_batch_size,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,

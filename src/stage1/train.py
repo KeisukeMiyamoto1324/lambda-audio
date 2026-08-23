@@ -24,8 +24,12 @@ from src.stage1.training import Stage1LightningModule
 def parse_arguments() -> Stage1Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage1"))
-    parser.add_argument("--dataset-config", default="tiny")
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("data/prepared/reazonspeech-tiny"),
+    )
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--validation-batch-size", type=int, default=2)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
     parser.add_argument("--bucket-buffer-multiplier", type=int, default=64)
@@ -43,7 +47,7 @@ def parse_arguments() -> Stage1Config:
 
     return Stage1Config(
         output_dir=arguments.output_dir,
-        dataset_config=arguments.dataset_config,
+        data_dir=arguments.data_dir,
         train_batch_size=arguments.batch_size,
         validation_batch_size=arguments.validation_batch_size,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,

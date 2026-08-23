@@ -7,7 +7,11 @@ from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.shared.collator import AudioTextCollator
 from src.shared.config import BaseTrainingConfig
-from src.shared.dataset import LengthBucketBatchDataset, load_streaming_datasets
+from src.shared.dataset import (
+    LengthBucketBatchSampler,
+    PreparedAudioDataset,
+    load_prepared_datasets,
+)
 from src.shared.lambda_audio import LambdaAudioModel
 
 
@@ -26,38 +30,48 @@ class LambdaAudioDataModule(L.LightningDataModule):
             config.sampling_rate,
             config.max_text_length,
         )
-        self.training_dataset: LengthBucketBatchDataset | None = None
-        self.validation_dataset: LengthBucketBatchDataset | None = None
+        self.training_dataset: PreparedAudioDataset | None = None
+        self.validation_dataset: PreparedAudioDataset | None = None
+        self.training_sampler: LengthBucketBatchSampler | None = None
+        self.validation_sampler: LengthBucketBatchSampler | None = None
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
 
-        training_dataset, validation_dataset = load_streaming_datasets(
-            self.config,
-            self.trainer.global_rank,
-            self.trainer.world_size,
+        training_dataset, validation_dataset = load_prepared_datasets(
+            self.config.data_dir
         )
-        self.training_dataset = LengthBucketBatchDataset(
-            training_dataset,
+        self.training_dataset = PreparedAudioDataset(training_dataset)
+        self.validation_dataset = PreparedAudioDataset(validation_dataset)
+        self.training_sampler = LengthBucketBatchSampler(
+            training_dataset["audio_length"],
+            training_dataset["text_length"],
             self.config.train_batch_size,
             self.config.bucket_buffer_multiplier,
             self.config.seed,
+            self.trainer.global_rank,
+            self.trainer.world_size,
+            shuffle=True,
         )
-        self.validation_dataset = LengthBucketBatchDataset(
-            validation_dataset,
+        self.validation_sampler = LengthBucketBatchSampler(
+            validation_dataset["audio_length"],
+            validation_dataset["text_length"],
             self.config.validation_batch_size,
             self.config.bucket_buffer_multiplier,
             self.config.seed,
+            self.trainer.global_rank,
+            self.trainer.world_size,
+            shuffle=False,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
-        if self.training_dataset is None:
+        if self.training_dataset is None or self.training_sampler is None:
             raise RuntimeError("Training dataset is not initialized.")
 
         return DataLoader(
             self.training_dataset,
-            batch_size=None,
+            batch_sampler=self.training_sampler,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
             pin_memory=True,
@@ -65,12 +79,12 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
-        if self.validation_dataset is None:
+        if self.validation_dataset is None or self.validation_sampler is None:
             raise RuntimeError("Validation dataset is not initialized.")
 
         return DataLoader(
             self.validation_dataset,
-            batch_size=None,
+            batch_sampler=self.validation_sampler,
             collate_fn=self.collator,
             num_workers=self.config.dataloader_workers,
             pin_memory=True,
@@ -78,9 +92,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
 
     def set_epoch(self, epoch: int) -> None:
-        if self.training_dataset is None:
+        if self.training_sampler is None:
             raise RuntimeError("Training dataset is not initialized.")
-        self.training_dataset.set_epoch(epoch)
+        self.training_sampler.set_epoch(epoch)
 
 
 class BaseLambdaAudioLightningModule(L.LightningModule):

@@ -5,15 +5,12 @@ from pathlib import Path
 @dataclass(frozen=True)
 class BaseTrainingConfig:
     output_dir: Path
-    dataset_name: str = "reazon-research/reazonspeech"
-    dataset_config: str = "tiny"
+    data_dir: Path = Path("data/prepared/reazonspeech-tiny")
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
     decoder_model_id: str = "LiquidAI/LFM2.5-230M-Base"
     sampling_rate: int = 16_000
     max_audio_seconds: float = 30.0
     max_text_length: int = 256
-    validation_samples: int = 256
-    shuffle_buffer_size: int = 10_000
     train_batch_size: int = 2
     validation_batch_size: int = 2
     bucket_buffer_multiplier: int = 64
