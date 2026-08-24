@@ -10,7 +10,7 @@ from transformers import (
     SequenceFeatureExtractor,
 )
 
-from src.encoders.zipformer import ZipformerModel
+from src.shared.zipformer import ZipformerModel
 from src.inference.config import InferenceConfig
 from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel

@@ -1,6 +1,6 @@
 import torch
 
-from src.encoders.zipformer.zipformer import CompactRelPositionalEncoding
+from src.shared.zipformer.zipformer import CompactRelPositionalEncoding
 
 
 def test_positional_encoding_recovers_from_meta_device() -> None:
