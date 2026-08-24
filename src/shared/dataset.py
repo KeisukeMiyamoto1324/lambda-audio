@@ -40,13 +40,11 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
         self,
         dataset: TranscribedAudioDataset,
         max_batch_audio_samples: int,
-        max_batch_examples: int,
         bucket_buffer_size: int,
         seed: int,
     ) -> None:
         self.dataset = dataset
         self.max_batch_audio_samples = max_batch_audio_samples
-        self.max_batch_examples = max_batch_examples
         self.bucket_buffer_size = bucket_buffer_size
         self.seed = seed
         self.epoch = multiprocessing.Value("q", 0)
@@ -84,9 +82,10 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
             if audio_samples > self.max_batch_audio_samples:
                 raise ValueError("An audio example exceeds the batch audio limit.")
 
-            if batch and (
-                batch_audio_samples + audio_samples > self.max_batch_audio_samples
-                or len(batch) >= self.max_batch_examples
+            if (
+                batch
+                and batch_audio_samples + audio_samples
+                > self.max_batch_audio_samples
             ):
                 batches.append(batch)
                 batch = []

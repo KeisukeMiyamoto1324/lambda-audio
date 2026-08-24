@@ -46,7 +46,7 @@ def create_transcribed_dataset(
     return TranscribedAudioDataset(source, path)
 
 
-def test_audio_batch_dataset_limits_audio_samples_and_examples(
+def test_audio_batch_dataset_limits_audio_samples(
     tmp_path: Path,
 ) -> None:
     source = create_transcribed_dataset(
@@ -58,7 +58,7 @@ def test_audio_batch_dataset_limits_audio_samples_and_examples(
             ("000/fourth", 4),
         ],
     )
-    dataset = AudioBatchDataset(source, 12, 2, 4, 42)
+    dataset = AudioBatchDataset(source, 12, 4, 42)
 
     batches = list(dataset)
 
@@ -82,7 +82,7 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
         for index, samples in enumerate(range(10, 522))
     ]
     source = create_transcribed_dataset(tmp_path / "metadata.sqlite3", examples)
-    dataset = AudioBatchDataset(source, 20_000, 32, 512, 42)
+    dataset = AudioBatchDataset(source, 20_000, 512, 42)
 
     batches = list(dataset)
     valid_samples = sum(
@@ -162,7 +162,7 @@ def test_audio_batch_dataset_rejects_oversized_audio(tmp_path: Path) -> None:
         tmp_path / "metadata.sqlite3",
         [("000/audio", 13)],
     )
-    dataset = AudioBatchDataset(source, 12, 2, 4, 42)
+    dataset = AudioBatchDataset(source, 12, 4, 42)
 
     with pytest.raises(ValueError, match="exceeds the batch audio limit"):
         list(dataset)

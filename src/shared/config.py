@@ -19,8 +19,6 @@ class BaseTrainingConfig:
     prefetch_factor: int = 2
     train_max_batch_audio_seconds: float = 240.0
     validation_max_batch_audio_seconds: float = 120.0
-    train_max_batch_examples: int = 64
-    validation_max_batch_examples: int = 64
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000
     warmup_steps: int = 500

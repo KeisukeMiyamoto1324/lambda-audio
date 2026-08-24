@@ -41,8 +41,6 @@ def parse_arguments() -> Stage2Config:
         type=float,
         default=60.0,
     )
-    parser.add_argument("--max-batch-examples", type=int, default=16)
-    parser.add_argument("--validation-max-batch-examples", type=int, default=16)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
@@ -55,10 +53,6 @@ def parse_arguments() -> Stage2Config:
         parser.error("--max-batch-audio-seconds must be positive.")
     if arguments.validation_max_batch_audio_seconds <= 0:
         parser.error("--validation-max-batch-audio-seconds must be positive.")
-    if arguments.max_batch_examples < 1:
-        parser.error("--max-batch-examples must be at least 1.")
-    if arguments.validation_max_batch_examples < 1:
-        parser.error("--validation-max-batch-examples must be at least 1.")
     if arguments.bucket_buffer_size < 1:
         parser.error("--bucket-buffer-size must be at least 1.")
     return Stage2Config(
@@ -72,8 +66,6 @@ def parse_arguments() -> Stage2Config:
         validation_max_batch_audio_seconds=(
             arguments.validation_max_batch_audio_seconds
         ),
-        train_max_batch_examples=arguments.max_batch_examples,
-        validation_max_batch_examples=arguments.validation_max_batch_examples,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,

@@ -68,7 +68,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
                 self.config.train_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
-            self.config.train_max_batch_examples,
             self.config.bucket_buffer_size,
             self.config.seed + self.trainer.global_rank,
         )
@@ -81,7 +80,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
                 self.config.validation_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
-            self.config.validation_max_batch_examples,
             self.config.bucket_buffer_size,
             self.config.seed + self.trainer.global_rank,
         )

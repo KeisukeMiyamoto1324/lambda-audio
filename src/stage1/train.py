@@ -34,14 +34,12 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument("--bucket-buffer-size", type=int, default=512)
     parser.add_argument("--num-workers", type=int, choices=range(4, 9), default=8)
     parser.add_argument("--prefetch-factor", type=int, choices=range(2, 5), default=2)
-    parser.add_argument("--max-batch-audio-seconds", type=float, default=720)
+    parser.add_argument("--max-batch-audio-seconds", type=float, default=128)
     parser.add_argument(
         "--validation-max-batch-audio-seconds",
         type=float,
         default=120.0,
     )
-    parser.add_argument("--max-batch-examples", type=int, default=128)
-    parser.add_argument("--validation-max-batch-examples", type=int, default=64)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
@@ -53,10 +51,6 @@ def parse_arguments() -> Stage1Config:
         parser.error("--max-batch-audio-seconds must be positive.")
     if arguments.validation_max_batch_audio_seconds <= 0:
         parser.error("--validation-max-batch-audio-seconds must be positive.")
-    if arguments.max_batch_examples < 1:
-        parser.error("--max-batch-examples must be at least 1.")
-    if arguments.validation_max_batch_examples < 1:
-        parser.error("--validation-max-batch-examples must be at least 1.")
     if arguments.bucket_buffer_size < 1:
         parser.error("--bucket-buffer-size must be at least 1.")
     return Stage1Config(
@@ -69,8 +63,6 @@ def parse_arguments() -> Stage1Config:
         validation_max_batch_audio_seconds=(
             arguments.validation_max_batch_audio_seconds
         ),
-        train_max_batch_examples=arguments.max_batch_examples,
-        validation_max_batch_examples=arguments.validation_max_batch_examples,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
