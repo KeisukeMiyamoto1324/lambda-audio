@@ -11,6 +11,7 @@ from src.inference.loader import (
     load_checkpoint_weights,
     select_device,
 )
+from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
 
 
@@ -93,7 +94,7 @@ def test_transcribe_generates_from_bos(
     audio_path = tmp_path / "audio.wav"
     config = InferenceConfig(
         checkpoint_path=tmp_path / "model.ckpt",
-        audio_path=audio_path,
+        input_dir=tmp_path,
     )
     model = DummyModel()
     monkeypatch.setattr(
@@ -107,6 +108,7 @@ def test_transcribe_generates_from_bos(
         DummyTokenizer(),  # type: ignore[arg-type]
         config,
         torch.device("cpu"),
+        audio_path,
     )
 
     assert transcription == "transcription"
@@ -121,7 +123,7 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
 ) -> None:
     config = InferenceConfig(
         checkpoint_path=tmp_path / "model.ckpt",
-        audio_path=tmp_path / "audio.wav",
+        input_dir=tmp_path,
     )
     monkeypatch.setattr(
         "src.inference.transcription.librosa.load",
@@ -138,4 +140,24 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
             DummyTokenizer(),  # type: ignore[arg-type]
             config,
             torch.device("cpu"),
+            tmp_path / "audio.wav",
         )
+
+
+def test_load_inference_samples_pairs_audio_and_reference(tmp_path: Path) -> None:
+    (tmp_path / "b.flac").touch()
+    (tmp_path / "b.txt").write_text("二\n", encoding="utf-8")
+    (tmp_path / "a.flac").touch()
+    (tmp_path / "a.txt").write_text("一\n", encoding="utf-8")
+
+    samples = load_inference_samples(tmp_path)
+
+    assert [sample.audio_path.name for sample in samples] == ["a.flac", "b.flac"]
+    assert [sample.reference for sample in samples] == ["一", "二"]
+
+
+def test_load_inference_samples_rejects_missing_reference(tmp_path: Path) -> None:
+    (tmp_path / "audio.flac").touch()
+
+    with pytest.raises(FileNotFoundError, match="audio.txt"):
+        load_inference_samples(tmp_path)

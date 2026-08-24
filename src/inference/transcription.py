@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import librosa
 import torch
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
@@ -12,12 +14,13 @@ def transcribe(
     tokenizer: PreTrainedTokenizerBase,
     config: InferenceConfig,
     device: torch.device,
+    audio_path: Path,
 ) -> str:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
     audio, sampling_rate = librosa.load(
-        config.audio_path,
+        audio_path,
         sr=config.sampling_rate,
         mono=True,
         dtype="float32",
