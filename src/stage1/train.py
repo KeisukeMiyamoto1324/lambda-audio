@@ -37,12 +37,12 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument(
         "--max-batch-padded-audio-seconds",
         type=float,
-        default=300.0,
+        default=1_400.0,
     )
     parser.add_argument(
         "--max-batch-attention-cost",
         type=int,
-        default=12_000_000,
+        default=56_000_000,
     )
     parser.add_argument(
         "--validation-max-batch-padded-audio-seconds",

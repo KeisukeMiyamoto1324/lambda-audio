@@ -18,9 +18,9 @@ class BaseTrainingConfig:
     num_workers: int = 8
     prefetch_factor: int = 2
     encoder_frame_samples: int = 320
-    train_max_batch_padded_audio_seconds: float = 300.0
+    train_max_batch_padded_audio_seconds: float = 1_400.0
     validation_max_batch_padded_audio_seconds: float = 120.0
-    train_max_batch_attention_cost: int = 12_000_000
+    train_max_batch_attention_cost: int = 56_000_000
     validation_max_batch_attention_cost: int = 12_000_000
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000
