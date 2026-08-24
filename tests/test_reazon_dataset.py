@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+import pytest
 import soundfile as sf
 from pytest import MonkeyPatch
 
@@ -27,6 +28,14 @@ def create_shard(path: Path, keys: list[str], sampling_rate: int = 16_000) -> No
             member = tarfile.TarInfo(f"{key}.flac")
             member.size = len(audio)
             archive.addfile(member, BytesIO(audio))
+
+
+def add_invalid_audio(path: Path, key: str) -> None:
+    audio = b"invalid flac"
+    member = tarfile.TarInfo(f"{key}.flac")
+    member.size = len(audio)
+    with tarfile.open(path, mode="a") as archive:
+        archive.addfile(member, BytesIO(audio))
 
 
 def install_download_stub(
@@ -167,3 +176,23 @@ def test_reazon_dataset_partitions_shards_between_ranks(
         "002/audio",
         "003/audio",
     }
+
+
+def test_reazon_dataset_skips_invalid_audio(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    remote = tmp_path / "remote"
+    shard_file = "data/000.tar"
+    create_shard(
+        remote / shard_file,
+        ["000/validation", "000/training"],
+    )
+    add_invalid_audio(remote / shard_file, "000/invalid")
+    install_download_stub(monkeypatch, remote, [])
+    dataset = create_dataset(tmp_path, [shard_file], split="train")
+
+    with pytest.warns(RuntimeWarning, match="Skipping invalid audio"):
+        keys = [example["__key__"] for example in dataset]
+
+    assert keys == ["000/training"]

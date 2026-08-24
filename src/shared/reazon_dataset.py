@@ -1,6 +1,7 @@
 import multiprocessing
 import random
 import tarfile
+import warnings
 from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from io import BytesIO
@@ -17,6 +18,10 @@ from src.shared.metadata import DATASET_ID, dataset_revision
 
 
 DatasetSplit = Literal["train", "validation"]
+
+
+class InvalidAudioError(RuntimeError):
+    pass
 
 
 def list_reazon_speech_shards(token: str, revision: str) -> list[str]:
@@ -168,10 +173,18 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
                 audio_file = archive.extractfile(member)
                 if audio_file is None:
                     raise RuntimeError(f"Unable to read {member.name}.")
-                audio_array = self._decode_audio(
-                    audio_file.read(),
-                    member.name,
-                )
+                try:
+                    audio_array = self._decode_audio(
+                        audio_file.read(),
+                        member.name,
+                    )
+                except InvalidAudioError:
+                    warnings.warn(
+                        f"Skipping invalid audio: {member.name}.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    continue
                 yield {
                     "__key__": member.name.removesuffix(".flac"),
                     "flac": {"array": audio_array},
@@ -187,12 +200,14 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
             with container:
                 stream = container.streams.audio[0]
                 if stream.sample_rate != self.sampling_rate:
-                    raise ValueError(
+                    raise InvalidAudioError(
                         f"Unexpected sampling rate in {member_name}: "
                         f"{stream.sample_rate}."
                     )
                 if stream.channels != 1:
-                    raise ValueError(f"Audio must be mono: {member_name}.")
+                    raise InvalidAudioError(
+                        f"Audio must be mono: {member_name}."
+                    )
                 resampler = AudioResampler(
                     format="fltp",
                     layout="mono",
@@ -207,13 +222,13 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
                     converted.to_ndarray()[0]
                     for converted in resampler.resample(None)
                 )
-        except av.FFmpegError as error:
-            raise RuntimeError(
+        except (av.FFmpegError, IndexError) as error:
+            raise InvalidAudioError(
                 f"Unable to decode FLAC audio: {member_name}."
             ) from error
 
         if not arrays:
-            raise ValueError(f"Audio is empty: {member_name}.")
+            raise InvalidAudioError(f"Audio is empty: {member_name}.")
         return np.concatenate(arrays).astype(np.float32, copy=False)
 
     def _shuffle_examples(
