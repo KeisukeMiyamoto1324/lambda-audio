@@ -1,11 +1,45 @@
 from collections.abc import Iterator
 from typing import Any, cast
 
-from datasets import IterableDataset, concatenate_datasets, load_dataset
+from datasets import IterableDataset, load_dataset
 from torch.utils.data import IterableDataset as TorchIterableDataset
 
 
 DATASET_ID = "litagin/reazon-speech-v2-clone"
+
+
+def metadata_key(example: dict[str, Any]) -> str:
+    file_name = cast(str, example["file_name"])
+    prefix = "data/"
+    suffix = ".flac"
+    if not file_name.startswith(prefix) or not file_name.endswith(suffix):
+        raise ValueError(f"Invalid metadata file name: {file_name}")
+    return file_name[len(prefix) : -len(suffix)]
+
+
+def join_audio_and_transcriptions(
+    audio_dataset: IterableDataset,
+    metadata_dataset: IterableDataset,
+) -> Iterator[dict[str, Any]]:
+    metadata_iterator = iter(metadata_dataset)
+    metadata_example = next(metadata_iterator, None)
+
+    for audio_example in audio_dataset:
+        audio_key = cast(str, audio_example["__key__"])
+        while (
+            metadata_example is not None
+            and metadata_key(metadata_example) < audio_key
+        ):
+            metadata_example = next(metadata_iterator, None)
+
+        if (
+            metadata_example is None
+            or metadata_key(metadata_example) != audio_key
+        ):
+            raise ValueError(f"Transcription not found for audio key: {audio_key}")
+
+        yield {**audio_example, **metadata_example}
+        metadata_example = next(metadata_iterator, None)
 
 
 class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
@@ -24,10 +58,6 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
         batch_audio_samples = 0
 
         for example in self.dataset:
-            expected_file_name = f"data/{example['__key__']}.flac"
-            if example["file_name"] != expected_file_name:
-                raise ValueError("Audio and transcription keys do not match.")
-
             audio_array = example["flac"]["array"]
             audio_samples = len(audio_array)
             if audio_samples > self.max_batch_audio_samples:
@@ -81,7 +111,13 @@ def load_reazon_speech_datasets(
             token=token,
         ),
     )
-    dataset = concatenate_datasets([audio_dataset, metadata_dataset], axis=1)
+    dataset = IterableDataset.from_generator(
+        join_audio_and_transcriptions,
+        gen_kwargs={
+            "audio_dataset": audio_dataset,
+            "metadata_dataset": metadata_dataset,
+        },
+    )
     validation_dataset = dataset.take(validation_samples)
     training_dataset = dataset.skip(validation_samples).shuffle(
         seed=seed,

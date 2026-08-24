@@ -5,7 +5,11 @@ import pytest
 from datasets import IterableDataset
 from pytest import MonkeyPatch
 
-from src.shared.dataset import AudioBatchDataset, load_reazon_speech_datasets
+from src.shared.dataset import (
+    AudioBatchDataset,
+    join_audio_and_transcriptions,
+    load_reazon_speech_datasets,
+)
 
 
 def create_example(key: str, audio_samples: int) -> dict[str, Any]:
@@ -44,14 +48,44 @@ def test_audio_batch_dataset_limits_audio_samples_and_examples() -> None:
     assert batches[0][0]["transcription"] == "音声"
 
 
-def test_audio_batch_dataset_rejects_mismatched_keys() -> None:
-    example = create_example("000/audio", 4)
-    example["file_name"] = "data/000/text.flac"
-    source = IterableDataset.from_generator(lambda: iter([example]))
-    dataset = AudioBatchDataset(source, 4, 1)
+def test_join_audio_and_transcriptions_uses_keys_and_skips_duplicates() -> None:
+    audio_dataset = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                {"__key__": "000/first", "flac": {"array": [1]}},
+                {"__key__": "000/second", "flac": {"array": [2]}},
+            ]
+        )
+    )
+    metadata_dataset = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                {"file_name": "data/000/first.flac", "transcription": "一"},
+                {"file_name": "data/000/first.flac", "transcription": "重複"},
+                {"file_name": "data/000/second.flac", "transcription": "二"},
+            ]
+        )
+    )
 
-    with pytest.raises(ValueError, match="keys do not match"):
-        list(dataset)
+    examples = list(
+        join_audio_and_transcriptions(audio_dataset, metadata_dataset)
+    )
+
+    assert [example["transcription"] for example in examples] == ["一", "二"]
+
+
+def test_join_audio_and_transcriptions_rejects_missing_transcription() -> None:
+    audio_dataset = IterableDataset.from_generator(
+        lambda: iter([{"__key__": "000/audio", "flac": {"array": [1]}}])
+    )
+    metadata_dataset = IterableDataset.from_generator(
+        lambda: iter(
+            [{"file_name": "data/000/text.flac", "transcription": "文字"}]
+        )
+    )
+
+    with pytest.raises(ValueError, match="Transcription not found"):
+        list(join_audio_and_transcriptions(audio_dataset, metadata_dataset))
 
 
 def test_load_reazon_speech_datasets_joins_and_splits_rows(
