@@ -14,7 +14,9 @@
 
 
 ## データセット
-- reazon-research/reazonspeech (https://huggingface.co/datasets/reazon-research/reazonspeech?utm_source=chatgpt.com)
+- litagin/reazon-speech-v2-clone
+  - https://huggingface.co/datasets/litagin/reazon-speech-v2-clone
+  - 学習時にストリーミングで直接読み込む
 
 
 ## ベースモデル

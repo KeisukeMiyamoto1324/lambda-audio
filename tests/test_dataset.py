@@ -1,65 +1,102 @@
-from src.shared.dataset import LengthBucketBatchSampler
+from typing import Any
+
+import numpy as np
+import pytest
+from datasets import IterableDataset
+from pytest import MonkeyPatch
+
+from src.shared.dataset import AudioBatchDataset, load_reazon_speech_datasets
 
 
-def test_length_bucket_batch_sampler_limits_total_audio_samples() -> None:
-    audio_lengths = [8, 8, 4, 4, 4]
-    text_lengths = [8, 8, 4, 4, 4]
-    sampler = LengthBucketBatchSampler(
-        audio_lengths,
-        text_lengths,
-        max_batch_audio_samples=12,
-        max_batch_examples=4,
-        bucket_window_size=5,
-        seed=42,
-        rank=0,
-        world_size=1,
-        shuffle=False,
-    )
-
-    batches = list(sampler)
-
-    assert [len(batch) for batch in batches] == [3, 1, 1]
-    assert all(
-        sum(audio_lengths[index] for index in batch) <= 12 for batch in batches
-    )
-    assert len(sampler) == 3
+def create_example(key: str, audio_samples: int) -> dict[str, Any]:
+    return {
+        "__key__": key,
+        "file_name": f"data/{key}.flac",
+        "flac": {"array": np.ones(audio_samples, dtype=np.float32)},
+        "transcription": " 音声 ",
+    }
 
 
-def test_length_bucket_batch_sampler_partitions_distributed_samples() -> None:
-    samplers = [
-        LengthBucketBatchSampler(
-            [4] * 8,
-            list(range(8)),
-            max_batch_audio_samples=8,
-            max_batch_examples=2,
-            bucket_window_size=8,
-            seed=42,
-            rank=rank,
-            world_size=2,
-            shuffle=False,
+def test_audio_batch_dataset_limits_audio_samples_and_examples() -> None:
+    source = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                create_example("000/first", 8),
+                create_example("000/second", 8),
+                create_example("000/third", 4),
+                create_example("000/fourth", 4),
+            ]
         )
-        for rank in range(2)
-    ]
-
-    rank_indices = [
-        {index for batch in sampler for index in batch} for sampler in samplers
-    ]
-
-    assert rank_indices[0] == {0, 1, 4, 5}
-    assert rank_indices[1] == {2, 3, 6, 7}
-
-
-def test_length_bucket_batch_sampler_limits_example_count() -> None:
-    sampler = LengthBucketBatchSampler(
-        [1] * 10,
-        list(range(10)),
-        max_batch_audio_samples=100,
-        max_batch_examples=3,
-        bucket_window_size=10,
-        seed=42,
-        rank=0,
-        world_size=1,
-        shuffle=False,
+    )
+    dataset = AudioBatchDataset(
+        source,
+        max_batch_audio_samples=12,
+        max_batch_examples=2,
     )
 
-    assert [len(batch) for batch in sampler] == [3, 3, 3, 1]
+    batches = list(dataset)
+
+    assert [len(batch) for batch in batches] == [1, 2, 1]
+    assert all(
+        sum(len(example["audio_array"]) for example in batch) <= 12
+        for batch in batches
+    )
+    assert batches[0][0]["transcription"] == "音声"
+
+
+def test_audio_batch_dataset_rejects_mismatched_keys() -> None:
+    example = create_example("000/audio", 4)
+    example["file_name"] = "data/000/text.flac"
+    source = IterableDataset.from_generator(lambda: iter([example]))
+    dataset = AudioBatchDataset(source, 4, 1)
+
+    with pytest.raises(ValueError, match="keys do not match"):
+        list(dataset)
+
+
+def test_load_reazon_speech_datasets_joins_and_splits_rows(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    audio_dataset = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                {"__key__": "000/first", "flac": {"array": [1]}},
+                {"__key__": "000/second", "flac": {"array": [2]}},
+                {"__key__": "000/third", "flac": {"array": [3]}},
+            ]
+        )
+    )
+    metadata_dataset = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                {
+                    "file_name": "data/000/first.flac",
+                    "transcription": "一",
+                },
+                {
+                    "file_name": "data/000/second.flac",
+                    "transcription": "二",
+                },
+                {
+                    "file_name": "data/000/third.flac",
+                    "transcription": "三",
+                },
+            ]
+        )
+    )
+    datasets = iter([audio_dataset, metadata_dataset])
+
+    def load_dataset_stub(*args: Any, **kwargs: Any) -> IterableDataset:
+        return next(datasets)
+
+    monkeypatch.setattr("src.shared.dataset.load_dataset", load_dataset_stub)
+
+    training, validation = load_reazon_speech_datasets(
+        token="token",
+        validation_samples=1,
+        shuffle_buffer_size=2,
+        seed=42,
+    )
+
+    assert [example["transcription"] for example in validation] == ["一"]
+    assert {example["transcription"] for example in training} == {"二", "三"}

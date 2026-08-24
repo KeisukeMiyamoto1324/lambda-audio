@@ -24,11 +24,6 @@ from src.stage1.training import Stage1LightningModule
 def parse_arguments() -> Stage1Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage1"))
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("data/prepared/reazonspeech-small"),
-    )
     parser.add_argument("--max-batch-audio-seconds", type=float, default=720)
     parser.add_argument(
         "--validation-max-batch-audio-seconds",
@@ -38,19 +33,12 @@ def parse_arguments() -> Stage1Config:
     parser.add_argument("--max-batch-examples", type=int, default=128)
     parser.add_argument("--validation-max-batch-examples", type=int, default=64)
     parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
-    parser.add_argument("--bucket-window-size", type=int, default=256)
     parser.add_argument("--max-steps", type=int, default=10_000)
     parser.add_argument("--warmup-steps", type=int, default=500)
-    parser.add_argument("--dataloader-workers", type=int, default=64)
-    parser.add_argument("--prefetch-factor", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--early-stopping-patience", type=int, default=5)
     arguments = parser.parse_args()
 
-    if arguments.dataloader_workers < 1:
-        parser.error("--dataloader-workers must be at least 1.")
-    if arguments.prefetch_factor < 1:
-        parser.error("--prefetch-factor must be at least 1.")
     if arguments.max_batch_audio_seconds <= 0:
         parser.error("--max-batch-audio-seconds must be positive.")
     if arguments.validation_max_batch_audio_seconds <= 0:
@@ -59,12 +47,8 @@ def parse_arguments() -> Stage1Config:
         parser.error("--max-batch-examples must be at least 1.")
     if arguments.validation_max_batch_examples < 1:
         parser.error("--validation-max-batch-examples must be at least 1.")
-    if arguments.bucket_window_size < 1:
-        parser.error("--bucket-window-size must be at least 1.")
-
     return Stage1Config(
         output_dir=arguments.output_dir,
-        data_dir=arguments.data_dir,
         train_max_batch_audio_seconds=arguments.max_batch_audio_seconds,
         validation_max_batch_audio_seconds=(
             arguments.validation_max_batch_audio_seconds
@@ -72,11 +56,8 @@ def parse_arguments() -> Stage1Config:
         train_max_batch_examples=arguments.max_batch_examples,
         validation_max_batch_examples=arguments.validation_max_batch_examples,
         gradient_accumulation_steps=arguments.gradient_accumulation_steps,
-        bucket_window_size=arguments.bucket_window_size,
         max_steps=arguments.max_steps,
         warmup_steps=arguments.warmup_steps,
-        dataloader_workers=arguments.dataloader_workers,
-        prefetch_factor=arguments.prefetch_factor,
         learning_rate=arguments.learning_rate,
         early_stopping_patience=arguments.early_stopping_patience,
     )

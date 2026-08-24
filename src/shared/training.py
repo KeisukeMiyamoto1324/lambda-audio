@@ -2,16 +2,17 @@ from typing import Any
 
 import lightning as L
 import torch
+from datasets.distributed import split_dataset_by_node
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.shared.collator import AudioTextCollator
 from src.shared.config import BaseTrainingConfig
 from src.shared.dataset import (
-    LengthBucketBatchSampler,
-    PreparedAudioDataset,
-    load_prepared_datasets,
+    AudioBatchDataset,
+    load_reazon_speech_datasets,
 )
+from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 
 
@@ -30,81 +31,72 @@ class LambdaAudioDataModule(L.LightningDataModule):
             config.sampling_rate,
             config.max_text_length,
         )
-        self.training_dataset: PreparedAudioDataset | None = None
-        self.validation_dataset: PreparedAudioDataset | None = None
-        self.training_sampler: LengthBucketBatchSampler | None = None
-        self.validation_sampler: LengthBucketBatchSampler | None = None
+        self.training_dataset: AudioBatchDataset | None = None
+        self.validation_dataset: AudioBatchDataset | None = None
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
 
-        training_dataset, validation_dataset = load_prepared_datasets(
-            self.config.data_dir
+        training_dataset, validation_dataset = load_reazon_speech_datasets(
+            load_hf_token(),
+            self.config.validation_samples,
+            self.config.shuffle_buffer_size,
+            self.config.seed,
         )
-        self.training_dataset = PreparedAudioDataset(training_dataset)
-        self.validation_dataset = PreparedAudioDataset(validation_dataset)
-        self.training_sampler = LengthBucketBatchSampler(
-            training_dataset["audio_length"],
-            training_dataset["text_length"],
+        training_dataset = split_dataset_by_node(
+            training_dataset,
+            rank=self.trainer.global_rank,
+            world_size=self.trainer.world_size,
+        )
+        validation_dataset = split_dataset_by_node(
+            validation_dataset,
+            rank=self.trainer.global_rank,
+            world_size=self.trainer.world_size,
+        )
+        self.training_dataset = AudioBatchDataset(
+            training_dataset,
             int(
                 self.config.train_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
             self.config.train_max_batch_examples,
-            self.config.bucket_window_size,
-            self.config.seed,
-            self.trainer.global_rank,
-            self.trainer.world_size,
-            shuffle=True,
         )
-        self.validation_sampler = LengthBucketBatchSampler(
-            validation_dataset["audio_length"],
-            validation_dataset["text_length"],
+        self.validation_dataset = AudioBatchDataset(
+            validation_dataset,
             int(
                 self.config.validation_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
             self.config.validation_max_batch_examples,
-            self.config.bucket_window_size,
-            self.config.seed,
-            self.trainer.global_rank,
-            self.trainer.world_size,
-            shuffle=False,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
-        if self.training_dataset is None or self.training_sampler is None:
+        if self.training_dataset is None:
             raise RuntimeError("Training dataset is not initialized.")
 
         return DataLoader(
             self.training_dataset,
-            batch_sampler=self.training_sampler,
+            batch_size=None,
             collate_fn=self.collator,
-            num_workers=self.config.dataloader_workers,
-            prefetch_factor=self.config.prefetch_factor,
             pin_memory=True,
-            persistent_workers=True,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
-        if self.validation_dataset is None or self.validation_sampler is None:
+        if self.validation_dataset is None:
             raise RuntimeError("Validation dataset is not initialized.")
 
         return DataLoader(
             self.validation_dataset,
-            batch_sampler=self.validation_sampler,
+            batch_size=None,
             collate_fn=self.collator,
-            num_workers=self.config.dataloader_workers,
-            prefetch_factor=self.config.prefetch_factor,
             pin_memory=True,
-            persistent_workers=True,
         )
 
     def set_epoch(self, epoch: int) -> None:
-        if self.training_sampler is None:
+        if self.training_dataset is None:
             raise RuntimeError("Training dataset is not initialized.")
-        self.training_sampler.set_epoch(epoch)
+        self.training_dataset.set_epoch(epoch)
 
 
 class BaseLambdaAudioLightningModule(L.LightningModule):
