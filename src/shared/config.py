@@ -8,6 +8,7 @@ class BaseTrainingConfig:
     metadata_index_path: Path = Path(
         "outputs/datasets/reazon-speech-v2-metadata.sqlite3"
     )
+    shard_cache_dir: Path = Path("outputs/datasets/reazon-speech-v2-shards")
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
     decoder_model_id: str = "LiquidAI/LFM2.5-230M-Base"
     sampling_rate: int = 16_000

@@ -2,18 +2,23 @@ import multiprocessing
 import random
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
-from datasets import IterableDataset, load_dataset
 from torch.utils.data import IterableDataset as TorchIterableDataset, get_worker_info
 
-from src.shared.metadata import DATASET_ID, MetadataReader
+from src.shared.metadata import MetadataReader
+
+
+class EpochAudioDataset(Protocol):
+    def __iter__(self) -> Iterator[dict[str, Any]]: ...
+
+    def set_epoch(self, epoch: int) -> None: ...
 
 
 class TranscribedAudioDataset(TorchIterableDataset[dict[str, Any]]):
     def __init__(
         self,
-        dataset: IterableDataset,
+        dataset: EpochAudioDataset,
         metadata_index_path: Path,
     ) -> None:
         self.dataset = dataset
@@ -69,23 +74,36 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
         worker = get_worker_info()
         worker_id = 0 if worker is None else worker.id
         generator = random.Random(self.seed + epoch + worker_id)
+        source = iter(self.dataset)
         window: list[dict[str, Any]] = []
+        source_exhausted = self._fill_window(
+            window,
+            source,
+            self.bucket_buffer_size,
+        )
 
-        for example in self.dataset:
-            window.append(example)
-            if len(window) < self.bucket_buffer_size:
-                continue
-            yield from self._batch_window(window, generator)
-            window = []
+        while window:
+            batches = self._create_batches(window, generator)
+            next_window: list[dict[str, Any]] = []
+            for batch_index, batch in enumerate(batches, start=1):
+                yield batch
+                if source_exhausted:
+                    continue
+                refill_target = (
+                    batch_index * self.bucket_buffer_size // len(batches)
+                )
+                source_exhausted = self._fill_window(
+                    next_window,
+                    source,
+                    refill_target,
+                )
+            window = next_window
 
-        if window:
-            yield from self._batch_window(window, generator)
-
-    def _batch_window(
+    def _create_batches(
         self,
         window: list[dict[str, Any]],
         generator: random.Random,
-    ) -> Iterator[list[dict[str, Any]]]:
+    ) -> list[list[dict[str, Any]]]:
         window.sort(key=lambda example: len(example["audio_array"]))
         batches: list[list[dict[str, Any]]] = []
         batch: list[dict[str, Any]] = []
@@ -124,31 +142,21 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
             batches.append(batch)
 
         generator.shuffle(batches)
-        yield from batches
+        return batches
+
+    @staticmethod
+    def _fill_window(
+        window: list[dict[str, Any]],
+        source: Iterator[dict[str, Any]],
+        target_size: int,
+    ) -> bool:
+        while len(window) < target_size:
+            try:
+                window.append(next(source))
+            except StopIteration:
+                return True
+        return False
 
     def set_epoch(self, epoch: int) -> None:
         with self.epoch.get_lock():
             self.epoch.value = epoch
-
-
-def load_reazon_speech_datasets(
-    token: str,
-    validation_samples: int,
-    shuffle_buffer_size: int,
-    seed: int,
-) -> tuple[IterableDataset, IterableDataset]:
-    audio_dataset = cast(
-        IterableDataset,
-        load_dataset(
-            DATASET_ID,
-            split="train",
-            streaming=True,
-            token=token,
-        ),
-    )
-    validation_dataset = audio_dataset.take(validation_samples)
-    training_dataset = audio_dataset.skip(validation_samples).shuffle(
-        seed=seed,
-        buffer_size=shuffle_buffer_size,
-    )
-    return training_dataset, validation_dataset

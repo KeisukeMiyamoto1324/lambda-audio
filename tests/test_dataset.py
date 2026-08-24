@@ -4,13 +4,11 @@ from typing import Any
 import numpy as np
 import pytest
 from datasets import IterableDataset
-from pytest import MonkeyPatch
 from torch.utils.data import DataLoader
 
 from src.shared.dataset import (
     AudioBatchDataset,
     TranscribedAudioDataset,
-    load_reazon_speech_datasets,
 )
 from src.shared.metadata import create_metadata_index
 
@@ -142,6 +140,45 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
     assert padded_samples / valid_samples < 1.5
 
 
+def test_audio_batch_dataset_refills_between_ready_batches(
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "metadata.sqlite3"
+    examples = [(f"000/{index}", 4) for index in range(8)]
+    create_metadata_index(
+        [create_metadata_example(key, "音声") for key, _ in examples],
+        index_path,
+        revision="revision",
+    )
+    reads: list[str] = []
+
+    def generate() -> Any:
+        for key, samples in examples:
+            reads.append(key)
+            yield create_audio_example(key, samples)
+
+    source = TranscribedAudioDataset(
+        IterableDataset.from_generator(generate),
+        index_path,
+    )
+    dataset = AudioBatchDataset(
+        source,
+        max_batch_padded_audio_samples=8,
+        max_batch_attention_cost=1_000,
+        encoder_frame_samples=1,
+        bucket_buffer_size=4,
+        seed=42,
+    )
+    batches = iter(dataset)
+
+    next(batches)
+    assert len(reads) == 4
+    next(batches)
+    assert len(reads) == 6
+    next(batches)
+    assert len(reads) == 8
+
+
 def test_transcribed_dataset_preserves_worker_sharding(tmp_path: Path) -> None:
     keys = [f"{shard:03d}/{index}" for shard in range(4) for index in range(2)]
     index_path = tmp_path / "metadata.sqlite3"
@@ -167,38 +204,6 @@ def test_transcribed_dataset_preserves_worker_sharding(tmp_path: Path) -> None:
     transcriptions = [example["transcription"] for example in loader]
 
     assert sorted(transcriptions) == keys
-
-
-def test_load_reazon_speech_datasets_preserves_audio_shards(
-    monkeypatch: MonkeyPatch,
-) -> None:
-    audio_dataset = IterableDataset.from_generator(
-        lambda: iter(
-            [
-                create_audio_example("000/first", 1),
-                create_audio_example("000/second", 2),
-                create_audio_example("000/third", 3),
-            ]
-        )
-    )
-
-    def load_dataset_stub(*args: Any, **kwargs: Any) -> IterableDataset:
-        return audio_dataset
-
-    monkeypatch.setattr("src.shared.dataset.load_dataset", load_dataset_stub)
-
-    training, validation = load_reazon_speech_datasets(
-        token="token",
-        validation_samples=1,
-        shuffle_buffer_size=2,
-        seed=42,
-    )
-
-    assert [example["__key__"] for example in validation] == ["000/first"]
-    assert {example["__key__"] for example in training} == {
-        "000/second",
-        "000/third",
-    }
 
 
 def test_audio_batch_dataset_rejects_oversized_audio(tmp_path: Path) -> None:

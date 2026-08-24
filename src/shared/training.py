@@ -2,7 +2,6 @@ from typing import Any
 
 import lightning as L
 import torch
-from datasets.distributed import split_dataset_by_node
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
@@ -11,11 +10,11 @@ from src.shared.config import BaseTrainingConfig
 from src.shared.dataset import (
     AudioBatchDataset,
     TranscribedAudioDataset,
-    load_reazon_speech_datasets,
 )
 from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.metadata import prepare_metadata_index
+from src.shared.reazon_dataset import load_reazon_speech_datasets
 
 
 class LambdaAudioDataModule(L.LightningDataModule):
@@ -47,17 +46,11 @@ class LambdaAudioDataModule(L.LightningDataModule):
             load_hf_token(),
             self.config.validation_samples,
             self.config.shuffle_buffer_size,
+            self.config.sampling_rate,
+            self.config.shard_cache_dir,
             self.config.seed,
-        )
-        training_dataset = split_dataset_by_node(
-            training_dataset,
-            rank=self.trainer.global_rank,
-            world_size=self.trainer.world_size,
-        )
-        validation_dataset = split_dataset_by_node(
-            validation_dataset,
-            rank=self.trainer.global_rank,
-            world_size=self.trainer.world_size,
+            self.trainer.global_rank,
+            self.trainer.world_size,
         )
         self.training_dataset = AudioBatchDataset(
             TranscribedAudioDataset(
@@ -102,6 +95,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             num_workers=self.config.num_workers,
             persistent_workers=True,
             prefetch_factor=self.config.prefetch_factor,
+            in_order=False,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -116,6 +110,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             num_workers=self.config.num_workers,
             persistent_workers=True,
             prefetch_factor=self.config.prefetch_factor,
+            in_order=False,
         )
 
     def set_epoch(self, epoch: int) -> None:

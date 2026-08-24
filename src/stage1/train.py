@@ -31,6 +31,11 @@ def parse_arguments() -> Stage1Config:
         type=Path,
         default=Path("outputs/datasets/reazon-speech-v2-metadata.sqlite3"),
     )
+    parser.add_argument(
+        "--shard-cache-dir",
+        type=Path,
+        default=Path("outputs/datasets/reazon-speech-v2-shards"),
+    )
     parser.add_argument("--bucket-buffer-size", type=int, default=512)
     parser.add_argument("--num-workers", type=int, choices=range(4, 9), default=8)
     parser.add_argument("--prefetch-factor", type=int, choices=range(2, 5), default=2)
@@ -76,6 +81,7 @@ def parse_arguments() -> Stage1Config:
     return Stage1Config(
         output_dir=arguments.output_dir,
         metadata_index_path=arguments.metadata_index_path,
+        shard_cache_dir=arguments.shard_cache_dir,
         bucket_buffer_size=arguments.bucket_buffer_size,
         num_workers=arguments.num_workers,
         prefetch_factor=arguments.prefetch_factor,

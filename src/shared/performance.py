@@ -4,6 +4,9 @@ import lightning as L
 import torch
 
 
+DATA_STALL_SECONDS = 1.0
+
+
 def audio_batch_sizes(audio_padding_mask: torch.Tensor) -> tuple[int, int]:
     padded_samples = audio_padding_mask.numel()
     valid_samples = padded_samples - torch.count_nonzero(audio_padding_mask).item()
@@ -18,6 +21,8 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_valid_samples = 0
         self.window_padded_samples = 0
         self.window_data_time = 0.0
+        self.window_data_time_max = 0.0
+        self.window_data_stalls = 0
         self.window_batches = 0
         self.window_start_time = 0.0
         self.previous_batch_end_time = 0.0
@@ -40,7 +45,11 @@ class TrainingPerformanceMonitor(L.Callback):
         batch_idx: int,
     ) -> None:
         now = time.perf_counter()
-        self.window_data_time += now - self.previous_batch_end_time
+        data_time = now - self.previous_batch_end_time
+        self.window_data_time += data_time
+        self.window_data_time_max = max(self.window_data_time_max, data_time)
+        if data_time >= DATA_STALL_SECONDS:
+            self.window_data_stalls += 1
         valid_samples, padded_samples = audio_batch_sizes(
             batch["audio_padding_mask"]
         )
@@ -77,6 +86,8 @@ class TrainingPerformanceMonitor(L.Callback):
         elapsed_seconds = now - self.window_start_time
         metrics = {
             "data_time": self.window_data_time / self.window_batches,
+            "data_time_max": self.window_data_time_max,
+            "data_stalls": self.window_data_stalls,
             "gpu_step_time": gpu_seconds / self.window_batches,
             "padding_ratio": (
                 self.window_padded_samples / self.window_valid_samples
@@ -99,6 +110,8 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_valid_samples = 0
         self.window_padded_samples = 0
         self.window_data_time = 0.0
+        self.window_data_time_max = 0.0
+        self.window_data_stalls = 0
         self.window_batches = 0
         self.window_start_time = now
         self.previous_batch_end_time = now
