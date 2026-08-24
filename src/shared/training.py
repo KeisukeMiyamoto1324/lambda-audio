@@ -64,24 +64,30 @@ class LambdaAudioDataModule(L.LightningDataModule):
                 training_dataset,
                 self.config.metadata_index_path,
             ),
-            int(
-                self.config.train_max_batch_audio_seconds
+            max_batch_padded_audio_samples=int(
+                self.config.train_max_batch_padded_audio_seconds
                 * self.config.sampling_rate
             ),
-            self.config.bucket_buffer_size,
-            self.config.seed + self.trainer.global_rank,
+            max_batch_attention_cost=self.config.train_max_batch_attention_cost,
+            encoder_frame_samples=self.config.encoder_frame_samples,
+            bucket_buffer_size=self.config.bucket_buffer_size,
+            seed=self.config.seed + self.trainer.global_rank,
         )
         self.validation_dataset = AudioBatchDataset(
             TranscribedAudioDataset(
                 validation_dataset,
                 self.config.metadata_index_path,
             ),
-            int(
-                self.config.validation_max_batch_audio_seconds
+            max_batch_padded_audio_samples=int(
+                self.config.validation_max_batch_padded_audio_seconds
                 * self.config.sampling_rate
             ),
-            self.config.bucket_buffer_size,
-            self.config.seed + self.trainer.global_rank,
+            max_batch_attention_cost=(
+                self.config.validation_max_batch_attention_cost
+            ),
+            encoder_frame_samples=self.config.encoder_frame_samples,
+            bucket_buffer_size=self.config.bucket_buffer_size,
+            seed=self.config.seed + self.trainer.global_rank,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:

@@ -1,8 +1,21 @@
+import os
 from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from src.shared.environment import load_hf_token
+from src.shared.environment import (
+    CUDA_ALLOCATOR_CONFIGURATION,
+    configure_cuda_allocator,
+    load_hf_token,
+)
+
+
+def test_configure_cuda_allocator(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("PYTORCH_ALLOC_CONF", raising=False)
+
+    configure_cuda_allocator()
+
+    assert os.environ["PYTORCH_ALLOC_CONF"] == CUDA_ALLOCATOR_CONFIGURATION
 
 
 def test_load_hf_token_from_dotenv(

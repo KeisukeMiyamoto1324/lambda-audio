@@ -17,8 +17,11 @@ class BaseTrainingConfig:
     bucket_buffer_size: int = 512
     num_workers: int = 8
     prefetch_factor: int = 2
-    train_max_batch_audio_seconds: float = 240.0
-    validation_max_batch_audio_seconds: float = 120.0
+    encoder_frame_samples: int = 320
+    train_max_batch_padded_audio_seconds: float = 300.0
+    validation_max_batch_padded_audio_seconds: float = 120.0
+    train_max_batch_attention_cost: int = 12_000_000
+    validation_max_batch_attention_cost: int = 12_000_000
     gradient_accumulation_steps: int = 8
     max_steps: int = 10_000
     warmup_steps: int = 500
