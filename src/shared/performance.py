@@ -14,7 +14,6 @@ class TrainingPerformanceMonitor(L.Callback):
     def __init__(self, sampling_rate: int, log_steps: int) -> None:
         self.sampling_rate = sampling_rate
         self.log_steps = log_steps
-        self.pending_batch_sizes: list[tuple[int, int]] = []
         self.gpu_events: list[tuple[torch.cuda.Event, torch.cuda.Event]] = []
         self.window_valid_samples = 0
         self.window_padded_samples = 0
@@ -33,19 +32,6 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_start_time = now
         self.previous_batch_end_time = now
 
-    def on_before_batch_transfer(
-        self,
-        trainer: L.Trainer,
-        pl_module: L.LightningModule,
-        batch: dict[str, torch.Tensor],
-        dataloader_idx: int,
-    ) -> None:
-        if not pl_module.training:
-            return
-        self.pending_batch_sizes.append(
-            audio_batch_sizes(batch["audio_padding_mask"])
-        )
-
     def on_train_batch_start(
         self,
         trainer: L.Trainer,
@@ -55,7 +41,9 @@ class TrainingPerformanceMonitor(L.Callback):
     ) -> None:
         now = time.perf_counter()
         self.window_data_time += now - self.previous_batch_end_time
-        valid_samples, padded_samples = self.pending_batch_sizes.pop(0)
+        valid_samples, padded_samples = audio_batch_sizes(
+            batch["audio_padding_mask"]
+        )
         self.window_valid_samples += valid_samples
         self.window_padded_samples += padded_samples
         self.window_batches += 1
