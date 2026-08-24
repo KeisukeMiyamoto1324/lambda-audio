@@ -5,6 +5,7 @@ from typing import cast
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
+from lightning.pytorch.loggers import CSVLogger
 from transformers import (
     AutoFeatureExtractor,
     AutoTokenizer,
@@ -16,6 +17,7 @@ from src.shared.zipformer import ZipformerModel
 from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.lfm2_decoder import AudioLfm2ForCausalLM
+from src.shared.performance import TrainingPerformanceMonitor
 from src.shared.training import LambdaAudioDataModule
 from src.stage2.config import Stage2Config
 from src.stage2.training import Stage2LightningModule
@@ -25,6 +27,14 @@ def parse_arguments() -> Stage2Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--initialization-checkpoint", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage2"))
+    parser.add_argument(
+        "--metadata-index-path",
+        type=Path,
+        default=Path("outputs/datasets/reazon-speech-v2-metadata.sqlite3"),
+    )
+    parser.add_argument("--bucket-buffer-size", type=int, default=512)
+    parser.add_argument("--num-workers", type=int, choices=range(4, 9), default=8)
+    parser.add_argument("--prefetch-factor", type=int, choices=range(2, 5), default=2)
     parser.add_argument("--max-batch-audio-seconds", type=float, default=120.0)
     parser.add_argument(
         "--validation-max-batch-audio-seconds",
@@ -49,8 +59,14 @@ def parse_arguments() -> Stage2Config:
         parser.error("--max-batch-examples must be at least 1.")
     if arguments.validation_max_batch_examples < 1:
         parser.error("--validation-max-batch-examples must be at least 1.")
+    if arguments.bucket_buffer_size < 1:
+        parser.error("--bucket-buffer-size must be at least 1.")
     return Stage2Config(
         output_dir=arguments.output_dir,
+        metadata_index_path=arguments.metadata_index_path,
+        bucket_buffer_size=arguments.bucket_buffer_size,
+        num_workers=arguments.num_workers,
+        prefetch_factor=arguments.prefetch_factor,
         initialization_checkpoint=arguments.initialization_checkpoint,
         train_max_batch_audio_seconds=arguments.max_batch_audio_seconds,
         validation_max_batch_audio_seconds=(
@@ -128,6 +144,11 @@ def main() -> None:
         mode="min",
         patience=config.early_stopping_patience,
     )
+    performance_monitor = TrainingPerformanceMonitor(
+        config.sampling_rate,
+        config.log_steps,
+    )
+    logger = CSVLogger(config.output_dir, name="logs")
     trainer = L.Trainer(
         accelerator="gpu",
         devices="auto",
@@ -138,9 +159,10 @@ def main() -> None:
         callbacks=[
             checkpoint_callback,
             early_stopping_callback,
+            performance_monitor,
             TQDMProgressBar(),
         ],
-        logger=False,
+        logger=logger,
         accumulate_grad_batches=config.gradient_accumulation_steps,
         gradient_clip_val=config.max_grad_norm,
         log_every_n_steps=config.log_steps,

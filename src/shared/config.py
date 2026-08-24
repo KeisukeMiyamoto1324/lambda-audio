@@ -5,12 +5,18 @@ from pathlib import Path
 @dataclass(frozen=True)
 class BaseTrainingConfig:
     output_dir: Path
+    metadata_index_path: Path = Path(
+        "outputs/datasets/reazon-speech-v2-metadata.sqlite3"
+    )
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
     decoder_model_id: str = "LiquidAI/LFM2.5-230M-Base"
     sampling_rate: int = 16_000
     max_text_length: int = 256
     validation_samples: int = 256
     shuffle_buffer_size: int = 1_000
+    bucket_buffer_size: int = 512
+    num_workers: int = 8
+    prefetch_factor: int = 2
     train_max_batch_audio_seconds: float = 240.0
     validation_max_batch_audio_seconds: float = 120.0
     train_max_batch_examples: int = 64

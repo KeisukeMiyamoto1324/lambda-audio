@@ -1,65 +1,86 @@
+import multiprocessing
+import random
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, cast
 
 from datasets import IterableDataset, load_dataset
-from torch.utils.data import IterableDataset as TorchIterableDataset
+from torch.utils.data import IterableDataset as TorchIterableDataset, get_worker_info
+
+from src.shared.metadata import DATASET_ID, MetadataReader
 
 
-DATASET_ID = "litagin/reazon-speech-v2-clone"
+class TranscribedAudioDataset(TorchIterableDataset[dict[str, Any]]):
+    def __init__(
+        self,
+        dataset: IterableDataset,
+        metadata_index_path: Path,
+    ) -> None:
+        self.dataset = dataset
+        self.metadata_index_path = metadata_index_path
 
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        reader = MetadataReader(self.metadata_index_path)
+        try:
+            for example in self.dataset:
+                audio_key = cast(str, example["__key__"])
+                yield {
+                    "audio_array": example["flac"]["array"],
+                    "transcription": reader.transcription(audio_key),
+                }
+        finally:
+            reader.close()
 
-def metadata_key(example: dict[str, Any]) -> str:
-    file_name = cast(str, example["file_name"])
-    prefix = "data/"
-    suffix = ".flac"
-    if not file_name.startswith(prefix) or not file_name.endswith(suffix):
-        raise ValueError(f"Invalid metadata file name: {file_name}")
-    return file_name[len(prefix) : -len(suffix)]
-
-
-def join_audio_and_transcriptions(
-    audio_dataset: IterableDataset,
-    metadata_dataset: IterableDataset,
-) -> Iterator[dict[str, Any]]:
-    metadata_iterator = iter(metadata_dataset)
-    metadata_example = next(metadata_iterator, None)
-
-    for audio_example in audio_dataset:
-        audio_key = cast(str, audio_example["__key__"])
-        while (
-            metadata_example is not None
-            and metadata_key(metadata_example) < audio_key
-        ):
-            metadata_example = next(metadata_iterator, None)
-
-        if (
-            metadata_example is None
-            or metadata_key(metadata_example) != audio_key
-        ):
-            raise ValueError(f"Transcription not found for audio key: {audio_key}")
-
-        yield {**audio_example, **metadata_example}
-        metadata_example = next(metadata_iterator, None)
+    def set_epoch(self, epoch: int) -> None:
+        self.dataset.set_epoch(epoch)
 
 
 class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
     def __init__(
         self,
-        dataset: IterableDataset,
+        dataset: TranscribedAudioDataset,
         max_batch_audio_samples: int,
         max_batch_examples: int,
+        bucket_buffer_size: int,
+        seed: int,
     ) -> None:
         self.dataset = dataset
         self.max_batch_audio_samples = max_batch_audio_samples
         self.max_batch_examples = max_batch_examples
+        self.bucket_buffer_size = bucket_buffer_size
+        self.seed = seed
+        self.epoch = multiprocessing.Value("q", 0)
 
     def __iter__(self) -> Iterator[list[dict[str, Any]]]:
+        epoch = self.epoch.value
+        self.dataset.set_epoch(epoch)
+        worker = get_worker_info()
+        worker_id = 0 if worker is None else worker.id
+        generator = random.Random(self.seed + epoch + worker_id)
+        window: list[dict[str, Any]] = []
+
+        for example in self.dataset:
+            window.append(example)
+            if len(window) < self.bucket_buffer_size:
+                continue
+            yield from self._batch_window(window, generator)
+            window = []
+
+        if window:
+            yield from self._batch_window(window, generator)
+
+    def _batch_window(
+        self,
+        window: list[dict[str, Any]],
+        generator: random.Random,
+    ) -> Iterator[list[dict[str, Any]]]:
+        window.sort(key=lambda example: len(example["audio_array"]))
+        batches: list[list[dict[str, Any]]] = []
         batch: list[dict[str, Any]] = []
         batch_audio_samples = 0
 
-        for example in self.dataset:
-            audio_array = example["flac"]["array"]
-            audio_samples = len(audio_array)
+        for example in window:
+            audio_samples = len(example["audio_array"])
             if audio_samples > self.max_batch_audio_samples:
                 raise ValueError("An audio example exceeds the batch audio limit.")
 
@@ -67,23 +88,22 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
                 batch_audio_samples + audio_samples > self.max_batch_audio_samples
                 or len(batch) >= self.max_batch_examples
             ):
-                yield batch
+                batches.append(batch)
                 batch = []
                 batch_audio_samples = 0
 
-            batch.append(
-                {
-                    "audio_array": audio_array,
-                    "transcription": example["transcription"].strip(),
-                }
-            )
+            batch.append(example)
             batch_audio_samples += audio_samples
 
         if batch:
-            yield batch
+            batches.append(batch)
+
+        generator.shuffle(batches)
+        yield from batches
 
     def set_epoch(self, epoch: int) -> None:
-        self.dataset.set_epoch(epoch)
+        with self.epoch.get_lock():
+            self.epoch.value = epoch
 
 
 def load_reazon_speech_datasets(
@@ -101,25 +121,8 @@ def load_reazon_speech_datasets(
             token=token,
         ),
     )
-    metadata_dataset = cast(
-        IterableDataset,
-        load_dataset(
-            "csv",
-            data_files=f"hf://datasets/{DATASET_ID}/metadata.csv",
-            split="train",
-            streaming=True,
-            token=token,
-        ),
-    )
-    dataset = IterableDataset.from_generator(
-        join_audio_and_transcriptions,
-        gen_kwargs={
-            "audio_dataset": audio_dataset,
-            "metadata_dataset": metadata_dataset,
-        },
-    )
-    validation_dataset = dataset.take(validation_samples)
-    training_dataset = dataset.skip(validation_samples).shuffle(
+    validation_dataset = audio_dataset.take(validation_samples)
+    training_dataset = audio_dataset.skip(validation_samples).shuffle(
         seed=seed,
         buffer_size=shuffle_buffer_size,
     )

@@ -10,10 +10,12 @@ from src.shared.collator import AudioTextCollator
 from src.shared.config import BaseTrainingConfig
 from src.shared.dataset import (
     AudioBatchDataset,
+    TranscribedAudioDataset,
     load_reazon_speech_datasets,
 )
 from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
+from src.shared.metadata import prepare_metadata_index
 
 
 class LambdaAudioDataModule(L.LightningDataModule):
@@ -33,6 +35,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
         self.training_dataset: AudioBatchDataset | None = None
         self.validation_dataset: AudioBatchDataset | None = None
+
+    def prepare_data(self) -> None:
+        prepare_metadata_index(load_hf_token(), self.config.metadata_index_path)
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
@@ -55,20 +60,30 @@ class LambdaAudioDataModule(L.LightningDataModule):
             world_size=self.trainer.world_size,
         )
         self.training_dataset = AudioBatchDataset(
-            training_dataset,
+            TranscribedAudioDataset(
+                training_dataset,
+                self.config.metadata_index_path,
+            ),
             int(
                 self.config.train_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
             self.config.train_max_batch_examples,
+            self.config.bucket_buffer_size,
+            self.config.seed + self.trainer.global_rank,
         )
         self.validation_dataset = AudioBatchDataset(
-            validation_dataset,
+            TranscribedAudioDataset(
+                validation_dataset,
+                self.config.metadata_index_path,
+            ),
             int(
                 self.config.validation_max_batch_audio_seconds
                 * self.config.sampling_rate
             ),
             self.config.validation_max_batch_examples,
+            self.config.bucket_buffer_size,
+            self.config.seed + self.trainer.global_rank,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
@@ -80,6 +95,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
             batch_size=None,
             collate_fn=self.collator,
             pin_memory=True,
+            num_workers=self.config.num_workers,
+            persistent_workers=True,
+            prefetch_factor=self.config.prefetch_factor,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
@@ -91,6 +109,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
             batch_size=None,
             collate_fn=self.collator,
             pin_memory=True,
+            num_workers=self.config.num_workers,
+            persistent_workers=True,
+            prefetch_factor=self.config.prefetch_factor,
         )
 
     def set_epoch(self, epoch: int) -> None:
