@@ -88,6 +88,13 @@ class ZipformerModel(ZipformerPreTrainedModel):
         self.layer_norm = LayerNorm(self.embed)
         self.post_init()
 
+    def freeze_feature_extractor(self) -> None:
+        # ---------------------------------------------------------
+        # Keep pretrained waveform features fixed during fine-tuning.
+        # ---------------------------------------------------------
+        self.feature_extractor.requires_grad_(False)
+        self.feature_grad_mult = 0.0
+
     @classmethod
     def from_icefall_checkpoint(cls, checkpoint_path: os.PathLike, **kwargs):
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
