@@ -4,7 +4,7 @@ from typing import cast
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from transformers import (
     AutoFeatureExtractor,
@@ -17,7 +17,7 @@ from src.shared.zipformer import ZipformerModel
 from src.shared.environment import configure_cuda_allocator, load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.lfm2_decoder import AudioLfm2ForCausalLM
-from src.shared.performance import TrainingPerformanceMonitor
+from src.shared.performance import TrainingPerformanceMonitor, TrainingProgressBar
 from src.shared.training import LambdaAudioDataModule
 from src.stage1.config import Stage1Config
 from src.stage1.training import Stage1LightningModule
@@ -171,7 +171,7 @@ def main() -> None:
             checkpoint_callback,
             early_stopping_callback,
             performance_monitor,
-            TQDMProgressBar(),
+            TrainingProgressBar(),
         ],
         logger=logger,
         accumulate_grad_batches=config.gradient_accumulation_steps,

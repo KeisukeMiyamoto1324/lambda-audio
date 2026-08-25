@@ -2,9 +2,21 @@ import time
 
 import lightning as L
 import torch
+from lightning.pytorch.callbacks import TQDMProgressBar
 
 
 DATA_STALL_SECONDS = 1.0
+
+
+class TrainingProgressBar(TQDMProgressBar):
+    def get_metrics(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+    ) -> dict[str, int | str | float | dict[str, float]]:
+        metrics = super().get_metrics(trainer, pl_module)
+        metrics.pop("v_num", None)
+        return metrics
 
 
 def audio_batch_sizes(audio_padding_mask: torch.Tensor) -> tuple[int, int]:
@@ -101,7 +113,7 @@ class TrainingPerformanceMonitor(L.Callback):
                 name,
                 value,
                 on_step=True,
-                prog_bar=True,
+                prog_bar=False,
                 logger=True,
                 sync_dist=False,
             )
