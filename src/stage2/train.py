@@ -74,7 +74,7 @@ def parse_arguments() -> Stage2Config:
         type=int,
         default=12_000_000,
     )
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=204800)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--adapter-learning-rate", type=float, default=1e-5)
