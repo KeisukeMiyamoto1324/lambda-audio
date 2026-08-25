@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from typing import Any
 
 import torch
@@ -16,10 +17,12 @@ class LambdaAudioModel(nn.Module):
         encoder: PreTrainedModel,
         decoder: AudioLfm2ForCausalLM,
         encoder_hidden_size: int = 768,
+        encoder_full_precision: bool = False,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.encoder_full_precision = encoder_full_precision
         self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
         add_cross_attention(self.decoder)
 
@@ -31,10 +34,16 @@ class LambdaAudioModel(nn.Module):
         # ---------------------------------------------------------
         # Encode audio and create the mask for encoder output frames.
         # ---------------------------------------------------------
-        encoder_output = self.encoder(
-            input_values=input_values,
-            padding_mask=audio_padding_mask,
+        precision_context = (
+            torch.autocast(device_type=input_values.device.type, enabled=False)
+            if self.encoder_full_precision
+            else nullcontext()
         )
+        with precision_context:
+            encoder_output = self.encoder(
+                input_values=input_values,
+                padding_mask=audio_padding_mask,
+            )
         encoder_padding_mask = self.encoder.forward_padding_mask(
             encoder_output.last_hidden_state,
             audio_padding_mask,

@@ -25,7 +25,11 @@ from src.stage2.training import Stage2LightningModule
 
 def parse_arguments() -> Stage2Config:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--initialization-checkpoint", type=Path, required=True)
+    parser.add_argument(
+        "--initialization-checkpoint",
+        type=Path,
+        default=Path("outputs/lambda-audio-stage1/model.ckpt"),
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/stage2"))
     parser.add_argument(
         "--metadata-index-path",
@@ -38,17 +42,27 @@ def parse_arguments() -> Stage2Config:
         default=Path("outputs/datasets/reazon-speech-v2-shards"),
     )
     parser.add_argument("--bucket-buffer-size", type=int, default=512)
-    parser.add_argument("--num-workers", type=int, choices=range(4, 9), default=8)
-    parser.add_argument("--prefetch-factor", type=int, choices=range(2, 5), default=2)
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        choices=range(4, 33),
+        default=16,
+    )
+    parser.add_argument(
+        "--prefetch-factor",
+        type=int,
+        choices=range(2, 9),
+        default=4,
+    )
     parser.add_argument(
         "--max-batch-padded-audio-seconds",
         type=float,
-        default=1400.0,
+        default=800.0,
     )
     parser.add_argument(
         "--max-batch-attention-cost",
         type=int,
-        default=56_000_000,
+        default=32_000_000,
     )
     parser.add_argument(
         "--validation-max-batch-padded-audio-seconds",
@@ -60,7 +74,7 @@ def parse_arguments() -> Stage2Config:
         type=int,
         default=12_000_000,
     )
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=4)
     parser.add_argument("--max-steps", type=int, default=204800)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--adapter-learning-rate", type=float, default=1e-5)
@@ -136,7 +150,7 @@ def main() -> None:
         dtype=torch.float32,
         token=hf_token,
     )
-    model = LambdaAudioModel(encoder, decoder)
+    model = LambdaAudioModel(encoder, decoder, encoder_full_precision=True)
     model.set_backbones_trainable(True)
     model.decoder.config.use_cache = False
     model.decoder.gradient_checkpointing_enable(
@@ -200,7 +214,6 @@ def main() -> None:
         default_root_dir=config.output_dir,
     )
 
-    # lightning_model.model = torch.compile(lightning_model.model)
     trainer.fit(lightning_model, datamodule=data_module)
 
 
