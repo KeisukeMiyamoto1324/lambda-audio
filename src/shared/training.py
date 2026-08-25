@@ -15,6 +15,7 @@ from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.metadata import prepare_metadata_index
 from src.shared.reazon_dataset import load_reazon_speech_datasets
+from src.shared.zipformer.scaling import ScheduledFloat
 
 
 class LambdaAudioDataModule(L.LightningDataModule):
@@ -133,6 +134,11 @@ class BaseLambdaAudioLightningModule(L.LightningModule):
         output = self.model(**batch)
         if output.loss is None:
             raise RuntimeError("The model did not return training loss.")
+        if not torch.isfinite(output.loss):
+            raise FloatingPointError(
+                "Non-finite training loss at "
+                f"step={self.global_step}, batch={batch_idx}."
+            )
 
         self.log(
             "train_loss",
@@ -143,6 +149,47 @@ class BaseLambdaAudioLightningModule(L.LightningModule):
             batch_size=batch["input_ids"].shape[0],
         )
         return output.loss
+
+    def on_train_batch_start(
+        self,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        # ---------------------------------------------------------
+        # Advance the numerical schedules used inside Zipformer.
+        # ---------------------------------------------------------
+        for name, module in self.model.encoder.named_modules():
+            if isinstance(module, ScheduledFloat):
+                module.batch_count = self.global_step
+                module.name = f"encoder.{name}"
+
+    def on_before_optimizer_step(self, optimizer: torch.optim.Optimizer) -> None:
+        # ---------------------------------------------------------
+        # Reject non-finite gradients before they can corrupt weights.
+        # ---------------------------------------------------------
+        parameters = [
+            parameter
+            for parameter in self.model.parameters()
+            if parameter.grad is not None
+        ]
+        try:
+            torch.nn.utils.clip_grad_norm_(
+                parameters,
+                max_norm=float("inf"),
+                error_if_nonfinite=True,
+                foreach=True,
+            )
+        except RuntimeError as error:
+            for name, parameter in self.model.named_parameters():
+                if parameter.grad is None or torch.isfinite(parameter.grad).all():
+                    continue
+                raise FloatingPointError(
+                    "Non-finite gradient at "
+                    f"step={self.global_step}, parameter={name}."
+                ) from error
+            raise FloatingPointError(
+                f"Non-finite gradient norm at step={self.global_step}."
+            ) from error
 
     def validation_step(
         self,
