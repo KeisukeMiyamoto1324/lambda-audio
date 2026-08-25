@@ -61,6 +61,27 @@ def test_stage2_optimizer_uses_separate_learning_rates() -> None:
     }
 
 
+def test_stage2_optimizer_excludes_frozen_encoder() -> None:
+    config = Stage2Config(
+        output_dir=Path("outputs"),
+        initialization_checkpoint=Path("stage-1/model.pt"),
+    )
+    model = DummyTrainingModel()
+    model.encoder.requires_grad_(False)
+    module = Stage2LightningModule(model, config)  # type: ignore[arg-type]
+
+    optimizer = module.configure_optimizers()["optimizer"]
+    optimized_parameters = {
+        id(parameter)
+        for group in optimizer.param_groups
+        for parameter in group["params"]
+    }
+
+    assert not any(
+        id(parameter) in optimized_parameters for parameter in model.encoder.parameters()
+    )
+
+
 def test_training_step_updates_zipformer_schedules() -> None:
     config = Stage1Config(output_dir=Path("outputs"))
     model = DummyScheduledModel()

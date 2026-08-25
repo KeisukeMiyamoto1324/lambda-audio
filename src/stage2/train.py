@@ -152,7 +152,7 @@ def main() -> None:
     )
     model = LambdaAudioModel(encoder, decoder, encoder_full_precision=True)
     model.set_backbones_trainable(True)
-    encoder.freeze_feature_extractor()
+    encoder.requires_grad_(False)
     model.decoder.config.use_cache = False
     model.decoder.gradient_checkpointing_enable(
         gradient_checkpointing_kwargs={"use_reentrant": False}
