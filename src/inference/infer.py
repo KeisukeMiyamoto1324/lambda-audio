@@ -1,5 +1,8 @@
 import argparse
 from pathlib import Path
+from time import perf_counter
+
+import librosa
 
 from src.inference.config import InferenceConfig
 from src.inference.loader import load_components, select_device
@@ -35,6 +38,8 @@ def main() -> None:
     samples = load_inference_samples(config.input_dir)
 
     for index, sample in enumerate(samples, start=1):
+        audio_seconds = librosa.get_duration(path=sample.audio_path)
+        inference_start = perf_counter()
         prediction = transcribe(
             model,
             feature_extractor,
@@ -43,10 +48,11 @@ def main() -> None:
             device,
             sample.audio_path,
         )
+        inference_seconds = perf_counter() - inference_start
         print("-" * 72)
         print(f"[{index}/{len(samples)}] {sample.audio_path.name}")
-        print(f"正解: {sample.reference}")
-        print(f"推論: {prediction}")
+        print(f"正解({audio_seconds:.2g}秒): {sample.reference}")
+        print(f"推論({inference_seconds:.2g}秒): {prediction}")
 
 
 if __name__ == "__main__":
