@@ -57,12 +57,12 @@ def parse_arguments() -> Stage2Config:
     parser.add_argument(
         "--max-batch-padded-audio-seconds",
         type=float,
-        default=800.0,
+        default=1600.0,
     )
     parser.add_argument(
         "--max-batch-attention-cost",
         type=int,
-        default=32_000_000,
+        default=40_000_000,
     )
     parser.add_argument(
         "--validation-max-batch-padded-audio-seconds",
@@ -74,7 +74,7 @@ def parse_arguments() -> Stage2Config:
         type=int,
         default=12_000_000,
     )
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=4)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=2)
     parser.add_argument("--max-steps", type=int, default=204800)
     parser.add_argument("--warmup-steps", type=int, default=500)
     parser.add_argument("--adapter-learning-rate", type=float, default=1e-5)
