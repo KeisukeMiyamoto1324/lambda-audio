@@ -40,6 +40,28 @@ def list_reazon_speech_shards(token: str, revision: str) -> list[str]:
     return shards
 
 
+def prepare_reazon_speech_validation_shard(
+    token: str,
+    cache_dir: Path,
+) -> Path:
+    # ---------------------------------------------------------
+    # Materialize the fixed validation shard before workers start.
+    # ---------------------------------------------------------
+    revision = dataset_revision(token)
+    shard_file = list_reazon_speech_shards(token, revision)[0]
+    validation_cache = cache_dir / "validation"
+    validation_cache.mkdir(parents=True, exist_ok=True)
+    path = hf_hub_download(
+        repo_id=DATASET_ID,
+        filename=shard_file,
+        repo_type="dataset",
+        revision=revision,
+        token=token,
+        local_dir=validation_cache,
+    )
+    return Path(cast(str, path))
+
+
 class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
     def __init__(
         self,
@@ -139,12 +161,11 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
         worker_id, worker_count = self._worker_identity()
         consumer_index = self.global_rank * worker_count + worker_id
         consumer_count = self.world_size * worker_count
-        validation_cache = self.cache_dir / "validation"
-        validation_cache.mkdir(parents=True, exist_ok=True)
-        shard_path = self._download_shard(
-            self.shard_files[0],
-            validation_cache,
-        )
+        shard_path = self.cache_dir / "validation" / self.shard_files[0]
+        if not shard_path.is_file():
+            raise FileNotFoundError(
+                f"Prepared validation shard not found: {shard_path}"
+            )
 
         for position, example in enumerate(self._read_shard(shard_path)):
             if position >= self.validation_samples:

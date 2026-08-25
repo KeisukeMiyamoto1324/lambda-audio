@@ -14,7 +14,10 @@ from src.shared.dataset import (
 from src.shared.environment import load_hf_token
 from src.shared.lambda_audio import LambdaAudioModel
 from src.shared.metadata import prepare_metadata_index
-from src.shared.reazon_dataset import load_reazon_speech_datasets
+from src.shared.reazon_dataset import (
+    load_reazon_speech_datasets,
+    prepare_reazon_speech_validation_shard,
+)
 from src.shared.zipformer.scaling import ScheduledFloat
 
 
@@ -37,7 +40,12 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
-        prepare_metadata_index(load_hf_token(), self.config.metadata_index_path)
+        token = load_hf_token()
+        prepare_metadata_index(token, self.config.metadata_index_path)
+        prepare_reazon_speech_validation_shard(
+            token,
+            self.config.shard_cache_dir,
+        )
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):

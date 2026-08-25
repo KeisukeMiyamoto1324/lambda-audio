@@ -10,7 +10,10 @@ import pytest
 import soundfile as sf
 from pytest import MonkeyPatch
 
-from src.shared.reazon_dataset import ReazonSpeechShardDataset
+from src.shared.reazon_dataset import (
+    ReazonSpeechShardDataset,
+    prepare_reazon_speech_validation_shard,
+)
 
 
 def create_shard(path: Path, keys: list[str], sampling_rate: int = 16_000) -> None:
@@ -96,10 +99,14 @@ def test_reazon_dataset_separates_training_and_validation(
     shard_files = ["data/000.tar", "data/001.tar"]
     create_shard(remote / shard_files[0], ["000/validation", "000/train"])
     create_shard(remote / shard_files[1], ["001/train"])
-    install_download_stub(monkeypatch, remote, [])
+    calls: list[str] = []
+    install_download_stub(monkeypatch, remote, calls)
 
     training = create_dataset(tmp_path, shard_files, split="train")
     validation = create_dataset(tmp_path, shard_files, split="validation")
+    validation_path = tmp_path / "cache" / "validation" / shard_files[0]
+    validation_path.parent.mkdir(parents=True)
+    shutil.copyfile(remote / shard_files[0], validation_path)
 
     assert {example["__key__"] for example in training} == {
         "000/train",
@@ -108,7 +115,36 @@ def test_reazon_dataset_separates_training_and_validation(
     assert [example["__key__"] for example in validation] == [
         "000/validation"
     ]
+    assert len(calls) == len(shard_files)
     assert len(list((tmp_path / "cache" / "validation").rglob("*.tar"))) == 1
+
+
+def test_prepare_validation_shard_downloads_before_iteration(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    remote = tmp_path / "remote"
+    shard_file = "data/000.tar"
+    create_shard(remote / shard_file, ["000/validation"])
+    calls: list[str] = []
+    install_download_stub(monkeypatch, remote, calls)
+    monkeypatch.setattr(
+        "src.shared.reazon_dataset.dataset_revision",
+        lambda token: "revision",
+    )
+    monkeypatch.setattr(
+        "src.shared.reazon_dataset.list_reazon_speech_shards",
+        lambda token, revision: [shard_file],
+    )
+
+    path = prepare_reazon_speech_validation_shard(
+        "token",
+        tmp_path / "cache",
+    )
+
+    assert path == tmp_path / "cache" / "validation" / shard_file
+    assert path.is_file()
+    assert calls == [shard_file]
 
 
 def test_reazon_dataset_prefetches_next_shard_and_bounds_cache(
