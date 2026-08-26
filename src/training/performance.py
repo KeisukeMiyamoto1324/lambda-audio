@@ -4,7 +4,6 @@ import lightning as L
 import torch
 from lightning.pytorch.callbacks import TQDMProgressBar
 
-
 DATA_STALL_SECONDS = 1.0
 
 

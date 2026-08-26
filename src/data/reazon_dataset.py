@@ -10,6 +10,7 @@ from typing import Literal
 
 import av
 import numpy as np
+from av.error import FFmpegError
 from numpy.typing import NDArray
 from torch.utils.data import IterableDataset, get_worker_info
 
@@ -19,7 +20,6 @@ from src.data.reazon_repository import (
     list_reazon_speech_shards,
 )
 from src.data.types import AudioExample
-
 
 DatasetSplit = Literal["train", "validation"]
 
@@ -209,7 +209,7 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
                     converted.to_ndarray()[0]
                     for converted in resampler.resample(None)
                 )
-        except (av.FFmpegError, IndexError) as error:
+        except (FFmpegError, IndexError) as error:
             raise InvalidAudioError(
                 f"Unable to decode FLAC audio: {member_name}."
             ) from error

@@ -4,7 +4,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
 
-from torch.utils.data import IterableDataset as TorchIterableDataset, get_worker_info
+from torch.utils.data import IterableDataset as TorchIterableDataset
+from torch.utils.data import get_worker_info
 
 from src.data.metadata import MetadataReader
 from src.data.types import AudioExample, TranscribedAudioExample

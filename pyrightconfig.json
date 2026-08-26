@@ -1,0 +1,13 @@
+{
+  "include": ["src", "tests"],
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "off",
+  "reportMissingImports": "error",
+  "reportMissingModuleSource": "error",
+  "reportUndefinedVariable": "error",
+  "reportUnboundVariable": "error",
+  "reportPossiblyUnboundVariable": "error",
+  "reportDuplicateImport": "error"
+}

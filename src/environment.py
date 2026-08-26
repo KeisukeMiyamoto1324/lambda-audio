@@ -3,7 +3,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 CUDA_ALLOCATOR_CONFIGURATION = (
     "expandable_segments:True,garbage_collection_threshold:0.8"
 )

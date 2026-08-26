@@ -1550,16 +1550,16 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         super().__init__()
         # create a temporary module of nn.Linear that we'll steal the
         # weights and bias from
-        l = ScaledLinear(
+        linear = ScaledLinear(
             in_channels, out_channels, bias=bias, initial_scale=initial_scale
         )
 
-        self.weight = l.weight
-        # register_parameter properly handles making it a parameter when l.bias
-        # is None. I think there is some reason for doing it this way rather
+        self.weight = linear.weight
+        # register_parameter properly handles making it a parameter when
+        # linear.bias is None. I think there is some reason for doing it this way rather
         # than just setting it to None but I don't know what it is, maybe
         # something to do with exporting the module..
-        self.register_parameter("bias", l.bias)
+        self.register_parameter("bias", linear.bias)
 
         self.activation = activation
         self.dropout_p = dropout_p

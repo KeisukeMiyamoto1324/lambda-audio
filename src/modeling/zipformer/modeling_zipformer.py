@@ -7,9 +7,9 @@ from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput, Wav2Vec2BaseModelOutput
 
 from .configuration_zipformer import ZipformerConfig
-from .wav2vec2_module import ConvFeatureExtractionModel
 from .scaling import ScheduledFloat
 from .utils import GradMultiply
+from .wav2vec2_module import ConvFeatureExtractionModel
 from .zipformer import Zipformer2
 
 

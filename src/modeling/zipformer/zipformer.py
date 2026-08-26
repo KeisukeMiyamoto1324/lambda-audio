@@ -6,12 +6,8 @@ import warnings
 from typing import List, Optional, Tuple, Union
 
 import torch
-from .scaling import (
-    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
-)
-from .scaling import (
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
-)
+from torch import Tensor, nn
+
 from .scaling import (
     ActivationDropoutAndLinear,
     Balancer,
@@ -19,6 +15,8 @@ from .scaling import (
     ChunkCausalDepthwiseConv1d,
     Dropout2,
     FloatLike,
+    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
     ScheduledFloat,
     Whiten,
     convert_num_channels,
@@ -26,7 +24,6 @@ from .scaling import (
     penalize_abs_values_gt,
     softmax,
 )
-from torch import Tensor, nn
 
 
 class Zipformer2(nn.Module):

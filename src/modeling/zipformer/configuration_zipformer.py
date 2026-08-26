@@ -5,7 +5,6 @@ from typing import Any
 import torch
 from transformers import PretrainedConfig
 
-
 DEFAULT_CONV_FEATURE_LAYERS = (
     (512, 10, 5),
     (512, 3, 2),
