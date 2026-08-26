@@ -61,9 +61,7 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_data_time_max = max(self.window_data_time_max, data_time)
         if data_time >= DATA_STALL_SECONDS:
             self.window_data_stalls += 1
-        valid_samples, padded_samples = audio_batch_sizes(
-            batch["audio_padding_mask"]
-        )
+        valid_samples, padded_samples = audio_batch_sizes(batch["audio_padding_mask"])
         self.window_valid_samples += valid_samples
         self.window_padded_samples += padded_samples
         self.window_batches += 1
@@ -91,8 +89,7 @@ class TrainingPerformanceMonitor(L.Callback):
         end_event.synchronize()
         now = time.perf_counter()
         gpu_seconds = sum(
-            start.elapsed_time(end) / 1_000.0
-            for start, end in self.gpu_events
+            start.elapsed_time(end) / 1_000.0 for start, end in self.gpu_events
         )
         elapsed_seconds = now - self.window_start_time
         metrics = {
@@ -100,9 +97,7 @@ class TrainingPerformanceMonitor(L.Callback):
             "data_time_max": self.window_data_time_max,
             "data_stalls": self.window_data_stalls,
             "gpu_step_time": gpu_seconds / self.window_batches,
-            "padding_ratio": (
-                self.window_padded_samples / self.window_valid_samples
-            ),
+            "padding_ratio": (self.window_padded_samples / self.window_valid_samples),
             "audio_seconds_per_second": (
                 self.window_valid_samples / self.sampling_rate / elapsed_seconds
             ),

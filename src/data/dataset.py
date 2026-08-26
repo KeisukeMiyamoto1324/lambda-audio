@@ -90,9 +90,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
                 yield batch
                 if source_exhausted:
                     continue
-                refill_target = (
-                    batch_index * self.bucket_buffer_size // len(batches)
-                )
+                refill_target = batch_index * self.bucket_buffer_size // len(batches)
                 source_exhausted = self._fill_window(
                     next_window,
                     source,
@@ -127,12 +125,9 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
             padded_audio_samples = batch_size * audio_samples
             attention_cost = batch_size * encoder_frames**2
 
-            if (
-                batch
-                and (
-                    padded_audio_samples > self.max_batch_padded_audio_samples
-                    or attention_cost > self.max_batch_attention_cost
-                )
+            if batch and (
+                padded_audio_samples > self.max_batch_padded_audio_samples
+                or attention_cost > self.max_batch_attention_cost
             ):
                 batches.append(batch)
                 batch = []

@@ -78,8 +78,7 @@ class BaseLambdaAudioLightningModule(
                 if parameter.grad is None or torch.isfinite(parameter.grad).all():
                     continue
                 raise FloatingPointError(
-                    "Non-finite gradient at "
-                    f"step={self.global_step}, parameter={name}."
+                    f"Non-finite gradient at step={self.global_step}, parameter={name}."
                 ) from error
             raise FloatingPointError(
                 f"Non-finite gradient norm at step={self.global_step}."

@@ -44,9 +44,7 @@ def create_transcribed_dataset(
         revision="revision",
     )
     source = IterableDataset.from_generator(
-        lambda: iter(
-            [create_audio_example(key, samples) for key, samples in examples]
-        )
+        lambda: iter([create_audio_example(key, samples) for key, samples in examples])
     )
     return TranscribedAudioDataset(source, path)
 
@@ -80,9 +78,7 @@ def test_audio_batch_dataset_limits_padded_audio_samples(
         for batch in batches
     )
     assert all(
-        example["transcription"] == "音声"
-        for batch in batches
-        for example in batch
+        example["transcription"] == "音声" for batch in batches for example in batch
     )
 
 
@@ -109,9 +105,7 @@ def test_audio_batch_dataset_limits_attention_cost(tmp_path: Path) -> None:
 
     assert sorted(len(batch) for batch in batches) == [1, 1, 2]
     assert all(
-        len(batch)
-        * max(len(example["audio_array"]) for example in batch) ** 2
-        <= 64
+        len(batch) * max(len(example["audio_array"]) for example in batch) ** 2 <= 64
         for batch in batches
     )
 
@@ -120,8 +114,7 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
     tmp_path: Path,
 ) -> None:
     examples = [
-        (f"000/{index:03d}", samples)
-        for index, samples in enumerate(range(10, 522))
+        (f"000/{index:03d}", samples) for index, samples in enumerate(range(10, 522))
     ]
     source = create_transcribed_dataset(tmp_path / "metadata.sqlite3", examples)
     dataset = AudioBatchDataset(
@@ -135,9 +128,7 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
 
     batches = list(dataset)
     valid_samples = sum(
-        len(example["audio_array"])
-        for batch in batches
-        for example in batch
+        len(example["audio_array"]) for batch in batches for example in batch
     )
     padded_samples = sum(
         len(batch) * max(len(example["audio_array"]) for example in batch)

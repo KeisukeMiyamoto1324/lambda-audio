@@ -38,7 +38,10 @@ class ZipformerPreTrainedModel(PreTrainedModel):
                 nn.init.kaiming_normal_(module.parametrizations.weight.original1.data)
             nn.init.kaiming_normal_(module.weight.data)
 
-        if isinstance(module, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)) and module.bias is not None:
+        if (
+            isinstance(module, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d))
+            and module.bias is not None
+        ):
             module.bias.data.zero_()
 
 

@@ -82,7 +82,8 @@ def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:
     }
 
     assert not any(
-        id(parameter) in optimized_parameters for parameter in model.encoder.parameters()
+        id(parameter) in optimized_parameters
+        for parameter in model.encoder.parameters()
     )
 
 

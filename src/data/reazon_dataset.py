@@ -145,10 +145,7 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
         shard_path: Path,
     ) -> Iterator[AudioExample]:
         for position, example in enumerate(self._read_shard(shard_path)):
-            if (
-                shard_file == self.shard_files[0]
-                and position < self.validation_samples
-            ):
+            if shard_file == self.shard_files[0] and position < self.validation_samples:
                 continue
             yield example
 
@@ -192,9 +189,7 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
                         f"{stream.sample_rate}."
                     )
                 if stream.channels != 1:
-                    raise InvalidAudioError(
-                        f"Audio must be mono: {member_name}."
-                    )
+                    raise InvalidAudioError(f"Audio must be mono: {member_name}.")
                 resampler = av.AudioResampler(
                     format="fltp",
                     layout="mono",
@@ -206,8 +201,7 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
                     for converted in resampler.resample(frame)
                 ]
                 arrays.extend(
-                    converted.to_ndarray()[0]
-                    for converted in resampler.resample(None)
+                    converted.to_ndarray()[0] for converted in resampler.resample(None)
                 )
         except (FFmpegError, IndexError) as error:
             raise InvalidAudioError(

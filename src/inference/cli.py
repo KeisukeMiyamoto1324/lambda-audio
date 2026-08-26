@@ -8,7 +8,9 @@ from src.inference.config import InferenceConfig
 
 def parse_arguments() -> InferenceConfig:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", dest="checkpoint_path", type=Path, required=True)
+    parser.add_argument(
+        "--checkpoint", dest="checkpoint_path", type=Path, required=True
+    )
     parser.add_argument("--input-dir", type=Path, required=True)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     try:

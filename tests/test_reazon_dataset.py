@@ -110,9 +110,7 @@ def test_reazon_dataset_separates_training_and_validation(
         "000/train",
         "001/train",
     }
-    assert [example["audio_key"] for example in validation] == [
-        "000/validation"
-    ]
+    assert [example["audio_key"] for example in validation] == ["000/validation"]
     assert len(calls) == len(shard_files)
     assert len(list((tmp_path / "cache" / "validation").rglob("*.tar"))) == 1
 

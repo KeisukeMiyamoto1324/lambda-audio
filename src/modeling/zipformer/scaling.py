@@ -899,9 +899,7 @@ class Balancer(torch.nn.Module):
                     eps = 1.0e-10
                     # eps is to prevent crashes if x is exactly 0 or 1.
                     # we'll just end up returning a fairly large value.
-                    return (
-                        math.log(1 + value + eps) - math.log(1 - value + eps)
-                    ) / 2.0
+                    return (math.log(1 + value + eps) - math.log(1 - value + eps)) / 2.0
 
                 def _approx_inverse_erf(value: float) -> float:
                     # 1 / (sqrt(pi) * ln(2)),

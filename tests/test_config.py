@@ -67,8 +67,7 @@ def test_src_functions_have_type_annotations() -> None:
             missing = [
                 argument.arg
                 for argument in arguments
-                if argument.arg not in {"self", "cls"}
-                and argument.annotation is None
+                if argument.arg not in {"self", "cls"} and argument.annotation is None
             ]
             if (
                 function.args.vararg is not None

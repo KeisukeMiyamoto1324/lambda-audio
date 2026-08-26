@@ -53,15 +53,11 @@ def create_metadata_index(
             "transcription TEXT NOT NULL"
             ") WITHOUT ROWID"
         )
-        connection.execute(
-            "CREATE TABLE dataset_info (revision TEXT NOT NULL)"
-        )
+        connection.execute("CREATE TABLE dataset_info (revision TEXT NOT NULL)")
 
         values: list[tuple[str, str]] = []
         for row in rows:
-            values.append(
-                (metadata_key(row), cast(str, row["transcription"]).strip())
-            )
+            values.append((metadata_key(row), cast(str, row["transcription"]).strip()))
             if len(values) < INSERT_BATCH_SIZE:
                 continue
             connection.executemany(
