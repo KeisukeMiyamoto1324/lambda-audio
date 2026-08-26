@@ -10,7 +10,6 @@ from typing import Literal
 
 import av
 import numpy as np
-from av.audio.resampler import AudioResampler
 from numpy.typing import NDArray
 from torch.utils.data import IterableDataset, get_worker_info
 
@@ -196,7 +195,7 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
                     raise InvalidAudioError(
                         f"Audio must be mono: {member_name}."
                     )
-                resampler = AudioResampler(
+                resampler = av.AudioResampler(
                     format="fltp",
                     layout="mono",
                     rate=self.sampling_rate,
