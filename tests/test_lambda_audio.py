@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import torch
+from pytest import MonkeyPatch
 from torch import nn
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
@@ -30,7 +31,7 @@ class DummyEncoder(nn.Module):
         return padding_mask
 
 
-def test_lambda_audio_forward() -> None:
+def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     config = Lfm2Config(
         vocab_size=32,
         hidden_size=16,
@@ -43,6 +44,16 @@ def test_lambda_audio_forward() -> None:
     )
     decoder = AudioLfm2ForCausalLM(config)
     model = LambdaAudioModel(DummyEncoder(), decoder, encoder_hidden_size=8)
+    projection_calls = 0
+    cross_attention = decoder.model.layers[0].cross_attention
+    project_key_value = cross_attention.project_key_value
+
+    def count_projection(audio_features: torch.Tensor) -> torch.Tensor:
+        nonlocal projection_calls
+        projection_calls += 1
+        return project_key_value(audio_features)
+
+    monkeypatch.setattr(cross_attention, "project_key_value", count_projection)
 
     output = model(
         input_values=torch.randn(2, 8),
@@ -66,11 +77,13 @@ def test_lambda_audio_forward() -> None:
         attention_mask=torch.ones(1, 1, dtype=torch.long),
         max_new_tokens=2,
     )
+    generation_projection_calls = projection_calls - 1
     trainable_names = [
         name for name, parameter in model.named_parameters() if parameter.requires_grad
     ]
 
     assert generated_ids.shape[0] == 1
+    assert generation_projection_calls == 1
     assert any(name.startswith("adapter.") for name in trainable_names)
     assert any("cross_attention" in name for name in trainable_names)
     assert not any(

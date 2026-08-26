@@ -24,9 +24,7 @@ def test_download_uses_stage_environment_and_output(
     repository: str,
 ) -> None:
     dotenv_path = tmp_path / ".env"
-    dotenv_path.write_text(
-        f"HF_TOKEN=test-token\n{repository_variable}={repository}\n"
-    )
+    dotenv_path.write_text(f"HF_TOKEN=test-token\n{repository_variable}={repository}\n")
     output_dir = tmp_path / "output"
     download = MagicMock()
 

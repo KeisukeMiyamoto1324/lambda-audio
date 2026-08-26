@@ -66,12 +66,13 @@ class LambdaAudioModel(nn.Module):
             input_values,
             audio_padding_mask,
         )
+        audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
         return self.decoder(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
-            audio_features=audio_features,
+            audio_key_values=audio_key_values,
             audio_padding_mask=encoded_padding_mask,
         )
 
@@ -87,11 +88,12 @@ class LambdaAudioModel(nn.Module):
             input_values,
             audio_padding_mask,
         )
+        audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
         return self.decoder.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            audio_features=audio_features,
+            audio_key_values=audio_key_values,
             audio_padding_mask=encoded_padding_mask,
             **kwargs,
         )
