@@ -1,0 +1,18 @@
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "W"]
+
+[tool.pyright]
+include = ["src", "tests"]
+venvPath = "."
+venv = "venv"
+pythonVersion = "3.12"
+typeCheckingMode = "off"
+reportMissingImports = "error"
+reportMissingModuleSource = "error"
+reportUndefinedVariable = "error"
+reportUnboundVariable = "error"
+reportPossiblyUnboundVariable = "error"
+reportDuplicateImport = "error"
