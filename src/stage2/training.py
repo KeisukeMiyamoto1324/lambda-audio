@@ -1,54 +1,19 @@
 from typing import Any
 
-import torch
-from torch.optim import AdamW
-from transformers import get_cosine_schedule_with_warmup
-
-from src.shared.lambda_audio import LambdaAudioModel
-from src.shared.training import BaseLambdaAudioLightningModule
 from src.stage2.config import Stage2Config
+from src.training.lightning import BaseLambdaAudioLightningModule
+from src.training.optimizer import create_optimizer_configuration
 
 
-class Stage2LightningModule(BaseLambdaAudioLightningModule):
-    def __init__(self, model: LambdaAudioModel, config: Stage2Config) -> None:
-        super().__init__(model, config)
-        self.config = config
-
+class Stage2LightningModule(BaseLambdaAudioLightningModule[Stage2Config]):
     def configure_optimizers(self) -> dict[str, Any]:
-        # ---------------------------------------------------------
-        # Use a lower learning rate for pretrained backbone weights.
-        # ---------------------------------------------------------
-        parameter_groups: dict[tuple[float, float], list[torch.nn.Parameter]] = {}
-        for name, parameter in self.model.named_parameters():
-            if not parameter.requires_grad:
-                continue
-
-            is_audio_module = name.startswith("adapter.") or ".cross_attention." in name
-            learning_rate = (
-                self.config.adapter_learning_rate
-                if is_audio_module
-                else self.config.backbone_learning_rate
-            )
-            weight_decay = self.config.weight_decay if parameter.ndim >= 2 else 0.0
-            group_key = (learning_rate, weight_decay)
-            parameter_groups.setdefault(group_key, []).append(parameter)
-
-        groups = [
-            {
-                "params": parameters,
-                "lr": learning_rate,
-                "weight_decay": weight_decay,
-            }
-            for (learning_rate, weight_decay), parameters in parameter_groups.items()
-        ]
-        optimizer = AdamW(groups, betas=(0.9, 0.95))
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer,
-            num_warmup_steps=self.config.warmup_steps,
-            num_training_steps=self.config.max_steps,
+        return create_optimizer_configuration(
+            self.model,
+            self.config,
+            self._learning_rate,
         )
 
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
-        }
+    def _learning_rate(self, name: str) -> float:
+        if name.startswith("adapter.") or ".cross_attention." in name:
+            return self.config.adapter_learning_rate
+        return self.config.backbone_learning_rate

@@ -10,10 +10,8 @@ import pytest
 import soundfile as sf
 from pytest import MonkeyPatch
 
-from src.shared.reazon_dataset import (
-    ReazonSpeechShardDataset,
-    prepare_reazon_speech_validation_shard,
-)
+from src.data.reazon_dataset import ReazonSpeechShardDataset
+from src.data.reazon_repository import prepare_reazon_speech_validation_shard
 
 
 def create_shard(path: Path, keys: list[str], sampling_rate: int = 16_000) -> None:
@@ -63,7 +61,7 @@ def install_download_stub(
         return str(destination)
 
     monkeypatch.setattr(
-        "src.shared.reazon_dataset.hf_hub_download",
+        "src.data.reazon_repository.hf_hub_download",
         download_stub,
     )
 
@@ -108,11 +106,11 @@ def test_reazon_dataset_separates_training_and_validation(
     validation_path.parent.mkdir(parents=True)
     shutil.copyfile(remote / shard_files[0], validation_path)
 
-    assert {example["__key__"] for example in training} == {
+    assert {example["audio_key"] for example in training} == {
         "000/train",
         "001/train",
     }
-    assert [example["__key__"] for example in validation] == [
+    assert [example["audio_key"] for example in validation] == [
         "000/validation"
     ]
     assert len(calls) == len(shard_files)
@@ -129,11 +127,11 @@ def test_prepare_validation_shard_downloads_before_iteration(
     calls: list[str] = []
     install_download_stub(monkeypatch, remote, calls)
     monkeypatch.setattr(
-        "src.shared.reazon_dataset.dataset_revision",
+        "src.data.reazon_repository.dataset_revision",
         lambda token: "revision",
     )
     monkeypatch.setattr(
-        "src.shared.reazon_dataset.list_reazon_speech_shards",
+        "src.data.reazon_repository.list_reazon_speech_shards",
         lambda token, revision: [shard_file],
     )
 
@@ -203,8 +201,8 @@ def test_reazon_dataset_partitions_shards_between_ranks(
         global_rank=1,
         world_size=2,
     )
-    rank_zero_keys = {example["__key__"] for example in rank_zero}
-    rank_one_keys = {example["__key__"] for example in rank_one}
+    rank_zero_keys = {example["audio_key"] for example in rank_zero}
+    rank_one_keys = {example["audio_key"] for example in rank_one}
 
     assert rank_zero_keys.isdisjoint(rank_one_keys)
     assert rank_zero_keys | rank_one_keys == {
@@ -229,6 +227,6 @@ def test_reazon_dataset_skips_invalid_audio(
     dataset = create_dataset(tmp_path, [shard_file], split="train")
 
     with pytest.warns(RuntimeWarning, match="Skipping invalid audio"):
-        keys = [example["__key__"] for example in dataset]
+        keys = [example["audio_key"] for example in dataset]
 
     assert keys == ["000/training"]

@@ -6,15 +6,20 @@ from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Literal
 
 import av
 import numpy as np
 from av.audio.resampler import AudioResampler
-from huggingface_hub import HfApi, hf_hub_download
+from numpy.typing import NDArray
 from torch.utils.data import IterableDataset, get_worker_info
 
-from src.shared.metadata import DATASET_ID, dataset_revision
+from src.data.reazon_repository import (
+    dataset_revision,
+    download_reazon_speech_file,
+    list_reazon_speech_shards,
+)
+from src.data.types import AudioExample
 
 
 DatasetSplit = Literal["train", "validation"]
@@ -24,45 +29,7 @@ class InvalidAudioError(RuntimeError):
     pass
 
 
-def list_reazon_speech_shards(token: str, revision: str) -> list[str]:
-    files = HfApi(token=token).list_repo_files(
-        DATASET_ID,
-        repo_type="dataset",
-        revision=revision,
-    )
-    shards = sorted(
-        file_name
-        for file_name in files
-        if file_name.startswith("data/") and file_name.endswith(".tar")
-    )
-    if not shards:
-        raise RuntimeError("The ReazonSpeech dataset has no audio shards.")
-    return shards
-
-
-def prepare_reazon_speech_validation_shard(
-    token: str,
-    cache_dir: Path,
-) -> Path:
-    # ---------------------------------------------------------
-    # Materialize the fixed validation shard before workers start.
-    # ---------------------------------------------------------
-    revision = dataset_revision(token)
-    shard_file = list_reazon_speech_shards(token, revision)[0]
-    validation_cache = cache_dir / "validation"
-    validation_cache.mkdir(parents=True, exist_ok=True)
-    path = hf_hub_download(
-        repo_id=DATASET_ID,
-        filename=shard_file,
-        repo_type="dataset",
-        revision=revision,
-        token=token,
-        local_dir=validation_cache,
-    )
-    return Path(cast(str, path))
-
-
-class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
+class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
     def __init__(
         self,
         *,
@@ -102,14 +69,14 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
         if global_rank < 0 or global_rank >= world_size:
             raise ValueError("The distributed rank is invalid.")
 
-    def __iter__(self) -> Iterator[dict[str, Any]]:
+    def __iter__(self) -> Iterator[AudioExample]:
         if self.split == "validation":
             yield from self._iterate_validation()
             return
 
         yield from self._iterate_training()
 
-    def _iterate_training(self) -> Iterator[dict[str, Any]]:
+    def _iterate_training(self) -> Iterator[AudioExample]:
         worker_id, worker_count = self._worker_identity()
         consumer_index = self.global_rank * worker_count + worker_id
         consumer_count = self.world_size * worker_count
@@ -130,7 +97,7 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
         self,
         shard_files: list[str],
         worker_cache: Path,
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[AudioExample]:
         worker_cache.mkdir(parents=True, exist_ok=True)
         self._clear_training_cache(worker_cache)
         if not shard_files:
@@ -157,7 +124,7 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
             executor.shutdown(wait=True, cancel_futures=True)
             self._clear_training_cache(worker_cache)
 
-    def _iterate_validation(self) -> Iterator[dict[str, Any]]:
+    def _iterate_validation(self) -> Iterator[AudioExample]:
         worker_id, worker_count = self._worker_identity()
         consumer_index = self.global_rank * worker_count + worker_id
         consumer_count = self.world_size * worker_count
@@ -177,7 +144,7 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
         self,
         shard_file: str,
         shard_path: Path,
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[AudioExample]:
         for position, example in enumerate(self._read_shard(shard_path)):
             if (
                 shard_file == self.shard_files[0]
@@ -186,7 +153,7 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
                 continue
             yield example
 
-    def _read_shard(self, shard_path: Path) -> Iterator[dict[str, Any]]:
+    def _read_shard(self, shard_path: Path) -> Iterator[AudioExample]:
         with tarfile.open(shard_path, mode="r") as archive:
             for member in archive:
                 if not member.isfile() or not member.name.endswith(".flac"):
@@ -207,15 +174,15 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
                     )
                     continue
                 yield {
-                    "__key__": member.name.removesuffix(".flac"),
-                    "flac": {"array": audio_array},
+                    "audio_key": member.name.removesuffix(".flac"),
+                    "audio_array": audio_array,
                 }
 
     def _decode_audio(
         self,
         audio: bytes,
         member_name: str,
-    ) -> np.ndarray[Any, Any]:
+    ) -> NDArray[np.float32]:
         try:
             container = av.open(BytesIO(audio), mode="r", format="flac")
             with container:
@@ -254,10 +221,10 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
 
     def _shuffle_examples(
         self,
-        examples: Iterator[dict[str, Any]],
+        examples: Iterator[AudioExample],
         generator: random.Random,
-    ) -> Iterator[dict[str, Any]]:
-        buffer: list[dict[str, Any]] = []
+    ) -> Iterator[AudioExample]:
+        buffer: list[AudioExample] = []
         for example in examples:
             if len(buffer) < self.shuffle_buffer_size:
                 buffer.append(example)
@@ -270,15 +237,12 @@ class ReazonSpeechShardDataset(IterableDataset[dict[str, Any]]):
         yield from buffer
 
     def _download_shard(self, shard_file: str, cache_dir: Path) -> Path:
-        path = hf_hub_download(
-            repo_id=DATASET_ID,
-            filename=shard_file,
-            repo_type="dataset",
-            revision=self.revision,
-            token=self.token,
-            local_dir=cache_dir,
+        return download_reazon_speech_file(
+            self.token,
+            self.revision,
+            shard_file,
+            cache_dir,
         )
-        return Path(cast(str, path))
 
     @staticmethod
     def _clear_training_cache(cache_dir: Path) -> None:

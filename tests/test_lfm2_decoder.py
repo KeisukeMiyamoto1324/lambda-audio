@@ -1,8 +1,8 @@
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
+from transformers.models.lfm2.modeling_lfm2 import Lfm2ForCausalLM
 
-from src.shared.lfm2_decoder import (
+from src.modeling.lfm2_decoder import (
     AudioLfm2DecoderLayer,
-    AudioLfm2ForCausalLM,
     add_cross_attention,
 )
 
@@ -17,7 +17,7 @@ def test_only_full_attention_layers_are_replaced() -> None:
         num_key_value_heads=2,
         layer_types=["conv", "full_attention", "conv"],
     )
-    model = AudioLfm2ForCausalLM(config)
+    model = Lfm2ForCausalLM(config)
 
     add_cross_attention(model)
 

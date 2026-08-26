@@ -1,7 +1,7 @@
-from typing import Any
-
 import torch
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
+
+from src.data.types import TranscribedAudioExample
 
 
 class AudioTextCollator:
@@ -20,7 +20,10 @@ class AudioTextCollator:
         if tokenizer.bos_token_id is None or tokenizer.eos_token_id is None:
             raise ValueError("The tokenizer must define BOS and EOS tokens.")
 
-    def __call__(self, examples: list[dict[str, Any]]) -> dict[str, torch.Tensor]:
+    def __call__(
+        self,
+        examples: list[TranscribedAudioExample],
+    ) -> dict[str, torch.Tensor]:
         # ---------------------------------------------------------
         # Pad raw audio and convert its attention mask to padding mask.
         # ---------------------------------------------------------

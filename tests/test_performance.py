@@ -4,7 +4,7 @@ from typing import cast
 import lightning as L
 import torch
 
-from src.shared.performance import TrainingProgressBar, audio_batch_sizes
+from src.training.performance import TrainingProgressBar, audio_batch_sizes
 
 
 def test_training_progress_bar_hides_logger_version() -> None:

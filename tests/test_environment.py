@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from src.shared.environment import (
+from src.environment import (
     CUDA_ALLOCATOR_CONFIGURATION,
     configure_cuda_allocator,
     load_hf_token,

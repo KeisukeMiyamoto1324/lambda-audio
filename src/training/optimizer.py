@@ -1,0 +1,43 @@
+from collections.abc import Callable
+from typing import Any
+
+import torch
+from torch.optim import AdamW
+from transformers import get_cosine_schedule_with_warmup
+
+from src.modeling.lambda_audio import LambdaAudioModel
+from src.training.config import BaseTrainingConfig
+
+
+def create_optimizer_configuration(
+    model: LambdaAudioModel,
+    config: BaseTrainingConfig,
+    learning_rate: Callable[[str], float],
+) -> dict[str, Any]:
+    parameter_groups: dict[tuple[float, float], list[torch.nn.Parameter]] = {}
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+
+        rate = learning_rate(name)
+        weight_decay = config.weight_decay if parameter.ndim >= 2 else 0.0
+        parameter_groups.setdefault((rate, weight_decay), []).append(parameter)
+
+    groups = [
+        {
+            "params": parameters,
+            "lr": rate,
+            "weight_decay": weight_decay,
+        }
+        for (rate, weight_decay), parameters in parameter_groups.items()
+    ]
+    optimizer = AdamW(groups, betas=(0.9, 0.95))
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=config.warmup_steps,
+        num_training_steps=config.max_steps,
+    )
+    return {
+        "optimizer": optimizer,
+        "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
+    }

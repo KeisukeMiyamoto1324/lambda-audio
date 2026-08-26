@@ -1,10 +1,12 @@
-from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, FilePath
 
-@dataclass(frozen=True)
-class InferenceSample:
-    audio_path: Path
+
+class InferenceSample(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    audio_path: FilePath
     reference: str
 
 

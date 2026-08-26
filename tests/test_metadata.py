@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.shared.metadata import (
+from src.data.metadata import (
     MetadataReader,
     create_metadata_index,
     metadata_index_revision,

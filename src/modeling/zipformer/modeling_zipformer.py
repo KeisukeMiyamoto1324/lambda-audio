@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -20,10 +20,10 @@ class ZipformerPreTrainedModel(PreTrainedModel):
     """
 
     config_class = ZipformerConfig
-    base_model_prefix = "zipforemr"
+    base_model_prefix = "zipformer"
     supports_gradient_checkpointing = False
 
-    def _init_weights(self, module):
+    def _init_weights(self, module: nn.Module) -> None:
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
             # Slightly different from the TF version which uses truncated_normal for initialization
@@ -89,7 +89,11 @@ class ZipformerModel(ZipformerPreTrainedModel):
         self.post_init()
 
     @classmethod
-    def from_icefall_checkpoint(cls, checkpoint_path: os.PathLike, **kwargs):
+    def from_icefall_checkpoint(
+        cls,
+        checkpoint_path: os.PathLike[str],
+        **kwargs: Any,
+    ) -> "ZipformerModel":
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         config = ZipformerConfig.from_icefall_checkpoint(checkpoint_path, **kwargs)
         model = cls(config)
@@ -110,7 +114,9 @@ class ZipformerModel(ZipformerPreTrainedModel):
         return features
 
     def forward_padding_mask(
-        self, features: torch.Tensor, padding_mask: torch.Tensor
+        self,
+        features: torch.Tensor,
+        padding_mask: torch.Tensor,
     ) -> torch.Tensor:
         extra = padding_mask.size(1) % features.size(1)
         if extra > 0:
@@ -122,24 +128,26 @@ class ZipformerModel(ZipformerPreTrainedModel):
     def forward(
         self,
         input_values: torch.FloatTensor,
-        padding_mask: Optional[torch.BoolTensor] = None,
+        padding_mask: torch.BoolTensor | None = None,
     ) -> Wav2Vec2BaseModelOutput:
         """output layer is 1-based"""
         features = self.forward_features(input_values)
 
         features = features.transpose(1, 2)
         features = self.layer_norm(features)
-        unmasked_features = features.clone()
-
-        if padding_mask is not None:
+        if padding_mask is None:
+            padding_mask = torch.zeros(
+                features.shape[:2],
+                dtype=torch.bool,
+                device=features.device,
+            )
+        else:
             padding_mask = self.forward_padding_mask(features, padding_mask)
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
 
         features = self.dropout_input(features)
-        unmasked_features = self.dropout_features(unmasked_features)
-
         x = features
 
         # feature: (B, T, D), float
@@ -158,7 +166,7 @@ class ZipformerModel(ZipformerPreTrainedModel):
 
 
 class ZipformerForCTC(ZipformerPreTrainedModel):
-    def __init__(self, config: ZipformerConfig):
+    def __init__(self, config: ZipformerConfig) -> None:
         super().__init__(config)
         self.encoder = ZipformerModel(config)
         self.ctc_output = nn.Sequential(
@@ -167,7 +175,11 @@ class ZipformerForCTC(ZipformerPreTrainedModel):
         )
 
     @classmethod
-    def from_icefall_checkpoint(cls, checkpoint_path: os.PathLike, **kwargs):
+    def from_icefall_checkpoint(
+        cls,
+        checkpoint_path: os.PathLike[str],
+        **kwargs: Any,
+    ) -> "ZipformerForCTC":
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         config = ZipformerConfig.from_icefall_checkpoint(checkpoint_path, **kwargs)
         model = cls(config)
@@ -180,8 +192,8 @@ class ZipformerForCTC(ZipformerPreTrainedModel):
     def forward(
         self,
         input_values: torch.FloatTensor,
-        padding_mask: Optional[torch.BoolTensor] = None,
-        **kwargs,
+        padding_mask: torch.BoolTensor | None = None,
+        **kwargs: Any,
     ) -> CausalLMOutput:
         if padding_mask is None:
             padding_mask = torch.zeros_like(input_values, dtype=torch.bool)

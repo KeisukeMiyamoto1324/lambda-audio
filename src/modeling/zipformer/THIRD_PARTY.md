@@ -12,3 +12,6 @@ Local changes for Transformers 5 compatibility:
 
 - `ZipformerModel.__init__` calls `self.post_init()`.
 - Meta-device positional encodings are regenerated on the input device.
+- The configuration defines `initializer_range` for weight initialization.
+- Missing padding masks are created from the encoded feature shape.
+- Legacy helpers were removed and the remaining functions were fully typed.

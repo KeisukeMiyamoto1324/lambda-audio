@@ -6,7 +6,7 @@ import pytest
 import torch
 from torch import nn
 
-from src.shared.zipformer.scaling import ScheduledFloat
+from src.modeling.zipformer.scaling import ScheduledFloat
 from src.stage1.config import Stage1Config
 from src.stage1.training import Stage1LightningModule
 from src.stage2.config import Stage2Config
@@ -46,10 +46,12 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     assert learning_rates == {config.learning_rate}
 
 
-def test_stage2_optimizer_uses_separate_learning_rates() -> None:
+def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
     config = Stage2Config(
         output_dir=Path("outputs"),
-        initialization_checkpoint=Path("stage-1/model.pt"),
+        initialization_checkpoint=checkpoint_path,
     )
     module = Stage2LightningModule(DummyTrainingModel(), config)  # type: ignore[arg-type]
     optimizer = module.configure_optimizers()["optimizer"]
@@ -61,10 +63,12 @@ def test_stage2_optimizer_uses_separate_learning_rates() -> None:
     }
 
 
-def test_stage2_optimizer_excludes_frozen_encoder() -> None:
+def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
     config = Stage2Config(
         output_dir=Path("outputs"),
-        initialization_checkpoint=Path("stage-1/model.pt"),
+        initialization_checkpoint=checkpoint_path,
     )
     model = DummyTrainingModel()
     model.encoder.requires_grad_(False)

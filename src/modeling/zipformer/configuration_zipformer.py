@@ -1,10 +1,23 @@
+import ast
 import os
+from typing import Any
 
 import torch
 from transformers import PretrainedConfig
 
 
-def to_int_tuple(s: str):
+DEFAULT_CONV_FEATURE_LAYERS = (
+    (512, 10, 5),
+    (512, 3, 2),
+    (512, 3, 2),
+    (512, 3, 2),
+    (512, 3, 2),
+    (512, 2, 2),
+    (512, 2, 2),
+)
+
+
+def to_int_tuple(s: str) -> tuple[int, ...]:
     return tuple(map(int, s.split(",")))
 
 
@@ -12,10 +25,14 @@ class ZipformerConfig(PretrainedConfig):
     model_type = "zipformer"
 
     @classmethod
-    def from_icefall_checkpoint(cls, checkpoint_path: os.PathLike, **kwargs):
+    def from_icefall_checkpoint(
+        cls,
+        checkpoint_path: os.PathLike[str],
+        **kwargs: Any,
+    ) -> "ZipformerConfig":
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         return cls(
-            conv_feature_layers=eval(checkpoint["conv_feature_layers"]),
+            conv_feature_layers=ast.literal_eval(checkpoint["conv_feature_layers"]),
             extractor_mode=checkpoint["extractor_mode"],
             conv_bias=checkpoint["conv_bias"],
             encoder_dim=to_int_tuple(checkpoint["encoder_dim"]),
@@ -38,34 +55,29 @@ class ZipformerConfig(PretrainedConfig):
 
     def __init__(
         self,
-        conv_feature_layers: list[tuple[int, int, int]] = [
-            (512, 10, 5),
-            (512, 3, 2),
-            (512, 3, 2),
-            (512, 3, 2),
-            (512, 3, 2),
-            (512, 2, 2),
-            (512, 2, 2),
-        ],
+        conv_feature_layers: tuple[tuple[int, int, int], ...] = (
+            DEFAULT_CONV_FEATURE_LAYERS
+        ),
         extractor_mode: str = "default",
         conv_bias: bool = False,
-        encoder_dim: list[int] = [192, 256, 448, 768, 448, 192],
+        encoder_dim: tuple[int, ...] = (192, 256, 448, 768, 448, 192),
         dropout_input: float = 0.0,
         dropout_features: float = 0.0,
         feature_grad_mult: float = 1.0,
-        downsampling_factor: list[int] = [1, 2, 4, 8, 4, 2],
-        num_encoder_layers: list[int] = [2, 2, 3, 4, 3, 2],
-        encoder_unmasked_dim: list[int] = [192, 192, 256, 256, 256, 192],
+        downsampling_factor: tuple[int, ...] = (1, 2, 4, 8, 4, 2),
+        num_encoder_layers: tuple[int, ...] = (2, 2, 3, 4, 3, 2),
+        encoder_unmasked_dim: tuple[int, ...] = (192, 192, 256, 256, 256, 192),
         query_head_dim: int = 32,
         pos_head_dim: int = 4,
         value_head_dim: int = 12,
         pos_dim: int = 48,
-        num_heads: list[int] = [4, 4, 4, 8, 4, 4],
-        feedforward_dim: list[int] = [512, 768, 1024, 1536, 1024, 768],
-        cnn_module_kernel: list[int] = [31, 31, 15, 15, 15, 31],
+        num_heads: tuple[int, ...] = (4, 4, 4, 8, 4, 4),
+        feedforward_dim: tuple[int, ...] = (512, 768, 1024, 1536, 1024, 768),
+        cnn_module_kernel: tuple[int, ...] = (31, 31, 15, 15, 15, 31),
         vocab_size: int = 512,
-        **kwargs,
-    ):
+        initializer_range: float = 0.02,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.conv_feature_layers = conv_feature_layers
         self.extractor_mode = extractor_mode
@@ -85,3 +97,4 @@ class ZipformerConfig(PretrainedConfig):
         self.feedforward_dim = feedforward_dim
         self.cnn_module_kernel = cnn_module_kernel
         self.vocab_size = vocab_size
+        self.initializer_range = initializer_range

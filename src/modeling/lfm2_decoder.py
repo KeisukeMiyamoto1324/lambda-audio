@@ -6,7 +6,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 from transformers.models.lfm2.modeling_lfm2 import Lfm2DecoderLayer, Lfm2ForCausalLM
 
-from src.shared.cross_attention import GatedCrossAttention
+from src.modeling.cross_attention import GatedCrossAttention
 
 
 class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
@@ -24,7 +24,7 @@ class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
         position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
         attention_mask: torch.Tensor | None = None,
         position_ids: torch.LongTensor | None = None,
-        past_key_values: Any | None = None,
+        past_key_values: Cache | None = None,
         *,
         audio_features: torch.Tensor,
         audio_padding_mask: torch.BoolTensor,
@@ -89,7 +89,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         )
 
 
-def add_cross_attention(model: AudioLfm2ForCausalLM) -> None:
+def add_cross_attention(model: Lfm2ForCausalLM) -> None:
     # ---------------------------------------------------------
     # Replace only full-attention layers and preserve LFM weights.
     # ---------------------------------------------------------

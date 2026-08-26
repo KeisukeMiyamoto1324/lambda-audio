@@ -2,20 +2,21 @@ import multiprocessing
 import random
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Protocol
 
 from torch.utils.data import IterableDataset as TorchIterableDataset, get_worker_info
 
-from src.shared.metadata import MetadataReader
+from src.data.metadata import MetadataReader
+from src.data.types import AudioExample, TranscribedAudioExample
 
 
 class EpochAudioDataset(Protocol):
-    def __iter__(self) -> Iterator[dict[str, Any]]: ...
+    def __iter__(self) -> Iterator[AudioExample]: ...
 
     def set_epoch(self, epoch: int) -> None: ...
 
 
-class TranscribedAudioDataset(TorchIterableDataset[dict[str, Any]]):
+class TranscribedAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
     def __init__(
         self,
         dataset: EpochAudioDataset,
@@ -24,14 +25,13 @@ class TranscribedAudioDataset(TorchIterableDataset[dict[str, Any]]):
         self.dataset = dataset
         self.metadata_index_path = metadata_index_path
 
-    def __iter__(self) -> Iterator[dict[str, Any]]:
+    def __iter__(self) -> Iterator[TranscribedAudioExample]:
         reader = MetadataReader(self.metadata_index_path)
         try:
             for example in self.dataset:
-                audio_key = cast(str, example["__key__"])
                 yield {
-                    "audio_array": example["flac"]["array"],
-                    "transcription": reader.transcription(audio_key),
+                    "audio_array": example["audio_array"],
+                    "transcription": reader.transcription(example["audio_key"]),
                 }
         finally:
             reader.close()
@@ -40,7 +40,7 @@ class TranscribedAudioDataset(TorchIterableDataset[dict[str, Any]]):
         self.dataset.set_epoch(epoch)
 
 
-class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
+class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
     def __init__(
         self,
         dataset: TranscribedAudioDataset,
@@ -68,14 +68,14 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
         if bucket_buffer_size < 1:
             raise ValueError("The bucket buffer size must be positive.")
 
-    def __iter__(self) -> Iterator[list[dict[str, Any]]]:
+    def __iter__(self) -> Iterator[list[TranscribedAudioExample]]:
         epoch = self.epoch.value
         self.dataset.set_epoch(epoch)
         worker = get_worker_info()
         worker_id = 0 if worker is None else worker.id
         generator = random.Random(self.seed + epoch + worker_id)
         source = iter(self.dataset)
-        window: list[dict[str, Any]] = []
+        window: list[TranscribedAudioExample] = []
         source_exhausted = self._fill_window(
             window,
             source,
@@ -84,7 +84,7 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
 
         while window:
             batches = self._create_batches(window, generator)
-            next_window: list[dict[str, Any]] = []
+            next_window: list[TranscribedAudioExample] = []
             for batch_index, batch in enumerate(batches, start=1):
                 yield batch
                 if source_exhausted:
@@ -101,12 +101,12 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
 
     def _create_batches(
         self,
-        window: list[dict[str, Any]],
+        window: list[TranscribedAudioExample],
         generator: random.Random,
-    ) -> list[list[dict[str, Any]]]:
+    ) -> list[list[TranscribedAudioExample]]:
         window.sort(key=lambda example: len(example["audio_array"]))
-        batches: list[list[dict[str, Any]]] = []
-        batch: list[dict[str, Any]] = []
+        batches: list[list[TranscribedAudioExample]] = []
+        batch: list[TranscribedAudioExample] = []
 
         for example in window:
             # ---------------------------------------------------------
@@ -146,8 +146,8 @@ class AudioBatchDataset(TorchIterableDataset[list[dict[str, Any]]]):
 
     @staticmethod
     def _fill_window(
-        window: list[dict[str, Any]],
-        source: Iterator[dict[str, Any]],
+        window: list[TranscribedAudioExample],
+        source: Iterator[TranscribedAudioExample],
         target_size: int,
     ) -> bool:
         while len(window) < target_size:

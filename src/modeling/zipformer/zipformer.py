@@ -95,15 +95,15 @@ class Zipformer2(nn.Module):
         dropout: FloatLike = None,  # see code below for default
         warmup_batches: float = 4000.0,
         causal: bool = False,
-        chunk_size: Tuple[int] = [-1],
-        left_context_frames: Tuple[int] = [-1],
+        chunk_size: Tuple[int] = (-1,),
+        left_context_frames: Tuple[int] = (-1,),
     ) -> None:
         super(Zipformer2, self).__init__()
 
         if dropout is None:
             dropout = ScheduledFloat((0.0, 0.3), (20000.0, 0.1))
 
-        def _to_tuple(x):
+        def _to_tuple(x: int | Tuple[int]) -> Tuple[int]:
             """Converts a single int or a 1-tuple of an int to a tuple with the same length
             as downsampling_factor"""
             if isinstance(x, int):
@@ -384,7 +384,7 @@ class Zipformer2(nn.Module):
             logging.info(f"attn_mask = {attn_mask}")
         return attn_mask
 
-    def _get_full_dim_output(self, outputs: List[Tensor]):
+    def _get_full_dim_output(self, outputs: List[Tensor]) -> Tensor:
         num_encoders = len(self.encoder_dim)
         assert len(outputs) == num_encoders
         output_dim = max(self.encoder_dim)
@@ -517,10 +517,6 @@ class Zipformer2(nn.Module):
 
 def _whitening_schedule(x: float, ratio: float = 2.0) -> ScheduledFloat:
     return ScheduledFloat((0.0, x), (20000.0, ratio * x), default=x)
-
-
-def _balancer_schedule(min_prob: float):
-    return ScheduledFloat((0.0, 0.4), (8000.0, min_prob))
 
 
 class Zipformer2EncoderLayer(nn.Module):
@@ -1146,7 +1142,7 @@ class BypassModule(nn.Module):
         straight_through_rate: FloatLike = 0.0,
         scale_min: FloatLike = ScheduledFloat((0.0, 0.9), (20000.0, 0.2), default=0),
         scale_max: FloatLike = 1.0,
-    ):
+    ) -> None:
         super().__init__()
         self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
         self.skip_rate = copy.deepcopy(skip_rate)
@@ -1154,7 +1150,7 @@ class BypassModule(nn.Module):
         self.scale_min = copy.deepcopy(scale_min)
         self.scale_max = copy.deepcopy(scale_max)
 
-    def _get_bypass_scale(self, batch_size: int):
+    def _get_bypass_scale(self, batch_size: int) -> Tensor:
         # returns bypass-scale of shape (num_channels,),
         # or (batch_size, num_channels,).  This is actually the
         # scale on the non-residual term, so 0 correponds to bypassing
@@ -1180,7 +1176,7 @@ class BypassModule(nn.Module):
                 ans = torch.maximum(ans, mask.to(ans.dtype))
             return ans
 
-    def forward(self, src_orig: Tensor, src: Tensor):
+    def forward(self, src_orig: Tensor, src: Tensor) -> Tensor:
         """
         Args: src_orig and src are both of shape (seq_len, batch_size, num_channels)
         Returns: something with the same shape as src and src_orig
@@ -1198,7 +1194,7 @@ class DownsampledZipformer2Encoder(nn.Module):
 
     def __init__(
         self, encoder: nn.Module, dim: int, downsample: int, dropout: FloatLike
-    ):
+    ) -> None:
         super(DownsampledZipformer2Encoder, self).__init__()
         self.downsample_factor = downsample
         self.downsample = SimpleDownsample(dim, downsample, dropout)
@@ -1290,7 +1286,12 @@ class SimpleDownsample(torch.nn.Module):
     Does downsampling with attention, by weighted sum, and a projection..
     """
 
-    def __init__(self, channels: int, downsample: int, dropout: FloatLike):
+    def __init__(
+        self,
+        channels: int,
+        downsample: int,
+        dropout: FloatLike,
+    ) -> None:
         super(SimpleDownsample, self).__init__()
 
         self.bias = nn.Parameter(torch.zeros(downsample))
@@ -1335,7 +1336,7 @@ class SimpleUpsample(torch.nn.Module):
     also adds a position-specific bias.
     """
 
-    def __init__(self, num_channels: int, upsample: int):
+    def __init__(self, num_channels: int, upsample: int) -> None:
         super(SimpleUpsample, self).__init__()
         self.upsample = upsample
 
@@ -1821,7 +1822,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
 
         return attn_weights, cached_key
 
-    def _print_attn_entropy(self, attn_weights: Tensor):
+    def _print_attn_entropy(self, attn_weights: Tensor) -> None:
         # attn_weights: (num_heads, batch_size, seq_len, seq_len)
         (num_heads, batch_size, seq_len, seq_len) = attn_weights.shape
 
@@ -1968,7 +1969,12 @@ class SelfAttention(nn.Module):
 class FeedforwardModule(nn.Module):
     """Feedforward module in Zipformer2 model."""
 
-    def __init__(self, embed_dim: int, feedforward_dim: int, dropout: FloatLike):
+    def __init__(
+        self,
+        embed_dim: int,
+        feedforward_dim: int,
+        dropout: FloatLike,
+    ) -> None:
         super(FeedforwardModule, self).__init__()
         self.in_proj = nn.Linear(embed_dim, feedforward_dim)
 
@@ -1999,7 +2005,7 @@ class FeedforwardModule(nn.Module):
             grad_scale=0.01,
         )
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         x = self.in_proj(x)
         x = self.hidden_balancer(x)
         # out_proj contains SwooshL activation, then dropout, then linear.
@@ -2367,12 +2373,3 @@ class ConvolutionModule(nn.Module):
         x = self.out_proj(x)  # (time, batch, channels)
 
         return x, cache
-
-
-class ScalarMultiply(nn.Module):
-    def __init__(self, scale: float):
-        super().__init__()
-        self.scale = scale
-
-    def forward(self, x):
-        return x * self.scale

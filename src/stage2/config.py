@@ -1,15 +1,20 @@
-from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.shared.config import BaseTrainingConfig
+from pydantic import FilePath, PositiveFloat, PositiveInt
+
+from src.training.config import BaseTrainingConfig
 
 
-@dataclass(frozen=True)
 class Stage2Config(BaseTrainingConfig):
-    initialization_checkpoint: Path = field(kw_only=True)
-    train_max_batch_padded_audio_seconds: float = 120.0
-    validation_max_batch_padded_audio_seconds: float = 60.0
-    train_max_batch_attention_cost: int = 12_000_000
-    validation_max_batch_attention_cost: int = 12_000_000
-    adapter_learning_rate: float = 1e-4
-    backbone_learning_rate: float = 1e-6
+    output_dir: Path = Path("outputs/stage2")
+    initialization_checkpoint: FilePath = Path("outputs/stage1/model.ckpt")
+    num_workers: PositiveInt = 16
+    prefetch_factor: PositiveInt = 4
+    train_max_batch_padded_audio_seconds: PositiveFloat = 1_600.0
+    validation_max_batch_padded_audio_seconds: PositiveFloat = 256.0
+    train_max_batch_attention_cost: PositiveInt = 40_000_000
+    validation_max_batch_attention_cost: PositiveInt = 36_000_000
+    gradient_accumulation_steps: PositiveInt = 1
+    max_steps: PositiveInt = 204_800
+    adapter_learning_rate: PositiveFloat = 2e-5
+    backbone_learning_rate: PositiveFloat = 2e-5

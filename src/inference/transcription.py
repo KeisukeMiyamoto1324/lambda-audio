@@ -2,10 +2,18 @@ from pathlib import Path
 
 import librosa
 import torch
+from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.inference.config import InferenceConfig
-from src.shared.lambda_audio import LambdaAudioModel
+from src.modeling.lambda_audio import LambdaAudioModel
+
+
+class TranscriptionResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    text: str
+    audio_seconds: NonNegativeFloat
 
 
 def transcribe(
@@ -15,7 +23,7 @@ def transcribe(
     config: InferenceConfig,
     device: torch.device,
     audio_path: Path,
-) -> str:
+) -> TranscriptionResult:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
@@ -28,7 +36,9 @@ def transcribe(
     if audio.size == 0:
         raise ValueError("The audio file is empty.")
     if audio.size > config.sampling_rate * config.max_audio_seconds:
-        raise ValueError("The audio file must be 30 seconds or shorter.")
+        raise ValueError(
+            f"The audio file must be {config.max_audio_seconds:g} seconds or shorter."
+        )
 
     audio_batch = feature_extractor(
         audio,
@@ -59,7 +69,11 @@ def transcribe(
         )
 
     transcription_ids = generated_ids[:, input_ids.shape[1] :]
-    return tokenizer.batch_decode(
+    text = tokenizer.batch_decode(
         transcription_ids,
         skip_special_tokens=True,
     )[0].strip()
+    return TranscriptionResult(
+        text=text,
+        audio_seconds=audio.size / config.sampling_rate,
+    )

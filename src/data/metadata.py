@@ -5,11 +5,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from filelock import FileLock
-from huggingface_hub import HfApi, hf_hub_download
 from tqdm import tqdm
 
+from src.data.reazon_repository import dataset_revision, download_reazon_speech_file
 
-DATASET_ID = "litagin/reazon-speech-v2-clone"
 INSERT_BATCH_SIZE = 10_000
 
 
@@ -20,13 +19,6 @@ def metadata_key(example: dict[str, Any]) -> str:
     if not file_name.startswith(prefix) or not file_name.endswith(suffix):
         raise ValueError(f"Invalid metadata file name: {file_name}")
     return file_name[len(prefix) : -len(suffix)]
-
-
-def dataset_revision(token: str) -> str:
-    revision = HfApi(token=token).dataset_info(DATASET_ID).sha
-    if revision is None:
-        raise RuntimeError("The dataset revision is unavailable.")
-    return revision
 
 
 def metadata_index_revision(path: Path) -> str | None:
@@ -111,14 +103,10 @@ def prepare_metadata_index(token: str, path: Path) -> None:
         if metadata_index_revision(path) == revision:
             return
 
-        metadata_path = Path(
-            hf_hub_download(
-                repo_id=DATASET_ID,
-                filename="metadata.csv",
-                repo_type="dataset",
-                revision=revision,
-                token=token,
-            )
+        metadata_path = download_reazon_speech_file(
+            token,
+            revision,
+            "metadata.csv",
         )
         create_metadata_index(
             read_metadata_rows(metadata_path),

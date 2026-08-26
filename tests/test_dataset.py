@@ -6,17 +6,17 @@ import pytest
 from datasets import IterableDataset
 from torch.utils.data import DataLoader
 
-from src.shared.dataset import (
+from src.data.dataset import (
     AudioBatchDataset,
     TranscribedAudioDataset,
 )
-from src.shared.metadata import create_metadata_index
+from src.data.metadata import create_metadata_index
 
 
 def create_audio_example(key: str, audio_samples: int) -> dict[str, Any]:
     return {
-        "__key__": key,
-        "flac": {"array": np.ones(audio_samples, dtype=np.float32)},
+        "audio_key": key,
+        "audio_array": np.ones(audio_samples, dtype=np.float32),
     }
 
 
@@ -25,6 +25,13 @@ def create_metadata_example(key: str, transcription: str) -> dict[str, Any]:
         "file_name": f"data/{key}.flac",
         "transcription": transcription,
     }
+
+
+def generate_audio_shards(shards: list[int]) -> Any:
+    for shard in shards:
+        for index in range(2):
+            key = f"{shard:03d}/{index}"
+            yield create_audio_example(key, index + 1)
 
 
 def create_transcribed_dataset(
@@ -188,14 +195,8 @@ def test_transcribed_dataset_preserves_worker_sharding(tmp_path: Path) -> None:
         revision="revision",
     )
 
-    def generate(shards: list[int]) -> Any:
-        for shard in shards:
-            for index in range(2):
-                key = f"{shard:03d}/{index}"
-                yield create_audio_example(key, index + 1)
-
     audio_dataset = IterableDataset.from_generator(
-        generate,
+        generate_audio_shards,
         gen_kwargs={"shards": [0, 1, 2, 3]},
     )
     dataset = TranscribedAudioDataset(audio_dataset, index_path)

@@ -7,12 +7,10 @@ import torch
 from torch import nn
 
 from src.inference.config import InferenceConfig
-from src.inference.loader import (
-    load_checkpoint_weights,
-    select_device,
-)
+from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
+from src.modeling.checkpoint import load_model_checkpoint
 
 
 class DummyModel(nn.Module):
@@ -77,7 +75,7 @@ def test_load_checkpoint_weights_removes_lightning_prefix(tmp_path: Path) -> Non
     }
     torch.save({"state_dict": state_dict}, checkpoint_path)
 
-    load_checkpoint_weights(target_model, checkpoint_path)
+    load_model_checkpoint(target_model, checkpoint_path)
 
     for source_parameter, target_parameter in zip(
         source_model.parameters(),
@@ -92,8 +90,10 @@ def test_transcribe_generates_from_bos(
     tmp_path: Path,
 ) -> None:
     audio_path = tmp_path / "audio.wav"
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
     config = InferenceConfig(
-        checkpoint_path=tmp_path / "model.ckpt",
+        checkpoint_path=checkpoint_path,
         input_dir=tmp_path,
     )
     model = DummyModel()
@@ -102,7 +102,7 @@ def test_transcribe_generates_from_bos(
         lambda *args, **kwargs: (np.ones(160, dtype=np.float32), 16_000),
     )
 
-    transcription = transcribe(
+    result = transcribe(
         model,  # type: ignore[arg-type]
         DummyFeatureExtractor(),  # type: ignore[arg-type]
         DummyTokenizer(),  # type: ignore[arg-type]
@@ -111,7 +111,8 @@ def test_transcribe_generates_from_bos(
         audio_path,
     )
 
-    assert transcription == "transcription"
+    assert result.text == "transcription"
+    assert result.audio_seconds == 0.01
     assert model.generation_arguments["input_ids"].tolist() == [[1]]
     assert model.generation_arguments["max_new_tokens"] == 256
     assert not model.generation_arguments["audio_padding_mask"].any()
@@ -121,8 +122,10 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
     config = InferenceConfig(
-        checkpoint_path=tmp_path / "model.ckpt",
+        checkpoint_path=checkpoint_path,
         input_dir=tmp_path,
     )
     monkeypatch.setattr(
