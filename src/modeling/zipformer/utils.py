@@ -21,24 +21,6 @@ class TransposeLast(nn.Module):
         return x.transpose(self.transpose_dim, -1)
 
 
-try:
-    from apex.normalization import FusedLayerNorm as _FusedLayerNorm
-except ImportError:
-    _FusedLayerNorm = None
-
-
-def LayerNorm(
-    normalized_shape: int | tuple[int, ...],
-    eps: float = 1e-5,
-    elementwise_affine: bool = True,
-    export: bool = False,
-) -> nn.Module:
-    tracing = torch.jit.is_scripting() or torch.jit.is_tracing()
-    if export or tracing or not torch.cuda.is_available() or _FusedLayerNorm is None:
-        return nn.LayerNorm(normalized_shape, eps, elementwise_affine)
-    return _FusedLayerNorm(normalized_shape, eps, elementwise_affine)
-
-
 class Fp32LayerNorm(nn.LayerNorm):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         output = F.layer_norm(

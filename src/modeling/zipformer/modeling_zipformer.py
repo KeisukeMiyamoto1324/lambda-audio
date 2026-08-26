@@ -9,7 +9,7 @@ from transformers.modeling_outputs import CausalLMOutput, Wav2Vec2BaseModelOutpu
 from .configuration_zipformer import ZipformerConfig
 from .wav2vec2_module import ConvFeatureExtractionModel
 from .scaling import ScheduledFloat
-from .utils import GradMultiply, LayerNorm
+from .utils import GradMultiply
 from .zipformer import Zipformer2
 
 
@@ -85,7 +85,7 @@ class ZipformerModel(ZipformerPreTrainedModel):
             warmup_batches=4000.0,
         )
 
-        self.layer_norm = LayerNorm(self.embed)
+        self.layer_norm = nn.LayerNorm(self.embed)
         self.post_init()
 
     @classmethod
