@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import cast
 
 from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub.utils import disable_progress_bars
 
 DATASET_ID = "litagin/reazon-speech-v2-clone"
 
@@ -35,14 +36,15 @@ def download_reazon_speech_file(
     filename: str,
     local_dir: Path | None = None,
 ) -> Path:
-    path = hf_hub_download(
-        repo_id=DATASET_ID,
-        filename=filename,
-        repo_type="dataset",
-        revision=revision,
-        token=token,
-        local_dir=local_dir,
-    )
+    with disable_progress_bars():
+        path = hf_hub_download(
+            repo_id=DATASET_ID,
+            filename=filename,
+            repo_type="dataset",
+            revision=revision,
+            token=token,
+            local_dir=local_dir,
+        )
     return Path(cast(str, path))
 
 
