@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from pathlib import Path
 from typing import cast
 
@@ -35,8 +36,10 @@ def download_reazon_speech_file(
     revision: str,
     filename: str,
     local_dir: Path | None = None,
+    show_progress: bool = False,
 ) -> Path:
-    with disable_progress_bars():
+    progress_context = nullcontext() if show_progress else disable_progress_bars()
+    with progress_context:
         path = hf_hub_download(
             repo_id=DATASET_ID,
             filename=filename,
@@ -61,4 +64,5 @@ def prepare_reazon_speech_validation_shard(
         revision,
         shard_file,
         validation_cache,
+        show_progress=True,
     )

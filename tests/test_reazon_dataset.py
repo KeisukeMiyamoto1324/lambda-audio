@@ -4,6 +4,7 @@ import threading
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -11,7 +12,10 @@ import soundfile as sf
 from pytest import MonkeyPatch
 
 from src.data.reazon_dataset import ReazonSpeechShardDataset
-from src.data.reazon_repository import prepare_reazon_speech_validation_shard
+from src.data.reazon_repository import (
+    download_reazon_speech_file,
+    prepare_reazon_speech_validation_shard,
+)
 
 
 def create_shard(path: Path, keys: list[str], sampling_rate: int = 16_000) -> None:
@@ -141,6 +145,35 @@ def test_prepare_validation_shard_downloads_before_iteration(
     assert path == tmp_path / "cache" / "validation" / shard_file
     assert path.is_file()
     assert calls == [shard_file]
+
+
+def test_reazon_download_can_show_progress(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    (remote / "metadata.csv").write_text("metadata", encoding="utf-8")
+    calls: list[str] = []
+    install_download_stub(monkeypatch, remote, calls)
+
+    disable_progress_bars = Mock(
+        side_effect=AssertionError("Progress bars must remain enabled.")
+    )
+    monkeypatch.setattr(
+        "src.data.reazon_repository.disable_progress_bars",
+        disable_progress_bars,
+    )
+    download_reazon_speech_file(
+        "token",
+        "revision",
+        "metadata.csv",
+        tmp_path / "cache",
+        show_progress=True,
+    )
+
+    assert calls == ["metadata.csv"]
+    disable_progress_bars.assert_not_called()
 
 
 def test_reazon_dataset_prefetches_next_shard_and_bounds_cache(

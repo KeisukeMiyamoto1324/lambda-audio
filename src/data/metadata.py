@@ -103,6 +103,7 @@ def prepare_metadata_index(token: str, path: Path) -> None:
             token,
             revision,
             "metadata.csv",
+            show_progress=True,
         )
         create_metadata_index(
             read_metadata_rows(metadata_path),

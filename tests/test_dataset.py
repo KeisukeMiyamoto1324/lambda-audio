@@ -191,7 +191,12 @@ def test_transcribed_dataset_preserves_worker_sharding(tmp_path: Path) -> None:
         gen_kwargs={"shards": [0, 1, 2, 3]},
     )
     dataset = TranscribedAudioDataset(audio_dataset, index_path)
-    loader = DataLoader(dataset, batch_size=None, num_workers=2)
+    loader = DataLoader(
+        dataset,
+        batch_size=None,
+        num_workers=2,
+        multiprocessing_context="spawn",
+    )
 
     transcriptions = [example["transcription"] for example in loader]
 
