@@ -14,11 +14,15 @@ class Stage2Config(BaseTrainingConfig):
     adapter_learning_rate: PositiveFloat = 2e-5
     backbone_learning_rate: PositiveFloat = 2e-5
 
-    train_max_batch_padded_audio_seconds: PositiveFloat = 1_600.0
+    train_max_batch_padded_audio_seconds: PositiveFloat = 1_500.0
     train_max_batch_attention_cost: PositiveInt = 40_000_000
 
-    validation_max_batch_padded_audio_seconds: PositiveFloat = 256.0
-    validation_max_batch_attention_cost: PositiveInt = 36_000_000
+    validation_samples: PositiveInt = 2_560
+    validation_batches: PositiveInt = 2_560
+    validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
+    validation_max_batch_attention_cost: PositiveInt = 20_000_000
 
-    num_workers: PositiveInt = 16
+    num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4
+
+    early_stopping_patience: PositiveInt = 5
