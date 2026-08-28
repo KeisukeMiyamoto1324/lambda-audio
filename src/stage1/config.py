@@ -20,7 +20,7 @@ class Stage1Config(BaseTrainingConfig):
     validation_max_batch_padded_audio_seconds: PositiveFloat = 700
     validation_max_batch_attention_cost: PositiveInt = 28_000_000
 
-    num_workers: PositiveInt = 16
+    num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4
     
     early_stopping_patience: PositiveInt = 5
