@@ -50,3 +50,37 @@ def test_stage1_cli_reports_pydantic_error(
 
     with pytest.raises(SystemExit):
         parse_stage1_arguments()
+
+
+def test_stage1_cli_accepts_resume_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "last.ckpt"
+    checkpoint_path.touch()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["stage1", "--resume-checkpoint", str(checkpoint_path)],
+    )
+
+    config = parse_stage1_arguments()
+
+    assert config.resume_checkpoint == checkpoint_path
+
+
+def test_stage2_cli_accepts_resume_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "last.ckpt"
+    checkpoint_path.touch()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["stage2", "--resume-checkpoint", str(checkpoint_path)],
+    )
+
+    config = parse_stage2_arguments()
+
+    assert config.resume_checkpoint == checkpoint_path

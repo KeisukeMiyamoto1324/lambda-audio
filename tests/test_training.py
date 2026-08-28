@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
 from torch import nn
 
 from src.modeling.zipformer.scaling import ScheduledFloat
@@ -11,6 +13,8 @@ from src.stage1.config import Stage1Config
 from src.stage1.training import Stage1LightningModule
 from src.stage2.config import Stage2Config
 from src.stage2.training import Stage2LightningModule
+from src.training import trainer as trainer_module
+from src.training.trainer import create_trainer
 
 
 class DummyTrainingModel(nn.Module):
@@ -122,3 +126,31 @@ def test_optimizer_step_identifies_nonfinite_gradient() -> None:
         match="parameter=encoder.weight",
     ):
         module.on_before_optimizer_step(optimizer)
+
+
+def test_create_trainer_saves_config_and_full_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    trainer_arguments: dict[str, Any] = {}
+
+    def create_dummy_trainer(**kwargs: Any) -> SimpleNamespace:
+        trainer_arguments.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(trainer_module.L, "Trainer", create_dummy_trainer)
+    config = Stage1Config(output_dir=tmp_path)
+
+    create_trainer(config)
+
+    saved_config = json.loads(
+        (tmp_path / "training_config.json").read_text(encoding="utf-8")
+    )
+    checkpoint = next(
+        callback
+        for callback in trainer_arguments["callbacks"]
+        if isinstance(callback, ModelCheckpoint)
+    )
+    assert saved_config == config.model_dump(mode="json")
+    assert checkpoint.save_last is True
+    assert checkpoint.save_weights_only is False

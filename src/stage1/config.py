@@ -22,6 +22,5 @@ class Stage1Config(BaseTrainingConfig):
 
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4
-    
-    early_stopping_patience: PositiveInt = 5
 
+    early_stopping_patience: PositiveInt = 5

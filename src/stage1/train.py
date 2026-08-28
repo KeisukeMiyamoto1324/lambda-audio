@@ -22,7 +22,11 @@ def main() -> None:
         config,
         token,
     )
-    create_trainer(config).fit(lightning_model, datamodule=data_module)
+    create_trainer(config).fit(
+        lightning_model,
+        datamodule=data_module,
+        ckpt_path=config.resume_checkpoint,
+    )
 
 
 if __name__ == "__main__":

@@ -26,6 +26,20 @@ def test_stage2_config_validates_checkpoint_path(tmp_path: Path) -> None:
         Stage2Config(initialization_checkpoint=tmp_path / "missing.ckpt")
 
 
+def test_stage2_resume_does_not_require_initialization_checkpoint(
+    tmp_path: Path,
+) -> None:
+    resume_checkpoint = tmp_path / "last.ckpt"
+    resume_checkpoint.touch()
+
+    config = Stage2Config(
+        initialization_checkpoint=tmp_path / "missing.ckpt",
+        resume_checkpoint=resume_checkpoint,
+    )
+
+    assert config.resume_checkpoint == resume_checkpoint
+
+
 def test_inference_config_validates_paths(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()

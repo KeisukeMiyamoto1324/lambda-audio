@@ -1,13 +1,14 @@
 from pathlib import Path
+from typing import Self
 
-from pydantic import FilePath, PositiveFloat, PositiveInt
+from pydantic import PositiveFloat, PositiveInt, model_validator
 
 from src.training.config import BaseTrainingConfig
 
 
 class Stage2Config(BaseTrainingConfig):
     output_dir: Path = Path("outputs/stage2")
-    initialization_checkpoint: FilePath = Path("outputs/stage1/model.ckpt")
+    initialization_checkpoint: Path = Path("outputs/stage1/model.ckpt")
 
     gradient_accumulation_steps: PositiveInt = 1
     max_steps: PositiveInt = 204_800
@@ -26,3 +27,15 @@ class Stage2Config(BaseTrainingConfig):
     prefetch_factor: PositiveInt = 4
 
     early_stopping_patience: PositiveInt = 5
+
+    @model_validator(mode="after")
+    def validate_initialization_checkpoint(self) -> Self:
+        if (
+            self.resume_checkpoint is None
+            and not self.initialization_checkpoint.is_file()
+        ):
+            raise ValueError(
+                "The initialization checkpoint does not exist: "
+                f"{self.initialization_checkpoint}"
+            )
+        return self

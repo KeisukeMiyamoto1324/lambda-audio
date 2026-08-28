@@ -11,6 +11,11 @@ def parse_arguments() -> Stage1Config:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=defaults.output_dir)
     parser.add_argument(
+        "--resume-checkpoint",
+        type=Path,
+        default=defaults.resume_checkpoint,
+    )
+    parser.add_argument(
         "--metadata-index-path",
         type=Path,
         default=defaults.metadata_index_path,

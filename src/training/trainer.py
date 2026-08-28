@@ -20,6 +20,10 @@ def configure_training_environment(seed: int) -> None:
 
 def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    (config.output_dir / "training_config.json").write_text(
+        f"{config.model_dump_json(indent=2)}\n",
+        encoding="utf-8",
+    )
     checkpoint = ModelCheckpoint(
         dirpath=config.output_dir,
         filename="model",
@@ -27,7 +31,8 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         mode="min",
         every_n_train_steps=config.save_steps,
         save_top_k=1,
-        save_weights_only=True,
+        save_last=True,
+        save_weights_only=False,
         save_on_train_epoch_end=False,
         enable_version_counter=False,
     )

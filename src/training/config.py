@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from pydantic import Field, NonNegativeFloat, PositiveFloat, PositiveInt
+from pydantic import Field, FilePath, NonNegativeFloat, PositiveFloat, PositiveInt
 
 from src.modeling.config import ModelConfig
 
 
 class BaseTrainingConfig(ModelConfig):
     output_dir: Path
+    resume_checkpoint: FilePath | None = None
     metadata_index_path: Path = Path(
         "outputs/datasets/reazon-speech-v2-metadata.sqlite3"
     )

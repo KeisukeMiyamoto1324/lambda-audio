@@ -24,17 +24,22 @@ def main() -> None:
     )
 
     lightning_model = Stage2LightningModule(model, config)
-    lightning_model.load_state_dict(
-        load_checkpoint_state(config.initialization_checkpoint),
-        strict=True,
-    )
+    if config.resume_checkpoint is None:
+        lightning_model.load_state_dict(
+            load_checkpoint_state(config.initialization_checkpoint),
+            strict=True,
+        )
     data_module = LambdaAudioDataModule(
         components.feature_extractor,
         components.tokenizer,
         config,
         token,
     )
-    create_trainer(config).fit(lightning_model, datamodule=data_module)
+    create_trainer(config).fit(
+        lightning_model,
+        datamodule=data_module,
+        ckpt_path=config.resume_checkpoint,
+    )
 
 
 if __name__ == "__main__":
