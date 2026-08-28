@@ -2,12 +2,12 @@ import time
 
 import lightning as L
 import torch
-from lightning.pytorch.callbacks import TQDMProgressBar
+from lightning.pytorch.callbacks import RichProgressBar
 
 DATA_STALL_SECONDS = 1.0
 
 
-class TrainingProgressBar(TQDMProgressBar):
+class TrainingProgressBar(RichProgressBar):
     def get_metrics(
         self,
         trainer: L.Trainer,

@@ -6,7 +6,7 @@ from typing import Any, cast
 from unicodedata import category, mirrored, normalize
 
 from filelock import FileLock
-from tqdm import tqdm
+from rich.progress import track
 
 from src.data.reazon_repository import dataset_revision, download_reazon_speech_file
 
@@ -99,11 +99,9 @@ def create_metadata_index(
 def read_metadata_rows(path: Path) -> Iterator[dict[str, Any]]:
     with path.open(encoding="utf-8", newline="") as metadata_file:
         rows = csv.DictReader(metadata_file)
-        progress = tqdm(
+        progress = track(
             rows,
-            desc="Indexing metadata",
-            unit=" rows",
-            dynamic_ncols=True,
+            description="Indexing metadata",
         )
         yield from cast(Iterator[dict[str, Any]], progress)
 
