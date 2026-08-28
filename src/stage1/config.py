@@ -12,11 +12,16 @@ class Stage1Config(BaseTrainingConfig):
     max_steps: PositiveInt = 204_800
     learning_rate: PositiveFloat = 1e-4
 
-    train_max_batch_padded_audio_seconds: PositiveFloat = 1600
+    train_max_batch_padded_audio_seconds: PositiveFloat = 1400
     train_max_batch_attention_cost: PositiveInt = 56_000_000
 
-    validation_max_batch_padded_audio_seconds: PositiveFloat = 256
-    validation_max_batch_attention_cost: PositiveInt = 36_000_000
+    validation_samples: PositiveInt = 2_560
+    validation_batches: PositiveInt = 2_560
+    validation_max_batch_padded_audio_seconds: PositiveFloat = 700
+    validation_max_batch_attention_cost: PositiveInt = 28_000_000
 
     num_workers: PositiveInt = 16
     prefetch_factor: PositiveInt = 4
+    
+    early_stopping_patience: PositiveInt = 5
+
