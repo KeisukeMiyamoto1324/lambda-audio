@@ -37,5 +37,5 @@ class BaseTrainingConfig(ModelConfig):
     save_steps: PositiveInt = 500
     validation_batches: PositiveInt = 32
     early_stopping_patience: PositiveInt = 5
-    early_stopping_min_delta: NonNegativeFloat = 0.05
+    early_stopping_min_delta: NonNegativeFloat = 0.01
     seed: int = Field(default=42, ge=0)
