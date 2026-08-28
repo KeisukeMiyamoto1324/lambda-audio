@@ -11,7 +11,7 @@ class Stage2Config(BaseTrainingConfig):
     initialization_checkpoint: Path = Path("outputs/stage1/model.ckpt")
 
     gradient_accumulation_steps: PositiveInt = 1
-    max_steps: PositiveInt = 102400
+    max_steps: PositiveInt = 51200
     adapter_learning_rate: PositiveFloat = 5e-5
     backbone_learning_rate: PositiveFloat = 5e-5
 
