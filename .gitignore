@@ -8,4 +8,5 @@ outputs/datasets/reazon-speech-v2-shards/
 **.sqlite3
 **.sqlite3.lock
 **.csv
+*.parquet
 outputs/
