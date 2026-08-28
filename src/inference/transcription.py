@@ -1,4 +1,4 @@
-from pathlib import Path
+from io import BytesIO
 
 import librosa
 import torch
@@ -22,26 +22,26 @@ def transcribe(
     tokenizer: PreTrainedTokenizerBase,
     config: InferenceConfig,
     device: torch.device,
-    audio_path: Path,
+    audio: bytes,
 ) -> TranscriptionResult:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
-    audio, sampling_rate = librosa.load(
-        audio_path,
+    audio_array, sampling_rate = librosa.load(
+        BytesIO(audio),
         sr=config.sampling_rate,
         mono=True,
         dtype="float32",
     )
-    if audio.size == 0:
+    if audio_array.size == 0:
         raise ValueError("The audio file is empty.")
-    if audio.size > config.sampling_rate * config.max_audio_seconds:
+    if audio_array.size > config.sampling_rate * config.max_audio_seconds:
         raise ValueError(
             f"The audio file must be {config.max_audio_seconds:g} seconds or shorter."
         )
 
     audio_batch = feature_extractor(
-        audio,
+        audio_array,
         sampling_rate=int(sampling_rate),
         return_attention_mask=True,
         return_tensors="pt",
@@ -75,5 +75,5 @@ def transcribe(
     )[0].strip()
     return TranscriptionResult(
         text=text,
-        audio_seconds=audio.size / config.sampling_rate,
+        audio_seconds=audio_array.size / config.sampling_rate,
     )

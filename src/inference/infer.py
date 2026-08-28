@@ -16,7 +16,7 @@ def main() -> None:
     load_model_checkpoint(components.model, config.checkpoint_path)
     components.model.to(device)
     components.model.eval()
-    samples = load_inference_samples(config.input_dir)
+    samples = load_inference_samples(config.input_path)
 
     for index, sample in enumerate(samples, start=1):
         inference_start = perf_counter()
@@ -26,11 +26,11 @@ def main() -> None:
             components.tokenizer,
             config,
             device,
-            sample.audio_path,
+            sample.audio,
         )
         inference_seconds = perf_counter() - inference_start
         print("-" * 72)
-        print(f"[{index}/{len(samples)}] {sample.audio_path.name}")
+        print(f"[{index}/{len(samples)}] {sample.audio_name}")
         print(f"正解({result.audio_seconds:.2g}秒): {sample.reference}")
         print(f"推論({inference_seconds:.2g}秒): {result.text}")
 

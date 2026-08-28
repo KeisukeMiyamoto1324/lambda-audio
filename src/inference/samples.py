@@ -1,31 +1,28 @@
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, FilePath
+import pyarrow.parquet as pq
+from pydantic import BaseModel, ConfigDict
 
 
 class InferenceSample(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    audio_path: FilePath
+    audio_name: str
+    audio: bytes
     reference: str
 
 
-def load_inference_samples(input_dir: Path) -> list[InferenceSample]:
-    audio_paths = sorted(input_dir.glob("*.flac"))
-    if not audio_paths:
-        raise ValueError("The input directory contains no FLAC files.")
-
+def load_inference_samples(input_path: Path) -> list[InferenceSample]:
+    table = pq.read_table(input_path, columns=["audio", "text"])
     samples: list[InferenceSample] = []
-    for audio_path in audio_paths:
-        reference_path = audio_path.with_suffix(".txt")
-        if not reference_path.is_file():
-            raise FileNotFoundError(
-                f"Reference transcription not found: {reference_path}"
-            )
+    for row in table.to_pylist():
         samples.append(
             InferenceSample(
-                audio_path=audio_path,
-                reference=reference_path.read_text(encoding="utf-8").strip(),
+                audio_name=row["audio"]["path"],
+                audio=row["audio"]["bytes"],
+                reference=row["text"],
             )
         )
+    if not samples:
+        raise ValueError("The input parquet contains no samples.")
     return samples

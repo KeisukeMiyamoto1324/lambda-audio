@@ -46,7 +46,7 @@ def test_inference_config_validates_paths(tmp_path: Path) -> None:
 
     config = InferenceConfig(
         checkpoint_path=checkpoint_path,
-        input_dir=tmp_path,
+        input_path=checkpoint_path,
     )
 
     assert config.checkpoint_path == checkpoint_path

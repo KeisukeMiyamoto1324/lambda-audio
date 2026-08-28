@@ -1,11 +1,15 @@
+import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 import torch
 from torch import nn
 
+from src.inference.cli import parse_arguments
 from src.inference.config import InferenceConfig
 from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
@@ -89,12 +93,11 @@ def test_transcribe_generates_from_bos(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    audio_path = tmp_path / "audio.wav"
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()
     config = InferenceConfig(
         checkpoint_path=checkpoint_path,
-        input_dir=tmp_path,
+        input_path=checkpoint_path,
     )
     model = DummyModel()
     monkeypatch.setattr(
@@ -108,7 +111,7 @@ def test_transcribe_generates_from_bos(
         DummyTokenizer(),  # type: ignore[arg-type]
         config,
         torch.device("cpu"),
-        audio_path,
+        b"audio",
     )
 
     assert result.text == "transcription"
@@ -126,7 +129,7 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
     checkpoint_path.touch()
     config = InferenceConfig(
         checkpoint_path=checkpoint_path,
-        input_dir=tmp_path,
+        input_path=checkpoint_path,
     )
     monkeypatch.setattr(
         "src.inference.transcription.librosa.load",
@@ -143,24 +146,57 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
             DummyTokenizer(),  # type: ignore[arg-type]
             config,
             torch.device("cpu"),
-            tmp_path / "audio.wav",
+            b"audio",
         )
 
 
-def test_load_inference_samples_pairs_audio_and_reference(tmp_path: Path) -> None:
-    (tmp_path / "b.flac").touch()
-    (tmp_path / "b.txt").write_text("二\n", encoding="utf-8")
-    (tmp_path / "a.flac").touch()
-    (tmp_path / "a.txt").write_text("一\n", encoding="utf-8")
+def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
+    input_path = tmp_path / "data.parquet"
+    table = pa.table(
+        {
+            "audio": [
+                {"bytes": b"audio-a", "path": "a.flac"},
+                {"bytes": b"audio-b", "path": "b.flac"},
+            ],
+            "text": ["一", "二"],
+        }
+    )
+    pq.write_table(table, input_path)
 
-    samples = load_inference_samples(tmp_path)
+    samples = load_inference_samples(input_path)
 
-    assert [sample.audio_path.name for sample in samples] == ["a.flac", "b.flac"]
+    assert [sample.audio_name for sample in samples] == ["a.flac", "b.flac"]
+    assert [sample.audio for sample in samples] == [b"audio-a", b"audio-b"]
     assert [sample.reference for sample in samples] == ["一", "二"]
 
 
-def test_load_inference_samples_rejects_missing_reference(tmp_path: Path) -> None:
-    (tmp_path / "audio.flac").touch()
+def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
+    input_path = tmp_path / "data.parquet"
+    audio_type = pa.struct([("bytes", pa.binary()), ("path", pa.string())])
+    table = pa.table(
+        {
+            "audio": pa.array([], type=audio_type),
+            "text": pa.array([], type=pa.string()),
+        }
+    )
+    pq.write_table(table, input_path)
 
-    with pytest.raises(FileNotFoundError, match="audio.txt"):
-        load_inference_samples(tmp_path)
+    with pytest.raises(ValueError, match="contains no samples"):
+        load_inference_samples(input_path)
+
+
+def test_inference_cli_uses_default_parquet(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["infer", "--checkpoint", str(checkpoint_path)],
+    )
+
+    config = parse_arguments()
+
+    assert config.input_path == Path("data/data.parquet")
