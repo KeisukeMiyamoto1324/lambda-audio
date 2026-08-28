@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from torch import nn
 
 from src.modeling.zipformer.scaling import ScheduledFloat
@@ -155,9 +155,15 @@ def test_create_trainer_saves_config_and_full_checkpoint(
         for callback in trainer_arguments["callbacks"]
         if isinstance(callback, ModelCheckpoint)
     )
+    early_stopping = next(
+        callback
+        for callback in trainer_arguments["callbacks"]
+        if isinstance(callback, EarlyStopping)
+    )
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
+    assert abs(early_stopping.min_delta) == 0.05
     assert any(
         isinstance(callback, ValidationInferenceMonitor)
         for callback in trainer_arguments["callbacks"]

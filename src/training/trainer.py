@@ -41,6 +41,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         monitor="validation_loss",
         mode="min",
         patience=config.early_stopping_patience,
+        min_delta=config.early_stopping_min_delta,
     )
     progress_bar = TrainingProgressBar()
     callbacks = [

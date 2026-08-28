@@ -74,6 +74,11 @@ def parse_arguments() -> Stage2Config:
         default=defaults.early_stopping_patience,
     )
     parser.add_argument(
+        "--early-stopping-min-delta",
+        type=float,
+        default=defaults.early_stopping_min_delta,
+    )
+    parser.add_argument(
         "--initialization-checkpoint",
         type=Path,
         default=defaults.initialization_checkpoint,
