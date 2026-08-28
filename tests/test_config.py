@@ -13,6 +13,9 @@ def test_training_config_validates_positive_values() -> None:
     with pytest.raises(ValidationError):
         Stage1Config(num_workers=0)
 
+    with pytest.raises(ValidationError):
+        Stage1Config(min_learning_rate_ratio=1.1)
+
 
 def test_training_config_is_frozen() -> None:
     config = Stage1Config()

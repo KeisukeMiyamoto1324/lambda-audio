@@ -64,6 +64,11 @@ def parse_arguments() -> Stage2Config:
     parser.add_argument("--max-steps", type=int, default=defaults.max_steps)
     parser.add_argument("--warmup-steps", type=int, default=defaults.warmup_steps)
     parser.add_argument(
+        "--min-learning-rate-ratio",
+        type=float,
+        default=defaults.min_learning_rate_ratio,
+    )
+    parser.add_argument(
         "--early-stopping-patience",
         type=int,
         default=defaults.early_stopping_patience,

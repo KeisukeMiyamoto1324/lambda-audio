@@ -45,10 +45,13 @@ class DummyLossModel(DummyTrainingModel):
 def test_stage1_optimizer_uses_one_learning_rate() -> None:
     config = Stage1Config(output_dir=Path("outputs"))
     module = Stage1LightningModule(DummyTrainingModel(), config)  # type: ignore[arg-type]
-    optimizer = module.configure_optimizers()["optimizer"]
+    optimizer_configuration = module.configure_optimizers()
+    optimizer = optimizer_configuration["optimizer"]
     learning_rates = {group["initial_lr"] for group in optimizer.param_groups}
+    scheduler = optimizer_configuration["lr_scheduler"]["scheduler"]
 
     assert learning_rates == {config.learning_rate}
+    assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(0.2)
 
 
 def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:

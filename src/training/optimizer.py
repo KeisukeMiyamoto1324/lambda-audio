@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from torch.optim import AdamW
-from transformers import get_cosine_schedule_with_warmup
+from transformers import get_cosine_with_min_lr_schedule_with_warmup
 
 from src.modeling.lambda_audio import LambdaAudioModel
 from src.training.config import BaseTrainingConfig
@@ -32,10 +32,11 @@ def create_optimizer_configuration(
         for (rate, weight_decay), parameters in parameter_groups.items()
     ]
     optimizer = AdamW(groups, betas=(0.9, 0.95))
-    scheduler = get_cosine_schedule_with_warmup(
+    scheduler = get_cosine_with_min_lr_schedule_with_warmup(
         optimizer,
         num_warmup_steps=config.warmup_steps,
         num_training_steps=config.max_steps,
+        min_lr_rate=config.min_learning_rate_ratio,
     )
     return {
         "optimizer": optimizer,
