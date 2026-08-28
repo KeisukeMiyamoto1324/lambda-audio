@@ -5,6 +5,7 @@ from lightning.pytorch.loggers import CSVLogger
 
 from src.environment import configure_cuda_allocator
 from src.training.config import BaseTrainingConfig
+from src.training.inference_monitor import ValidationInferenceMonitor
 from src.training.performance import TrainingPerformanceMonitor, TrainingProgressBar
 
 
@@ -41,11 +42,13 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         mode="min",
         patience=config.early_stopping_patience,
     )
+    progress_bar = TrainingProgressBar()
     callbacks = [
         checkpoint,
         early_stopping,
         TrainingPerformanceMonitor(config.sampling_rate, config.log_steps),
-        TrainingProgressBar(),
+        progress_bar,
+        ValidationInferenceMonitor(config, progress_bar),
     ]
     return L.Trainer(
         accelerator="gpu",

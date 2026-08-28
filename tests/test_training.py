@@ -14,6 +14,7 @@ from src.stage1.training import Stage1LightningModule
 from src.stage2.config import Stage2Config
 from src.stage2.training import Stage2LightningModule
 from src.training import trainer as trainer_module
+from src.training.inference_monitor import ValidationInferenceMonitor
 from src.training.trainer import create_trainer
 
 
@@ -154,3 +155,7 @@ def test_create_trainer_saves_config_and_full_checkpoint(
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
+    assert any(
+        isinstance(callback, ValidationInferenceMonitor)
+        for callback in trainer_arguments["callbacks"]
+    )

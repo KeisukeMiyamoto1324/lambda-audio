@@ -3,6 +3,7 @@ import time
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import RichProgressBar
+from rich.table import Table
 
 DATA_STALL_SECONDS = 1.0
 
@@ -16,6 +17,11 @@ class TrainingProgressBar(RichProgressBar):
         metrics = super().get_metrics(trainer, pl_module)
         metrics.pop("v_num", None)
         return metrics
+
+    def print_table(self, table: Table) -> None:
+        if self.progress is None:
+            raise RuntimeError("The training progress display is not initialized.")
+        self.progress.console.print(table)
 
 
 def audio_batch_sizes(audio_padding_mask: torch.Tensor) -> tuple[int, int]:

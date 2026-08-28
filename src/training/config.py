@@ -11,6 +11,9 @@ class BaseTrainingConfig(ModelConfig):
     metadata_index_path: Path = Path(
         "outputs/datasets/reazon-speech-v2-metadata.sqlite3"
     )
+    inference_samples_path: FilePath = Path("data/data.parquet")
+    max_audio_seconds: PositiveFloat = 30.0
+    max_new_tokens: PositiveInt = 256
     shard_cache_dir: Path = Path("outputs/datasets/reazon-speech-v2-shards")
     max_text_length: PositiveInt = 256
     validation_samples: PositiveInt = 256

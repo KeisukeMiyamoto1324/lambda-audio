@@ -1,12 +1,18 @@
 from io import BytesIO
+from typing import Protocol
 
 import librosa
 import torch
 from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
-from src.inference.config import InferenceConfig
 from src.modeling.lambda_audio import LambdaAudioModel
+
+
+class TranscriptionConfig(Protocol):
+    sampling_rate: int
+    max_audio_seconds: float
+    max_new_tokens: int
 
 
 class TranscriptionResult(BaseModel):
@@ -20,7 +26,7 @@ def transcribe(
     model: LambdaAudioModel,
     feature_extractor: SequenceFeatureExtractor,
     tokenizer: PreTrainedTokenizerBase,
-    config: InferenceConfig,
+    config: TranscriptionConfig,
     device: torch.device,
     audio: bytes,
 ) -> TranscriptionResult:
