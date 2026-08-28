@@ -3,6 +3,7 @@ import sqlite3
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, cast
+from unicodedata import category, mirrored, normalize
 
 from filelock import FileLock
 from tqdm import tqdm
@@ -10,6 +11,22 @@ from tqdm import tqdm
 from src.data.reazon_repository import dataset_revision, download_reazon_speech_file
 
 INSERT_BATCH_SIZE = 10_000
+
+
+def normalize_transcription(transcription: str) -> str:
+    text = normalize("NFKC", transcription)
+
+    # ---------------------------------------------------------
+    # Remove enclosing punctuation at the text boundaries.
+    # ---------------------------------------------------------
+    while text and (category(text[0]) in {"Ps", "Pi"} or mirrored(text[0])):
+        text = text[1:]
+    while text and (category(text[-1]) in {"Pe", "Pf"} or mirrored(text[-1])):
+        text = text[:-1]
+    if len(text) >= 2 and text[0] == text[-1] and category(text[0])[0] in "PS":
+        text = text[1:-1]
+
+    return text
 
 
 def metadata_key(example: dict[str, Any]) -> str:
@@ -124,7 +141,7 @@ class MetadataReader:
         ).fetchone()
         if row is None:
             raise ValueError(f"Transcription not found for audio key: {audio_key}")
-        return cast(str, row[0])
+        return normalize_transcription(cast(str, row[0]))
 
     def close(self) -> None:
         self.connection.close()

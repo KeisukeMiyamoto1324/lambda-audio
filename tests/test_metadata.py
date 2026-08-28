@@ -6,7 +6,20 @@ from src.data.metadata import (
     MetadataReader,
     create_metadata_index,
     metadata_index_revision,
+    normalize_transcription,
 )
+
+
+def test_normalize_transcription_normalizes_and_removes_enclosing_punctuation() -> None:
+    transcription = "[<ＡＢＣ>]"
+
+    normalized = normalize_transcription(transcription)
+
+    assert normalized == "ABC"
+
+
+def test_normalize_transcription_removes_matching_quotes() -> None:
+    assert normalize_transcription('"音声"') == "音声"
 
 
 def test_metadata_index_stores_revision_and_transcriptions(
