@@ -13,7 +13,6 @@ class BaseTrainingConfig(ModelConfig):
     max_new_tokens: PositiveInt = 256
     dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-corpus-1")
     max_text_length: PositiveInt = 256
-    shuffle_buffer_size: PositiveInt = 1_000
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 2

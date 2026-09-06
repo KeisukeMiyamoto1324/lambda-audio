@@ -49,8 +49,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
         training_source, validation_source = load_lambda_audio_datasets(
             self.token,
             self.config.dataset_cache_dir,
-            self.config.shuffle_buffer_size,
-            self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,
         )

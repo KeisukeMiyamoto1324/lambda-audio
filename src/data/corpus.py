@@ -48,8 +48,6 @@ def prepare_validation_data(token: str, cache_dir: Path) -> Path:
 def load_lambda_audio_datasets(
     token: str,
     cache_dir: Path,
-    shuffle_buffer_size: int,
-    seed: int,
     global_rank: int,
     world_size: int,
 ) -> tuple[LambdaAudioDataset, LambdaAudioDataset]:
@@ -70,7 +68,6 @@ def load_lambda_audio_datasets(
         streaming=True,
     ).select_columns(["audio", "text"])
 
-    training = training.shuffle(buffer_size=shuffle_buffer_size, seed=seed)
     training = cast(
         IterableDataset,
         split_dataset_by_node(training, global_rank, world_size),

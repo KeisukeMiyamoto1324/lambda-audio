@@ -70,8 +70,6 @@ def test_load_datasets_uses_remote_train_and_local_validation(
     training, validation = load_lambda_audio_datasets(
         "token",
         tmp_path,
-        shuffle_buffer_size=10,
-        seed=42,
         global_rank=0,
         world_size=1,
     )
