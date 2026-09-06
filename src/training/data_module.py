@@ -5,16 +5,14 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.data.collator import AudioTextCollator
+from src.data.corpus import (
+    load_lambda_audio_datasets,
+    prepare_validation_data,
+)
 from src.data.dataset import (
     AudioBatchDataset,
-    EpochAudioDataset,
-    TranscribedAudioDataset,
+    EpochTranscribedAudioDataset,
 )
-from src.data.metadata import prepare_metadata_index
-from src.data.reazon_dataset import (
-    load_reazon_speech_datasets,
-)
-from src.data.reazon_repository import prepare_reazon_speech_validation_shard
 from src.training.config import BaseTrainingConfig
 
 
@@ -39,22 +37,19 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
-        prepare_metadata_index(self.token, self.config.metadata_index_path)
-        prepare_reazon_speech_validation_shard(
+        prepare_validation_data(
             self.token,
-            self.config.shard_cache_dir,
+            self.config.dataset_cache_dir,
         )
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
 
-        training_source, validation_source = load_reazon_speech_datasets(
+        training_source, validation_source = load_lambda_audio_datasets(
             self.token,
-            self.config.validation_samples,
+            self.config.dataset_cache_dir,
             self.config.shuffle_buffer_size,
-            self.config.sampling_rate,
-            self.config.shard_cache_dir,
             self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,
@@ -87,12 +82,12 @@ class LambdaAudioDataModule(L.LightningDataModule):
 
     def _batch_dataset(
         self,
-        source: EpochAudioDataset,
+        source: EpochTranscribedAudioDataset,
         max_padded_audio_seconds: float,
         max_attention_cost: int,
     ) -> AudioBatchDataset:
         return AudioBatchDataset(
-            TranscribedAudioDataset(source, self.config.metadata_index_path),
+            source,
             max_batch_padded_audio_samples=int(
                 max_padded_audio_seconds * self.config.sampling_rate
             ),

@@ -1,64 +1,39 @@
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 from datasets import IterableDataset
-from torch.utils.data import DataLoader
 
-from src.data.dataset import (
-    AudioBatchDataset,
-    TranscribedAudioDataset,
-)
-from src.data.metadata import create_metadata_index
+from src.data.dataset import AudioBatchDataset
 
 
-def create_audio_example(key: str, audio_samples: int) -> dict[str, Any]:
+def create_audio_example(transcription: str, audio_samples: int) -> dict[str, Any]:
     return {
-        "audio_key": key,
         "audio_array": np.ones(audio_samples, dtype=np.float32),
-    }
-
-
-def create_metadata_example(key: str, transcription: str) -> dict[str, Any]:
-    return {
-        "file_name": f"data/{key}.flac",
         "transcription": transcription,
     }
 
 
-def generate_audio_shards(shards: list[int]) -> Any:
-    for shard in shards:
-        for index in range(2):
-            key = f"{shard:03d}/{index}"
-            yield create_audio_example(key, index + 1)
-
-
 def create_transcribed_dataset(
-    path: Path,
     examples: list[tuple[str, int]],
-) -> TranscribedAudioDataset:
-    create_metadata_index(
-        [create_metadata_example(key, " 音声 ") for key, _ in examples],
-        path,
-        revision="revision",
+) -> IterableDataset:
+    return IterableDataset.from_generator(
+        lambda: iter(
+            [
+                create_audio_example(transcription, samples)
+                for transcription, samples in examples
+            ]
+        )
     )
-    source = IterableDataset.from_generator(
-        lambda: iter([create_audio_example(key, samples) for key, samples in examples])
-    )
-    return TranscribedAudioDataset(source, path)
 
 
-def test_audio_batch_dataset_limits_padded_audio_samples(
-    tmp_path: Path,
-) -> None:
+def test_audio_batch_dataset_limits_padded_audio_samples() -> None:
     source = create_transcribed_dataset(
-        tmp_path / "metadata.sqlite3",
         [
-            ("000/first", 8),
-            ("000/second", 8),
-            ("000/third", 4),
-            ("000/fourth", 4),
+            ("音声", 8),
+            ("音声", 8),
+            ("音声", 4),
+            ("音声", 4),
         ],
     )
     dataset = AudioBatchDataset(
@@ -82,9 +57,8 @@ def test_audio_batch_dataset_limits_padded_audio_samples(
     )
 
 
-def test_audio_batch_dataset_limits_attention_cost(tmp_path: Path) -> None:
+def test_audio_batch_dataset_limits_attention_cost() -> None:
     source = create_transcribed_dataset(
-        tmp_path / "metadata.sqlite3",
         [
             ("000/first", 8),
             ("000/second", 8),
@@ -110,13 +84,11 @@ def test_audio_batch_dataset_limits_attention_cost(tmp_path: Path) -> None:
     )
 
 
-def test_audio_batch_dataset_reduces_weighted_padding_ratio(
-    tmp_path: Path,
-) -> None:
+def test_audio_batch_dataset_reduces_weighted_padding_ratio() -> None:
     examples = [
         (f"000/{index:03d}", samples) for index, samples in enumerate(range(10, 522))
     ]
-    source = create_transcribed_dataset(tmp_path / "metadata.sqlite3", examples)
+    source = create_transcribed_dataset(examples)
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=20_000,
@@ -138,16 +110,8 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
     assert padded_samples / valid_samples < 1.5
 
 
-def test_audio_batch_dataset_refills_between_ready_batches(
-    tmp_path: Path,
-) -> None:
-    index_path = tmp_path / "metadata.sqlite3"
+def test_audio_batch_dataset_refills_between_ready_batches() -> None:
     examples = [(f"000/{index}", 4) for index in range(8)]
-    create_metadata_index(
-        [create_metadata_example(key, "音声") for key, _ in examples],
-        index_path,
-        revision="revision",
-    )
     reads: list[str] = []
 
     def generate() -> Any:
@@ -155,10 +119,7 @@ def test_audio_batch_dataset_refills_between_ready_batches(
             reads.append(key)
             yield create_audio_example(key, samples)
 
-    source = TranscribedAudioDataset(
-        IterableDataset.from_generator(generate),
-        index_path,
-    )
+    source = IterableDataset.from_generator(generate)
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=8,
@@ -177,35 +138,8 @@ def test_audio_batch_dataset_refills_between_ready_batches(
     assert len(reads) == 8
 
 
-def test_transcribed_dataset_preserves_worker_sharding(tmp_path: Path) -> None:
-    keys = [f"{shard:03d}/{index}" for shard in range(4) for index in range(2)]
-    index_path = tmp_path / "metadata.sqlite3"
-    create_metadata_index(
-        [create_metadata_example(key, key) for key in keys],
-        index_path,
-        revision="revision",
-    )
-
-    audio_dataset = IterableDataset.from_generator(
-        generate_audio_shards,
-        gen_kwargs={"shards": [0, 1, 2, 3]},
-    )
-    dataset = TranscribedAudioDataset(audio_dataset, index_path)
-    loader = DataLoader(
-        dataset,
-        batch_size=None,
-        num_workers=2,
-        multiprocessing_context="spawn",
-    )
-
-    transcriptions = [example["transcription"] for example in loader]
-
-    assert sorted(transcriptions) == keys
-
-
-def test_audio_batch_dataset_rejects_oversized_audio(tmp_path: Path) -> None:
+def test_audio_batch_dataset_rejects_oversized_audio() -> None:
     source = create_transcribed_dataset(
-        tmp_path / "metadata.sqlite3",
         [("000/audio", 13)],
     )
     dataset = AudioBatchDataset(

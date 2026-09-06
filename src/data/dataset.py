@@ -1,50 +1,24 @@
 import multiprocessing
 import random
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Protocol
 
 from torch.utils.data import IterableDataset as TorchIterableDataset
 from torch.utils.data import get_worker_info
 
-from src.data.metadata import MetadataReader
-from src.data.types import AudioExample, TranscribedAudioExample
+from src.data.types import TranscribedAudioExample
 
 
-class EpochAudioDataset(Protocol):
-    def __iter__(self) -> Iterator[AudioExample]: ...
+class EpochTranscribedAudioDataset(Protocol):
+    def __iter__(self) -> Iterator[TranscribedAudioExample]: ...
 
     def set_epoch(self, epoch: int) -> None: ...
-
-
-class TranscribedAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
-    def __init__(
-        self,
-        dataset: EpochAudioDataset,
-        metadata_index_path: Path,
-    ) -> None:
-        self.dataset = dataset
-        self.metadata_index_path = metadata_index_path
-
-    def __iter__(self) -> Iterator[TranscribedAudioExample]:
-        reader = MetadataReader(self.metadata_index_path)
-        try:
-            for example in self.dataset:
-                yield {
-                    "audio_array": example["audio_array"],
-                    "transcription": reader.transcription(example["audio_key"]),
-                }
-        finally:
-            reader.close()
-
-    def set_epoch(self, epoch: int) -> None:
-        self.dataset.set_epoch(epoch)
 
 
 class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
     def __init__(
         self,
-        dataset: TranscribedAudioDataset,
+        dataset: EpochTranscribedAudioDataset,
         *,
         max_batch_padded_audio_samples: int,
         max_batch_attention_cost: int,

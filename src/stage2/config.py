@@ -14,12 +14,9 @@ class Stage2Config(BaseTrainingConfig):
     max_steps: PositiveInt = 51200
     adapter_learning_rate: PositiveFloat = 1e-4
     backbone_learning_rate: PositiveFloat = 2e-5
-    early_stopping_min_delta: NonNegativeFloat = 0.01
-
     train_max_batch_padded_audio_seconds: PositiveFloat = 1_500.0
     train_max_batch_attention_cost: PositiveInt = 40_000_000
 
-    validation_samples: PositiveInt = 2_560
     validation_batches: PositiveInt = 2_560
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
     validation_max_batch_attention_cost: PositiveInt = 20_000_000

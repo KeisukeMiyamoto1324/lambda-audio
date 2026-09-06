@@ -14,9 +14,10 @@
 
 
 ## データセット
-- litagin/reazon-speech-v2-clone
-  - https://huggingface.co/datasets/litagin/reazon-speech-v2-clone
-  - 学習時にストリーミングで直接読み込む
+- KeisukeMiyamoto/lambda-audio-courpus-1
+  - https://huggingface.co/datasets/KeisukeMiyamoto/lambda-audio-courpus-1
+  - train はストリーミングで読み込む
+  - validation は事前にローカルへキャッシュして読み込む
 
 
 ## ベースモデル
