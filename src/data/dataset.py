@@ -3,6 +3,7 @@ import random
 from collections.abc import Iterator
 from typing import Protocol
 
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from torch.utils.data import IterableDataset as TorchIterableDataset
 from torch.utils.data import get_worker_info
 
@@ -25,6 +26,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         encoder_frame_samples: int,
         bucket_buffer_size: int,
         seed: int,
+        show_initial_buffer_progress: bool = False,
     ) -> None:
         self.dataset = dataset
         self.max_batch_padded_audio_samples = max_batch_padded_audio_samples
@@ -32,6 +34,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         self.encoder_frame_samples = encoder_frame_samples
         self.bucket_buffer_size = bucket_buffer_size
         self.seed = seed
+        self.show_initial_buffer_progress = show_initial_buffer_progress
         self.epoch = multiprocessing.Value("q", 0)
 
         if max_batch_padded_audio_samples < 1:
@@ -55,6 +58,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
             window,
             source,
             self.bucket_buffer_size,
+            self.show_initial_buffer_progress and worker_id == 0,
         )
 
         while window:
@@ -69,6 +73,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
                     next_window,
                     source,
                     refill_target,
+                    False,
                 )
             window = next_window
 
@@ -111,12 +116,24 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         window: list[TranscribedAudioExample],
         source: Iterator[TranscribedAudioExample],
         target_size: int,
+        show_progress: bool,
     ) -> bool:
-        while len(window) < target_size:
-            try:
-                window.append(next(source))
-            except StopIteration:
-                return True
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("Preparing training buffer"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            disable=not show_progress,
+        )
+        with progress:
+            task = progress.add_task("buffer", total=target_size)
+            while len(window) < target_size:
+                try:
+                    window.append(next(source))
+                except StopIteration:
+                    return True
+                progress.update(task, completed=len(window))
         return False
 
     def set_epoch(self, epoch: int) -> None:
