@@ -94,9 +94,7 @@ class TrainingPerformanceMonitor(L.Callback):
 
         end_event.synchronize()
         now = time.perf_counter()
-        gpu_seconds = sum(
-            start.elapsed_time(end) / 1_000.0 for start, end in self.gpu_events
-        )
+        gpu_seconds = sum(start.elapsed_time(end) / 1_000.0 for start, end in self.gpu_events)
         elapsed_seconds = now - self.window_start_time
         metrics = {
             "data_time": self.window_data_time / self.window_batches,
@@ -104,9 +102,7 @@ class TrainingPerformanceMonitor(L.Callback):
             "data_stalls": self.window_data_stalls,
             "gpu_step_time": gpu_seconds / self.window_batches,
             "padding_ratio": (self.window_padded_samples / self.window_valid_samples),
-            "audio_seconds_per_second": (
-                self.window_valid_samples / self.sampling_rate / elapsed_seconds
-            ),
+            "audio_seconds_per_second": (self.window_valid_samples / self.sampling_rate / elapsed_seconds),
         }
         for name, value in metrics.items():
             pl_module.log(

@@ -31,6 +31,17 @@
 ## Libraries
 - You can freely install necessary libraries using pip3.
 
+## Code Quality
+
+After modifying Python code, run:
+
+```bash
+pytest
+ruff check . --fix
+ruff format .
+pyright
+```
+
 ## Other
 - Please respond in Japanese.
 - ALWAYS make your answer SHORT and CONCISE. 

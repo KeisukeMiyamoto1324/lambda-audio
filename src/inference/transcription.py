@@ -42,9 +42,7 @@ def transcribe(
     if audio_array.size == 0:
         raise ValueError("The audio file is empty.")
     if audio_array.size > config.sampling_rate * config.max_audio_seconds:
-        raise ValueError(
-            f"The audio file must be {config.max_audio_seconds:g} seconds or shorter."
-        )
+        raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
 
     audio_batch = feature_extractor(
         audio_array,

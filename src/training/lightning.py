@@ -29,10 +29,7 @@ class BaseLambdaAudioLightningModule(
         if output.loss is None:
             raise RuntimeError("The model did not return training loss.")
         if not torch.isfinite(output.loss):
-            raise FloatingPointError(
-                "Non-finite training loss at "
-                f"step={self.global_step}, batch={batch_idx}."
-            )
+            raise FloatingPointError(f"Non-finite training loss at step={self.global_step}, batch={batch_idx}.")
 
         self.log(
             "train_loss",
@@ -61,11 +58,7 @@ class BaseLambdaAudioLightningModule(
         # ---------------------------------------------------------
         # Reject non-finite gradients before they can corrupt weights.
         # ---------------------------------------------------------
-        parameters = [
-            parameter
-            for parameter in self.model.parameters()
-            if parameter.grad is not None
-        ]
+        parameters = [parameter for parameter in self.model.parameters() if parameter.grad is not None]
         try:
             torch.nn.utils.clip_grad_norm_(
                 parameters,
@@ -77,12 +70,8 @@ class BaseLambdaAudioLightningModule(
             for name, parameter in self.model.named_parameters():
                 if parameter.grad is None or torch.isfinite(parameter.grad).all():
                     continue
-                raise FloatingPointError(
-                    f"Non-finite gradient at step={self.global_step}, parameter={name}."
-                ) from error
-            raise FloatingPointError(
-                f"Non-finite gradient norm at step={self.global_step}."
-            ) from error
+                raise FloatingPointError(f"Non-finite gradient at step={self.global_step}, parameter={name}.") from error
+            raise FloatingPointError(f"Non-finite gradient norm at step={self.global_step}.") from error
 
     def validation_step(
         self,

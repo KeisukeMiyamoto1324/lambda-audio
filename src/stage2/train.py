@@ -19,9 +19,7 @@ def main() -> None:
     model = components.model
     model.encoder.requires_grad_(False)
     model.decoder.config.use_cache = False
-    model.decoder.gradient_checkpointing_enable(
-        gradient_checkpointing_kwargs={"use_reentrant": False}
-    )
+    model.decoder.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
     lightning_model = Stage2LightningModule(model, config)
     if config.resume_checkpoint is None:

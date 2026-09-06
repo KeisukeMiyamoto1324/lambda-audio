@@ -86,23 +86,15 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
             # Bound padded feature extraction and quadratic attention.
             # ---------------------------------------------------------
             audio_samples = len(example["audio_array"])
-            encoder_frames = (
-                audio_samples + self.encoder_frame_samples - 1
-            ) // self.encoder_frame_samples
-            if (
-                audio_samples > self.max_batch_padded_audio_samples
-                or encoder_frames**2 > self.max_batch_attention_cost
-            ):
+            encoder_frames = (audio_samples + self.encoder_frame_samples - 1) // self.encoder_frame_samples
+            if audio_samples > self.max_batch_padded_audio_samples or encoder_frames**2 > self.max_batch_attention_cost:
                 raise ValueError("An audio example exceeds the batch limits.")
 
             batch_size = len(batch) + 1
             padded_audio_samples = batch_size * audio_samples
             attention_cost = batch_size * encoder_frames**2
 
-            if batch and (
-                padded_audio_samples > self.max_batch_padded_audio_samples
-                or attention_cost > self.max_batch_attention_cost
-            ):
+            if batch and (padded_audio_samples > self.max_batch_padded_audio_samples or attention_cost > self.max_batch_attention_cost):
                 batches.append(batch)
                 batch = []
 

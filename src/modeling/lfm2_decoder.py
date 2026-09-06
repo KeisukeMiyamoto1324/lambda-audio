@@ -72,11 +72,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         # ---------------------------------------------------------
         # Build one reusable audio K/V cache for every cross-attention layer.
         # ---------------------------------------------------------
-        key_values = [
-            layer.cross_attention.project_key_value(audio_features)
-            for layer in self.model.layers
-            if isinstance(layer, AudioLfm2DecoderLayer)
-        ]
+        key_values = [layer.cross_attention.project_key_value(audio_features) for layer in self.model.layers if isinstance(layer, AudioLfm2DecoderLayer)]
         return torch.stack(key_values, dim=1)
 
     def forward(

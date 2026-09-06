@@ -19,9 +19,7 @@ def test_lambda_audio_dataset_reads_audio_and_text() -> None:
     samples.data = torch.ones((1, 4), dtype=torch.float32)
     decoder = Mock()
     decoder.get_all_samples.return_value = samples
-    source = IterableDataset.from_generator(
-        lambda: iter([{"audio": decoder, "text": "（音声）"}])
-    )
+    source = IterableDataset.from_generator(lambda: iter([{"audio": decoder, "text": "（音声）"}]))
 
     example = next(iter(LambdaAudioDataset(source)))
 

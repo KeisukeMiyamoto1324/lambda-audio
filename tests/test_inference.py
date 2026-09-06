@@ -71,10 +71,7 @@ def test_load_checkpoint_weights_removes_lightning_prefix(tmp_path: Path) -> Non
     source_model = nn.Linear(2, 2)
     target_model = nn.Linear(2, 2)
     checkpoint_path = tmp_path / "model.ckpt"
-    state_dict = {
-        f"model.{name}": parameter
-        for name, parameter in source_model.state_dict().items()
-    }
+    state_dict = {f"model.{name}": parameter for name, parameter in source_model.state_dict().items()}
     torch.save({"state_dict": state_dict}, checkpoint_path)
 
     load_model_checkpoint(target_model, checkpoint_path)

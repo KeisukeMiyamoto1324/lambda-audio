@@ -34,11 +34,7 @@ class LambdaAudioModel(nn.Module):
         # ---------------------------------------------------------
         # Encode audio and create the mask for encoder output frames.
         # ---------------------------------------------------------
-        precision_context = (
-            torch.autocast(device_type=input_values.device.type, enabled=False)
-            if self.encoder_full_precision
-            else nullcontext()
-        )
+        precision_context = torch.autocast(device_type=input_values.device.type, enabled=False) if self.encoder_full_precision else nullcontext()
         with precision_context:
             encoder_output = self.encoder(
                 input_values=input_values,

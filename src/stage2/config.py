@@ -28,12 +28,6 @@ class Stage2Config(BaseTrainingConfig):
 
     @model_validator(mode="after")
     def validate_initialization_checkpoint(self) -> Self:
-        if (
-            self.resume_checkpoint is None
-            and not self.initialization_checkpoint.is_file()
-        ):
-            raise ValueError(
-                "The initialization checkpoint does not exist: "
-                f"{self.initialization_checkpoint}"
-            )
+        if self.resume_checkpoint is None and not self.initialization_checkpoint.is_file():
+            raise ValueError(f"The initialization checkpoint does not exist: {self.initialization_checkpoint}")
         return self
