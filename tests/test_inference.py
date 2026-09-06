@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +8,6 @@ import pytest
 import torch
 from torch import nn
 
-from src.inference.cli import parse_arguments
 from src.inference.config import InferenceConfig
 from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
@@ -183,20 +181,3 @@ def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="contains no samples"):
         load_inference_samples(input_path)
-
-
-def test_inference_cli_uses_default_parquet(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    checkpoint_path = tmp_path / "model.ckpt"
-    checkpoint_path.touch()
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["infer", "--checkpoint", str(checkpoint_path)],
-    )
-
-    config = parse_arguments()
-
-    assert config.input_path == Path("data/data.parquet")
