@@ -17,6 +17,7 @@ def parse_arguments() -> InferenceConfig:
         dest="input_path",
         type=Path,
         default=defaults.input_path,
+        help="Path to a WAV or Parquet file.",
     )
     parser.add_argument("--max-new-tokens", type=int, default=256)
     try:

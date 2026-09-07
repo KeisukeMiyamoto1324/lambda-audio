@@ -170,6 +170,26 @@ def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
     assert [sample.reference for sample in samples] == ["一", "二"]
 
 
+def test_load_inference_samples_reads_wav(tmp_path: Path) -> None:
+    input_path = tmp_path / "audio.wav"
+    input_path.write_bytes(b"wav-audio")
+
+    samples = load_inference_samples(input_path)
+
+    assert len(samples) == 1
+    assert samples[0].audio_name == "audio.wav"
+    assert samples[0].audio == b"wav-audio"
+    assert samples[0].reference == ""
+
+
+def test_load_inference_samples_rejects_unsupported_file(tmp_path: Path) -> None:
+    input_path = tmp_path / "audio.mp3"
+    input_path.touch()
+
+    with pytest.raises(ValueError, match="WAV or Parquet"):
+        load_inference_samples(input_path)
+
+
 def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
     input_path = tmp_path / "data.parquet"
     audio_type = pa.struct([("bytes", pa.binary()), ("path", pa.string())])

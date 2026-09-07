@@ -10,3 +10,4 @@ outputs/datasets/reazon-speech-v2-shards/
 **.csv
 *.parquet
 outputs/
+**.wav
