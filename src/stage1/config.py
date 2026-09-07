@@ -11,6 +11,7 @@ class Stage1Config(BaseTrainingConfig):
     gradient_accumulation_steps: PositiveInt = 1
     max_steps: PositiveInt = 25600
     learning_rate: PositiveFloat = 2e-4
+    min_learning_rate_ratio = 0.5
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 1400
     train_max_batch_attention_cost: PositiveInt = 56_000_000

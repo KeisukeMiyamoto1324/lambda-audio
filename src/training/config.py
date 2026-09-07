@@ -24,7 +24,7 @@ class BaseTrainingConfig(ModelConfig):
     gradient_accumulation_steps: PositiveInt = 8
     max_steps: PositiveInt = 10_000
     warmup_steps: PositiveInt = 500
-    min_learning_rate_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
+    min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
     weight_decay: NonNegativeFloat = 0.01
     max_grad_norm: PositiveFloat = 1.0
     log_steps: PositiveInt = 10
