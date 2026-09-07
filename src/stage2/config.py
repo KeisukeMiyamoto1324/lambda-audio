@@ -24,7 +24,7 @@ class Stage2Config(BaseTrainingConfig):
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 2
 
-    early_stopping_patience: PositiveInt = 5
+    early_stopping_patience: PositiveInt = 3
 
     @model_validator(mode="after")
     def validate_initialization_checkpoint(self) -> Self:
