@@ -62,6 +62,7 @@ def test_load_datasets_uses_local_train_and_validation(
     validation_dir = tmp_path / "validation"
     validation_dir.mkdir()
     (validation_dir / "part-000000.parquet").touch()
+    (validation_dir / "part-000001.parquet").touch()
     datasets = [
         IterableDataset.from_generator(lambda: iter([])),
         IterableDataset.from_generator(lambda: iter([])),

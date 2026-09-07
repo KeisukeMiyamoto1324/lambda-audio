@@ -58,6 +58,7 @@ def load_lambda_audio_datasets(
         raise FileNotFoundError("The training dataset is not cached.")
     if not validation_files:
         raise FileNotFoundError("The validation dataset is not cached.")
+    validation_files = validation_files[::2]
 
     training = load_dataset(
         "parquet",
