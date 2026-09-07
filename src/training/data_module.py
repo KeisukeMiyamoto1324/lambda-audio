@@ -93,7 +93,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
             max_batch_attention_cost=max_attention_cost,
             encoder_frame_samples=self.config.encoder_frame_samples,
             bucket_buffer_size=self.config.bucket_buffer_size,
-            seed=self.config.seed + self.trainer.global_rank,
             show_initial_buffer_progress=show_initial_buffer_progress,
         )
 
