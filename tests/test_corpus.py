@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -35,16 +36,19 @@ def test_prepare_dataset_downloads_entire_repository(
     monkeypatch: MonkeyPatch,
 ) -> None:
     download = Mock()
+    monkeypatch.delenv("HF_XET_HIGH_PERFORMANCE", raising=False)
     monkeypatch.setattr("src.data.corpus.snapshot_download", download)
 
     path = prepare_dataset("token", tmp_path)
 
     assert path == tmp_path
+    assert os.environ["HF_XET_HIGH_PERFORMANCE"] == "1"
     download.assert_called_once_with(
         repo_id=DATASET_ID,
         repo_type="dataset",
         token="token",
         local_dir=tmp_path,
+        max_workers=32,
     )
 
 

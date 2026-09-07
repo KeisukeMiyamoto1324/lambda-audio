@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import cast
@@ -35,11 +36,13 @@ class LambdaAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
 
 
 def prepare_dataset(token: str, cache_dir: Path) -> Path:
+    os.environ["HF_XET_HIGH_PERFORMANCE"] = "1"
     snapshot_download(
         repo_id=DATASET_ID,
         repo_type="dataset",
         token=token,
         local_dir=cache_dir,
+        max_workers=32,
     )
     return cache_dir
 
