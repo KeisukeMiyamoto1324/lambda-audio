@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from unittest.mock import Mock
@@ -5,7 +6,7 @@ from unittest.mock import Mock
 import numpy as np
 import torch
 from datasets import IterableDataset
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 
 from src.data.corpus import (
     DATASET_ID,
@@ -20,7 +21,7 @@ def test_lambda_audio_dataset_reads_audio_and_text() -> None:
     samples.data = torch.ones((1, 4), dtype=torch.float32)
     decoder = Mock()
     decoder.get_all_samples.return_value = samples
-    source = IterableDataset.from_generator(lambda: iter([{"audio": decoder, "text": "（音声）"}]))
+    source = IterableDataset.from_generator(lambda: iter([{"id": "audio-1", "audio": decoder, "text": "（音声）"}]))
 
     example = next(iter(LambdaAudioDataset(source)))
 
@@ -29,6 +30,33 @@ def test_lambda_audio_dataset_reads_audio_and_text() -> None:
         np.ones(4, dtype=np.float32),
     )
     assert example["transcription"] == "（音声）"
+
+
+def test_lambda_audio_dataset_skips_and_logs_undecodable_audio(
+    caplog: LogCaptureFixture,
+) -> None:
+    invalid_decoder = Mock()
+    invalid_decoder.get_all_samples.side_effect = RuntimeError("Invalid audio")
+    samples = Mock()
+    samples.data = torch.ones((1, 4), dtype=torch.float32)
+    valid_decoder = Mock()
+    valid_decoder.get_all_samples.return_value = samples
+    source = IterableDataset.from_generator(
+        lambda: iter(
+            [
+                {"id": "invalid-audio", "audio": invalid_decoder, "text": "失敗"},
+                {"id": "valid-audio", "audio": valid_decoder, "text": "成功"},
+            ]
+        )
+    )
+
+    with caplog.at_level(logging.ERROR, logger="src.data.corpus"):
+        examples = list(LambdaAudioDataset(source))
+
+    assert len(examples) == 1
+    assert examples[0]["transcription"] == "成功"
+    assert "id=invalid-audio" in caplog.text
+    assert "Invalid audio" in caplog.text
 
 
 def test_prepare_dataset_downloads_entire_repository(

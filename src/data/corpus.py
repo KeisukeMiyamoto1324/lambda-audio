@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -12,6 +13,7 @@ from torch.utils.data import IterableDataset as TorchIterableDataset
 from src.data.types import TranscribedAudioExample
 
 DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-1"
+LOGGER = logging.getLogger(__name__)
 
 
 class LambdaAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
@@ -20,7 +22,15 @@ class LambdaAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
 
     def __iter__(self) -> Iterator[TranscribedAudioExample]:
         for row in self.dataset:
-            samples = row["audio"].get_all_samples()
+            try:
+                samples = row["audio"].get_all_samples()
+            except RuntimeError as error:
+                LOGGER.error(
+                    "Skipping undecodable audio row: id=%s error=%s",
+                    row["id"],
+                    error,
+                )
+                continue
             yield {
                 "audio_array": samples.data.squeeze(0)
                 .numpy()
@@ -65,13 +75,13 @@ def load_lambda_audio_datasets(
         data_files={"train": [str(path) for path in training_files]},
         split="train",
         streaming=True,
-    ).select_columns(["audio", "text"])
+    ).select_columns(["id", "audio", "text"])
     validation = load_dataset(
         "parquet",
         data_files={"validation": [str(path) for path in validation_files]},
         split="validation",
         streaming=True,
-    ).select_columns(["audio", "text"])
+    ).select_columns(["id", "audio", "text"])
 
     training = cast(
         IterableDataset,
