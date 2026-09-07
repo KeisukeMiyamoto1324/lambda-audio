@@ -35,7 +35,6 @@ def test_audio_batch_dataset_limits_padded_audio_samples() -> None:
         max_batch_attention_cost=1_000,
         encoder_frame_samples=1,
         bucket_buffer_size=4,
-        seed=42,
     )
 
     batches = list(dataset)
@@ -60,7 +59,6 @@ def test_audio_batch_dataset_limits_attention_cost() -> None:
         max_batch_attention_cost=64,
         encoder_frame_samples=1,
         bucket_buffer_size=4,
-        seed=42,
     )
 
     batches = list(dataset)
@@ -78,7 +76,6 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio() -> None:
         max_batch_attention_cost=1_000_000_000,
         encoder_frame_samples=1,
         bucket_buffer_size=512,
-        seed=42,
     )
 
     batches = list(dataset)
@@ -104,7 +101,6 @@ def test_audio_batch_dataset_refills_between_ready_batches() -> None:
         max_batch_attention_cost=1_000,
         encoder_frame_samples=1,
         bucket_buffer_size=4,
-        seed=42,
     )
     batches = iter(dataset)
 
@@ -126,7 +122,6 @@ def test_audio_batch_dataset_rejects_oversized_audio() -> None:
         max_batch_attention_cost=1_000,
         encoder_frame_samples=1,
         bucket_buffer_size=4,
-        seed=42,
     )
 
     with pytest.raises(ValueError, match="exceeds the batch limits"):

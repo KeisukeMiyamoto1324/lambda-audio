@@ -1,5 +1,4 @@
 import multiprocessing
-import random
 from collections.abc import Iterator
 from typing import Protocol
 
@@ -25,7 +24,6 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         max_batch_attention_cost: int,
         encoder_frame_samples: int,
         bucket_buffer_size: int,
-        seed: int,
         show_initial_buffer_progress: bool = False,
     ) -> None:
         self.dataset = dataset
@@ -33,7 +31,6 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         self.max_batch_attention_cost = max_batch_attention_cost
         self.encoder_frame_samples = encoder_frame_samples
         self.bucket_buffer_size = bucket_buffer_size
-        self.seed = seed
         self.show_initial_buffer_progress = show_initial_buffer_progress
         self.epoch = multiprocessing.Value("q", 0)
 
@@ -51,7 +48,6 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         self.dataset.set_epoch(epoch)
         worker = get_worker_info()
         worker_id = 0 if worker is None else worker.id
-        generator = random.Random(self.seed + epoch + worker_id)
         source = iter(self.dataset)
         window: list[TranscribedAudioExample] = []
         source_exhausted = self._fill_window(
@@ -62,7 +58,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         )
 
         while window:
-            batches = self._create_batches(window, generator)
+            batches = self._create_batches(window)
             next_window: list[TranscribedAudioExample] = []
             for batch_index, batch in enumerate(batches, start=1):
                 yield batch
@@ -80,7 +76,6 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
     def _create_batches(
         self,
         window: list[TranscribedAudioExample],
-        generator: random.Random,
     ) -> list[list[TranscribedAudioExample]]:
         window.sort(key=lambda example: len(example["audio_array"]))
         batches: list[list[TranscribedAudioExample]] = []
@@ -108,7 +103,6 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         if batch:
             batches.append(batch)
 
-        generator.shuffle(batches)
         return batches
 
     @staticmethod

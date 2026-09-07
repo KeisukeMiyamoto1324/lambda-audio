@@ -23,7 +23,6 @@ def test_audio_batch_dataset_shows_initial_buffer_progress(capsys: Any) -> None:
         max_batch_attention_cost=1_000,
         encoder_frame_samples=1,
         bucket_buffer_size=1,
-        seed=42,
         show_initial_buffer_progress=True,
     )
 
