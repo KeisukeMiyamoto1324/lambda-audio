@@ -7,7 +7,7 @@ from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 from src.data.collator import AudioTextCollator
 from src.data.corpus import (
     load_lambda_audio_datasets,
-    prepare_validation_data,
+    prepare_dataset,
 )
 from src.data.dataset import (
     AudioBatchDataset,
@@ -37,7 +37,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
-        prepare_validation_data(
+        prepare_dataset(
             self.token,
             self.config.dataset_cache_dir,
         )
@@ -47,7 +47,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
             return
 
         training_source, validation_source = load_lambda_audio_datasets(
-            self.token,
             self.config.dataset_cache_dir,
             self.trainer.global_rank,
             self.trainer.world_size,

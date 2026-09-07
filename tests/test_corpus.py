@@ -10,7 +10,7 @@ from src.data.corpus import (
     DATASET_ID,
     LambdaAudioDataset,
     load_lambda_audio_datasets,
-    prepare_validation_data,
+    prepare_dataset,
 )
 
 
@@ -30,29 +30,31 @@ def test_lambda_audio_dataset_reads_audio_and_text() -> None:
     assert example["transcription"] == "（音声）"
 
 
-def test_prepare_validation_data_uses_local_cache(
+def test_prepare_dataset_downloads_entire_repository(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
     download = Mock()
     monkeypatch.setattr("src.data.corpus.snapshot_download", download)
 
-    path = prepare_validation_data("token", tmp_path)
+    path = prepare_dataset("token", tmp_path)
 
-    assert path == tmp_path / "validation"
+    assert path == tmp_path
     download.assert_called_once_with(
         repo_id=DATASET_ID,
         repo_type="dataset",
         token="token",
-        allow_patterns="validation/*.parquet",
         local_dir=tmp_path,
     )
 
 
-def test_load_datasets_uses_remote_train_and_local_validation(
+def test_load_datasets_uses_local_train_and_validation(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
+    training_dir = tmp_path / "train"
+    training_dir.mkdir()
+    (training_dir / "part-000000.parquet").touch()
     validation_dir = tmp_path / "validation"
     validation_dir.mkdir()
     (validation_dir / "part-000000.parquet").touch()
@@ -68,7 +70,6 @@ def test_load_datasets_uses_remote_train_and_local_validation(
     )
 
     training, validation = load_lambda_audio_datasets(
-        "token",
         tmp_path,
         global_rank=0,
         world_size=1,
@@ -76,11 +77,11 @@ def test_load_datasets_uses_remote_train_and_local_validation(
 
     assert isinstance(training, LambdaAudioDataset)
     assert isinstance(validation, LambdaAudioDataset)
-    assert load.call_args_list[0].args == (DATASET_ID,)
+    assert load.call_args_list[0].args == ("parquet",)
     assert load.call_args_list[0].kwargs == {
+        "data_files": {"train": [str(training_dir / "part-000000.parquet")]},
         "split": "train",
         "streaming": True,
-        "token": "token",
     }
     assert load.call_args_list[1].args == ("parquet",)
     assert load.call_args_list[1].kwargs == {

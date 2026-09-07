@@ -34,32 +34,33 @@ class LambdaAudioDataset(TorchIterableDataset[TranscribedAudioExample]):
         self.dataset.set_epoch(epoch)
 
 
-def prepare_validation_data(token: str, cache_dir: Path) -> Path:
+def prepare_dataset(token: str, cache_dir: Path) -> Path:
     snapshot_download(
         repo_id=DATASET_ID,
         repo_type="dataset",
         token=token,
-        allow_patterns="validation/*.parquet",
         local_dir=cache_dir,
     )
-    return cache_dir / "validation"
+    return cache_dir
 
 
 def load_lambda_audio_datasets(
-    token: str,
     cache_dir: Path,
     global_rank: int,
     world_size: int,
 ) -> tuple[LambdaAudioDataset, LambdaAudioDataset]:
+    training_files = sorted((cache_dir / "train").glob("*.parquet"))
     validation_files = sorted((cache_dir / "validation").glob("*.parquet"))
+    if not training_files:
+        raise FileNotFoundError("The training dataset is not cached.")
     if not validation_files:
         raise FileNotFoundError("The validation dataset is not cached.")
 
     training = load_dataset(
-        DATASET_ID,
+        "parquet",
+        data_files={"train": [str(path) for path in training_files]},
         split="train",
         streaming=True,
-        token=token,
     ).select_columns(["audio", "text"])
     validation = load_dataset(
         "parquet",
