@@ -51,7 +51,7 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     scheduler = optimizer_configuration["lr_scheduler"]["scheduler"]
 
     assert learning_rates == {config.learning_rate}
-    assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(0.2)
+    assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(config.min_learning_rate_ratio)
 
 
 def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:

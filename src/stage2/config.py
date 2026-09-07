@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Self
 
-from pydantic import PositiveFloat, PositiveInt, model_validator
+from pydantic import Field, PositiveFloat, PositiveInt, model_validator
 
 from src.training.config import BaseTrainingConfig
 
@@ -14,7 +14,7 @@ class Stage2Config(BaseTrainingConfig):
     max_steps: PositiveInt = 51200
     adapter_learning_rate: PositiveFloat = 1e-4
     backbone_learning_rate: PositiveFloat = 5e-5
-    min_learning_rate_ratio = 0.2
+    min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
     train_max_batch_padded_audio_seconds: PositiveFloat = 1_500.0
     train_max_batch_attention_cost: PositiveInt = 40_000_000
 
