@@ -165,6 +165,18 @@ def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
     assert [sample.reference for sample in samples] == ["一", "二"]
 
 
+def test_load_inference_samples_reads_audio_file(tmp_path: Path) -> None:
+    input_path = tmp_path / "sample.wav"
+    input_path.write_bytes(b"audio")
+
+    samples = load_inference_samples(input_path)
+
+    assert len(samples) == 1
+    assert samples[0].audio_name == "sample.wav"
+    assert samples[0].audio == b"audio"
+    assert samples[0].reference == ""
+
+
 def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
     input_path = tmp_path / "data.parquet"
     audio_type = pa.struct([("bytes", pa.binary()), ("path", pa.string())])

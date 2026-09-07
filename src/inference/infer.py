@@ -31,7 +31,8 @@ def main() -> None:
         inference_seconds = perf_counter() - inference_start
         print("-" * 72)
         print(f"[{index}/{len(samples)}] {sample.audio_name}")
-        print(f"正解({result.audio_seconds:.2g}秒): {sample.reference}")
+        if sample.reference:
+            print(f"正解({result.audio_seconds:.2g}秒): {sample.reference}")
         print(f"推論({inference_seconds:.2g}秒): {result.text}")
 
 
