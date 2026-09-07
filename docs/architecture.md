@@ -39,15 +39,13 @@ Zipformer出力 [B, T, 768]
   ↓
 LayerNorm(768)
   ↓
-Conv1d(768 → 768, kernel=3, stride=2, padding=1)　(時間方向を1/2に圧縮)
+Linear(768 → 1024)
   ↓
 GELU
   ↓
-Linear(768 → 1024)
-  ↓
 LayerNorm(1024)
   ↓
-音声特徴 [B, ceil(T/2), 1024]
+音声特徴 [B, T, 1024]
 
 
 ## Gated cross attention

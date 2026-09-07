@@ -10,5 +10,6 @@ def test_adapter_output_shape() -> None:
 
     output, output_mask = adapter(hidden_states, padding_mask)
 
-    assert output.shape == (2, 3, 16)
-    assert output_mask.shape == (2, 3)
+    assert output.shape == (2, 5, 16)
+    assert output_mask.shape == (2, 5)
+    torch.testing.assert_close(output_mask, padding_mask)
