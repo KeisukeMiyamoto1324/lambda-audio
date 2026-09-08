@@ -1,6 +1,7 @@
 import torch
 
 from src.modeling.zipformer import ZipformerConfig, ZipformerForCTC
+from src.modeling.zipformer.scaling import SwooshLForward, SwooshRForward
 from src.modeling.zipformer.zipformer import CompactRelPositionalEncoding
 
 
@@ -37,3 +38,13 @@ def test_ctc_model_accepts_missing_padding_mask() -> None:
 
     assert output.logits.shape == (1, 15, 12)
     assert torch.isfinite(output.logits).all()
+
+
+def test_swoosh_forward_has_finite_gradients_for_large_inputs() -> None:
+    for swoosh in (SwooshLForward, SwooshRForward):
+        input_tensor = torch.tensor([100.0], requires_grad=True)
+
+        swoosh(input_tensor).sum().backward()
+
+        assert input_tensor.grad is not None
+        assert torch.isfinite(input_tensor.grad).all()
