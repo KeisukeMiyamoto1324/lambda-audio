@@ -2,6 +2,7 @@ import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.strategies import DDPStrategy
 
 from src.environment import configure_cuda_allocator
 from src.training.config import BaseTrainingConfig
@@ -51,10 +52,11 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         progress_bar,
         ValidationInferenceMonitor(config, progress_bar),
     ]
+    strategy = DDPStrategy(gradient_as_bucket_view=True) if torch.cuda.device_count() > 1 else "auto"
     return L.Trainer(
         accelerator="gpu",
         devices="auto",
-        strategy="auto",
+        strategy=strategy,
         precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,

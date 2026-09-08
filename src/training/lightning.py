@@ -29,9 +29,6 @@ class BaseLambdaAudioLightningModule(
         output = self.model(**model_batch)
         if output.loss is None:
             raise RuntimeError("The model did not return training loss.")
-        if not torch.isfinite(output.loss):
-            raise FloatingPointError(f"Non-finite training loss at step={self.global_step}, batch={batch_idx}.")
-
         self.log(
             "train_loss",
             output.loss,

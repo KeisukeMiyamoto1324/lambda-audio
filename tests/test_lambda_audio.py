@@ -4,9 +4,11 @@ from typing import Any
 import torch
 from pytest import MonkeyPatch
 from torch import nn
+from torch.nn import functional as F
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
 from src import LambdaAudioModel
+from src.modeling import lfm2_decoder as lfm2_decoder_module
 from src.modeling.lfm2_decoder import AudioLfm2ForCausalLM
 
 
@@ -31,7 +33,22 @@ class DummyEncoder(nn.Module):
         return padding_mask
 
 
+class ReferenceFusedCrossEntropy(nn.Module):
+    def forward(
+        self,
+        weight: torch.Tensor,
+        hidden_states: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        return F.cross_entropy(F.linear(hidden_states, weight).float(), labels)
+
+
 def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        lfm2_decoder_module,
+        "_get_fused_cross_entropy",
+        lambda: ReferenceFusedCrossEntropy(),
+    )
     config = Lfm2Config(
         vocab_size=32,
         hidden_size=16,
@@ -72,7 +89,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         ctc_label_lengths=torch.tensor([2, 2]),
     )
 
-    assert output.logits.shape == (2, 3, 32)
+    assert output.logits.numel() == 0
     assert output.loss is not None
     output.loss.backward()
     assert model.ctc_output.weight.grad is not None

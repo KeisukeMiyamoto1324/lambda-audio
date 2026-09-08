@@ -30,6 +30,7 @@ def test_cached_attention_matches_multihead_attention() -> None:
         need_weights=False,
     )
     audio_key_values = module.project_key_value(audio_features)
+    assert audio_key_values[0].untyped_storage().data_ptr() == audio_key_values[1].untyped_storage().data_ptr()
     output = module(hidden_states, audio_key_values, audio_padding_mask)
     expected = hidden_states + torch.tanh(module.gate) * expected_attention
 

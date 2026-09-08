@@ -1,12 +1,28 @@
+from functools import cache
 from typing import Any
 
 import torch
+from torch import nn
 from transformers.cache_utils import Cache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 from transformers.models.lfm2.modeling_lfm2 import Lfm2DecoderLayer, Lfm2ForCausalLM
 
-from src.modeling.cross_attention import GatedCrossAttention
+from src.modeling.cross_attention import AudioKeyValue, GatedCrossAttention
+
+
+@cache
+def _get_fused_cross_entropy() -> nn.Module:
+    # ---------------------------------------------------------
+    # Import the CUDA-only kernel only when supervised loss is needed.
+    # ---------------------------------------------------------
+    from liger_kernel.transformers import LigerFusedLinearCrossEntropyLoss
+
+    return LigerFusedLinearCrossEntropyLoss(
+        ignore_index=-100,
+        reduction="mean",
+        accum_dtype=torch.float32,
+    )
 
 
 class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
@@ -32,7 +48,7 @@ class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
         position_ids: torch.LongTensor | None = None,
         past_key_values: Cache | None = None,
         *,
-        audio_key_values: tuple[torch.Tensor, ...],
+        audio_key_values: tuple[AudioKeyValue, ...],
         audio_padding_mask: torch.BoolTensor,
         **kwargs: Any,
     ) -> torch.Tensor:
@@ -82,13 +98,19 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         # Expand tuple-held audio caches in the same order as text inputs.
         # ---------------------------------------------------------
         if expand_size != 1:
-            model_kwargs["audio_key_values"] = tuple(cache.repeat_interleave(expand_size, dim=0) for cache in model_kwargs["audio_key_values"])
+            model_kwargs["audio_key_values"] = tuple(
+                (
+                    key_value[0].repeat_interleave(expand_size, dim=0),
+                    key_value[1].repeat_interleave(expand_size, dim=0),
+                )
+                for key_value in model_kwargs["audio_key_values"]
+            )
         return input_ids, model_kwargs
 
     def project_audio_key_values(
         self,
         audio_features: torch.Tensor,
-    ) -> tuple[torch.Tensor, ...]:
+    ) -> tuple[AudioKeyValue, ...]:
         # ---------------------------------------------------------
         # Build one reusable audio K/V cache for every cross-attention layer.
         # ---------------------------------------------------------
@@ -105,10 +127,44 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         use_cache: bool | None = None,
         logits_to_keep: int | torch.Tensor = 0,
         *,
-        audio_key_values: tuple[torch.Tensor, ...],
+        audio_key_values: tuple[AudioKeyValue, ...],
         audio_padding_mask: torch.BoolTensor,
         **kwargs: Any,
-    ) -> CausalLMOutputWithPast:
+    ) -> CausalLMOutputWithPast | tuple[Any, ...]:
+        if labels is not None:
+            return_dict = kwargs.get("return_dict")
+            use_return_dict = self.config.use_return_dict if return_dict is None else return_dict
+            outputs = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                use_cache=use_cache,
+                audio_key_values=audio_key_values,
+                audio_padding_mask=audio_padding_mask,
+                **kwargs,
+            )
+            hidden_states = outputs[0] if isinstance(outputs, tuple) else outputs.last_hidden_state
+            shifted_hidden_states = hidden_states[:, :-1].contiguous().view(-1, self.config.hidden_size)
+            shifted_labels = labels[:, 1:].contiguous().view(-1)
+            loss = _get_fused_cross_entropy()(
+                self.lm_head.weight,
+                shifted_hidden_states,
+                shifted_labels,
+            )
+            empty_logits = hidden_states.new_empty(0)
+            if not use_return_dict:
+                return (loss, empty_logits, *outputs[1:])
+
+            return CausalLMOutputWithPast(
+                loss=loss,
+                logits=empty_logits,
+                past_key_values=outputs.past_key_values,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            )
+
         return super().forward(
             input_ids=input_ids,
             attention_mask=attention_mask,

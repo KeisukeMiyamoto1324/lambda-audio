@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.strategies import DDPStrategy
 from torch import nn
 
 from src.modeling.zipformer.scaling import ScheduledFloat
@@ -108,12 +109,14 @@ def test_training_step_updates_zipformer_schedules() -> None:
     assert model.encoder.dropout.name == "encoder.dropout"
 
 
-def test_training_step_rejects_nonfinite_loss() -> None:
+def test_training_step_defers_nonfinite_check_to_gradient_clipping(monkeypatch: pytest.MonkeyPatch) -> None:
     config = Stage1Config(output_dir=Path("outputs"))
     module = Stage1LightningModule(DummyLossModel(), config)  # type: ignore[arg-type]
+    monkeypatch.setattr(module, "log", lambda *args, **kwargs: None)
 
-    with pytest.raises(FloatingPointError, match="step=0, batch=3"):
-        module.training_step({}, 3)
+    loss = module.training_step({"input_ids": torch.ones(1, 1)}, 3)
+
+    assert torch.isnan(loss)
 
 
 def test_optimizer_step_identifies_nonfinite_gradient() -> None:
@@ -154,3 +157,23 @@ def test_create_trainer_saves_config_and_full_checkpoint(
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
     assert any(isinstance(callback, ValidationInferenceMonitor) for callback in trainer_arguments["callbacks"])
+
+
+def test_create_trainer_uses_gradient_bucket_views_for_multiple_gpus(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    trainer_arguments: dict[str, Any] = {}
+
+    def create_dummy_trainer(**kwargs: Any) -> SimpleNamespace:
+        trainer_arguments.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(trainer_module.L, "Trainer", create_dummy_trainer)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+
+    create_trainer(Stage1Config(output_dir=tmp_path))
+
+    strategy = trainer_arguments["strategy"]
+    assert isinstance(strategy, DDPStrategy)
+    assert strategy._ddp_kwargs["gradient_as_bucket_view"] is True
