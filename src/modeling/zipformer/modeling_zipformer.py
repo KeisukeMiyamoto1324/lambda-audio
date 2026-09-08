@@ -84,6 +84,17 @@ class ZipformerModel(ZipformerPreTrainedModel):
         self.layer_norm = nn.LayerNorm(self.embed)
         self.post_init()
 
+    def set_trainable_stacks(self, first_stack_index: int) -> None:
+        # ---------------------------------------------------------
+        # Freeze the frontend and train only the selected later stacks.
+        # ---------------------------------------------------------
+        if not 0 <= first_stack_index < len(self.encoder.encoders):
+            raise ValueError(f"Invalid first trainable stack index: {first_stack_index}")
+
+        self.requires_grad_(False)
+        for stack in self.encoder.encoders[first_stack_index:]:
+            stack.requires_grad_(True)
+
     @classmethod
     def from_icefall_checkpoint(
         cls,

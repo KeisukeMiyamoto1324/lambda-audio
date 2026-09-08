@@ -23,6 +23,7 @@ class DummyTrainingModel(nn.Module):
         super().__init__()
         self.adapter = nn.Linear(2, 2)
         self.encoder = nn.Linear(2, 2)
+        self.decoder = nn.Linear(2, 2)
 
 
 class DummyScheduledEncoder(nn.Module):
@@ -67,6 +68,7 @@ def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
 
     assert learning_rates == {
         config.adapter_learning_rate,
+        config.encoder_learning_rate,
         config.backbone_learning_rate,
     }
 

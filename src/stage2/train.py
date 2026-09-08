@@ -17,7 +17,7 @@ def main() -> None:
         encoder_full_precision=True,
     )
     model = components.model
-    model.encoder.requires_grad_(False)
+    model.encoder.set_trainable_stacks(3)
     model.decoder.config.use_cache = False
     model.decoder.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 
