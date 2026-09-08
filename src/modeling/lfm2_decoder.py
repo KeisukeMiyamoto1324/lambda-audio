@@ -65,6 +65,26 @@ class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
 
 
 class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
+    @staticmethod
+    def _expand_inputs_for_generation(
+        expand_size: int = 1,
+        is_encoder_decoder: bool = False,
+        input_ids: torch.LongTensor | None = None,
+        **model_kwargs: Any,
+    ) -> tuple[torch.LongTensor | None, dict[str, Any]]:
+        input_ids, model_kwargs = Lfm2ForCausalLM._expand_inputs_for_generation(
+            expand_size=expand_size,
+            is_encoder_decoder=is_encoder_decoder,
+            input_ids=input_ids,
+            **model_kwargs,
+        )
+        # ---------------------------------------------------------
+        # Expand tuple-held audio caches in the same order as text inputs.
+        # ---------------------------------------------------------
+        if expand_size != 1:
+            model_kwargs["audio_key_values"] = tuple(cache.repeat_interleave(expand_size, dim=0) for cache in model_kwargs["audio_key_values"])
+        return input_ids, model_kwargs
+
     def project_audio_key_values(
         self,
         audio_features: torch.Tensor,
