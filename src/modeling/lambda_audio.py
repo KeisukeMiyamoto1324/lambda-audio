@@ -72,6 +72,19 @@ class LambdaAudioModel(nn.Module):
             audio_padding_mask=encoded_padding_mask,
         )
 
+    def cast_frozen_linear_embedding_weights(self, dtype: torch.dtype) -> None:
+        # ---------------------------------------------------------
+        # Store large frozen matrix weights in the autocast dtype.
+        # Keep trainable layers and normalization parameters in FP32.
+        # ---------------------------------------------------------
+        for module in self.modules():
+            if not isinstance(module, (nn.Linear, nn.Embedding)):
+                continue
+            parameters = list(module.parameters(recurse=False))
+            if any(parameter.requires_grad for parameter in parameters):
+                continue
+            module.to(dtype=dtype)
+
     def generate(
         self,
         input_values: torch.Tensor,
@@ -80,19 +93,21 @@ class LambdaAudioModel(nn.Module):
         attention_mask: torch.Tensor,
         **kwargs: Any,
     ) -> torch.LongTensor:
-        audio_features, encoded_padding_mask = self.encode(
-            input_values,
-            audio_padding_mask,
-        )
-        audio_key_values = self.decoder.project_audio_key_values(audio_features)
+        precision_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16) if input_values.is_cuda else nullcontext()
+        with precision_context:
+            audio_features, encoded_padding_mask = self.encode(
+                input_values,
+                audio_padding_mask,
+            )
+            audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
-        return self.decoder.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            audio_key_values=audio_key_values,
-            audio_padding_mask=encoded_padding_mask,
-            **kwargs,
-        )
+            return self.decoder.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                audio_key_values=audio_key_values,
+                audio_padding_mask=encoded_padding_mask,
+                **kwargs,
+            )
 
     def set_backbones_trainable(self, trainable: bool) -> None:
         # ---------------------------------------------------------

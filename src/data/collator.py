@@ -23,7 +23,7 @@ class AudioTextCollator:
     def __call__(
         self,
         examples: list[TranscribedAudioExample],
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, torch.Tensor | int]:
         # ---------------------------------------------------------
         # Pad raw audio and convert its attention mask to padding mask.
         # ---------------------------------------------------------
@@ -61,4 +61,5 @@ class AudioTextCollator:
             "input_ids": text_batch["input_ids"],
             "attention_mask": text_batch["attention_mask"],
             "labels": labels,
+            "audio_valid_samples": sum(audio_array.size for audio_array in audio_arrays),
         }

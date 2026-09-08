@@ -31,7 +31,7 @@ def create_optimizer_configuration(
         }
         for (rate, weight_decay), parameters in parameter_groups.items()
     ]
-    optimizer = AdamW(groups, betas=(0.9, 0.95))
+    optimizer = AdamW(groups, betas=(0.9, 0.95), fused=True)
     scheduler = get_cosine_with_min_lr_schedule_with_warmup(
         optimizer,
         num_warmup_steps=config.warmup_steps,

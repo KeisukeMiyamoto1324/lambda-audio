@@ -52,6 +52,7 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     scheduler = optimizer_configuration["lr_scheduler"]["scheduler"]
 
     assert learning_rates == {config.learning_rate}
+    assert optimizer.defaults["fused"] is True
     assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(config.min_learning_rate_ratio)
 
 
@@ -124,7 +125,7 @@ def test_optimizer_step_identifies_nonfinite_gradient() -> None:
         FloatingPointError,
         match="parameter=encoder.weight",
     ):
-        module.on_before_optimizer_step(optimizer)
+        module.configure_gradient_clipping(optimizer, config.max_grad_norm, "norm")
 
 
 def test_create_trainer_saves_config_and_full_checkpoint(

@@ -23,14 +23,9 @@ def test_training_progress_bar_hides_logger_version() -> None:
 
 
 def test_audio_batch_sizes_counts_valid_and_padded_samples() -> None:
-    padding_mask = torch.tensor(
-        [
-            [False, False, False, False],
-            [False, False, True, True],
-        ]
-    )
+    input_values = torch.zeros(2, 4)
 
-    valid_samples, padded_samples = audio_batch_sizes(padding_mask)
+    valid_samples, padded_samples = audio_batch_sizes(input_values, 6)
 
     assert valid_samples == 6
     assert padded_samples == 8

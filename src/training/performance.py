@@ -24,10 +24,8 @@ class TrainingProgressBar(RichProgressBar):
         self.progress.console.print(table)
 
 
-def audio_batch_sizes(audio_padding_mask: torch.Tensor) -> tuple[int, int]:
-    padded_samples = audio_padding_mask.numel()
-    valid_samples = padded_samples - torch.count_nonzero(audio_padding_mask).item()
-    return valid_samples, padded_samples
+def audio_batch_sizes(input_values: torch.Tensor, valid_samples: int) -> tuple[int, int]:
+    return valid_samples, input_values.numel()
 
 
 class TrainingPerformanceMonitor(L.Callback):
@@ -58,7 +56,7 @@ class TrainingPerformanceMonitor(L.Callback):
         self,
         trainer: L.Trainer,
         pl_module: L.LightningModule,
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor | int],
         batch_idx: int,
     ) -> None:
         now = time.perf_counter()
@@ -67,7 +65,11 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_data_time_max = max(self.window_data_time_max, data_time)
         if data_time >= DATA_STALL_SECONDS:
             self.window_data_stalls += 1
-        valid_samples, padded_samples = audio_batch_sizes(batch["audio_padding_mask"])
+        input_values = batch["input_values"]
+        valid_samples_value = batch["audio_valid_samples"]
+        if not isinstance(input_values, torch.Tensor) or not isinstance(valid_samples_value, int):
+            raise TypeError("Training batch audio statistics are invalid.")
+        valid_samples, padded_samples = audio_batch_sizes(input_values, valid_samples_value)
         self.window_valid_samples += valid_samples
         self.window_padded_samples += padded_samples
         self.window_batches += 1
@@ -79,7 +81,7 @@ class TrainingPerformanceMonitor(L.Callback):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
         outputs: torch.Tensor | dict[str, torch.Tensor] | None,
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor | int],
         batch_idx: int,
     ) -> None:
         if self.start_event is None:

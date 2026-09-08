@@ -32,7 +32,7 @@ class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
         position_ids: torch.LongTensor | None = None,
         past_key_values: Cache | None = None,
         *,
-        audio_key_values: torch.Tensor,
+        audio_key_values: tuple[torch.Tensor, ...],
         audio_padding_mask: torch.BoolTensor,
         **kwargs: Any,
     ) -> torch.Tensor:
@@ -56,7 +56,7 @@ class AudioLfm2DecoderLayer(Lfm2DecoderLayer):
         # ---------------------------------------------------------
         hidden_states = self.cross_attention(
             hidden_states,
-            audio_key_values[:, self.audio_cache_index],
+            audio_key_values[self.audio_cache_index],
             audio_padding_mask,
         )
         hidden_states = hidden_states + self.feed_forward(self.ffn_norm(hidden_states))
@@ -68,12 +68,11 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
     def project_audio_key_values(
         self,
         audio_features: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, ...]:
         # ---------------------------------------------------------
         # Build one reusable audio K/V cache for every cross-attention layer.
         # ---------------------------------------------------------
-        key_values = [layer.cross_attention.project_key_value(audio_features) for layer in self.model.layers if isinstance(layer, AudioLfm2DecoderLayer)]
-        return torch.stack(key_values, dim=1)
+        return tuple(layer.cross_attention.project_key_value(audio_features) for layer in self.model.layers if isinstance(layer, AudioLfm2DecoderLayer))
 
     def forward(
         self,
@@ -86,7 +85,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         use_cache: bool | None = None,
         logits_to_keep: int | torch.Tensor = 0,
         *,
-        audio_key_values: torch.Tensor,
+        audio_key_values: tuple[torch.Tensor, ...],
         audio_padding_mask: torch.BoolTensor,
         **kwargs: Any,
     ) -> CausalLMOutputWithPast:

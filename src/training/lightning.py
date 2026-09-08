@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast
 
 import lightning as L
 import torch
@@ -22,10 +22,11 @@ class BaseLambdaAudioLightningModule(
 
     def training_step(
         self,
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor | int],
         batch_idx: int,
     ) -> torch.Tensor:
-        output = self.model(**batch)
+        model_batch = cast(dict[str, torch.Tensor], {name: value for name, value in batch.items() if isinstance(value, torch.Tensor)})
+        output = self.model(**model_batch)
         if output.loss is None:
             raise RuntimeError("The model did not return training loss.")
         if not torch.isfinite(output.loss):
@@ -54,15 +55,25 @@ class BaseLambdaAudioLightningModule(
                 module.batch_count = self.global_step
                 module.name = f"encoder.{name}"
 
-    def on_before_optimizer_step(self, optimizer: torch.optim.Optimizer) -> None:
+    def configure_gradient_clipping(
+        self,
+        optimizer: torch.optim.Optimizer,
+        gradient_clip_val: float | int | None = None,
+        gradient_clip_algorithm: str | None = None,
+    ) -> None:
         # ---------------------------------------------------------
         # Reject non-finite gradients before they can corrupt weights.
         # ---------------------------------------------------------
-        parameters = [parameter for parameter in self.model.parameters() if parameter.grad is not None]
+        if gradient_clip_val is None:
+            raise ValueError("gradient_clip_val is required.")
+        if gradient_clip_algorithm not in (None, "norm"):
+            raise ValueError("Only gradient norm clipping is supported.")
+
+        parameters = [parameter for group in optimizer.param_groups for parameter in group["params"] if parameter.grad is not None]
         try:
             torch.nn.utils.clip_grad_norm_(
                 parameters,
-                max_norm=float("inf"),
+                max_norm=float(gradient_clip_val),
                 error_if_nonfinite=True,
                 foreach=True,
             )
@@ -75,10 +86,11 @@ class BaseLambdaAudioLightningModule(
 
     def validation_step(
         self,
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, torch.Tensor | int],
         batch_idx: int,
     ) -> torch.Tensor:
-        output = self.model(**batch)
+        model_batch = cast(dict[str, torch.Tensor], {name: value for name, value in batch.items() if isinstance(value, torch.Tensor)})
+        output = self.model(**model_batch)
         if output.loss is None:
             raise RuntimeError("The model did not return validation loss.")
 

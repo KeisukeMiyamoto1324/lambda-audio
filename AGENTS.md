@@ -42,6 +42,8 @@ ruff format .
 pyright
 ```
 
+Keep changes automatically made by Ruff, including changes outside the immediate task scope.
+
 ## Other
 - Please respond in Japanese.
 - ALWAYS make your answer SHORT and CONCISE. 
