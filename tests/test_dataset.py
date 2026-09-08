@@ -126,3 +126,22 @@ def test_audio_batch_dataset_rejects_oversized_audio() -> None:
 
     with pytest.raises(ValueError, match="exceeds the batch limits"):
         list(dataset)
+
+
+def test_audio_batch_dataset_repeats_with_updated_shuffle_epoch() -> None:
+    source = create_transcribed_dataset([("000/audio", 4)])
+    shuffle_epochs: list[int] = []
+    source.set_epoch = shuffle_epochs.append  # type: ignore[method-assign]
+    dataset = AudioBatchDataset(
+        source,
+        max_batch_padded_audio_samples=8,
+        max_batch_attention_cost=1_000,
+        encoder_frame_samples=1,
+        bucket_buffer_size=4,
+        repeat=True,
+    )
+    batches = iter(dataset)
+
+    assert next(batches)[0]["transcription"] == "000/audio"
+    assert next(batches)[0]["transcription"] == "000/audio"
+    assert shuffle_epochs == [0, 1]

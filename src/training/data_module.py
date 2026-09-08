@@ -95,6 +95,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             encoder_frame_samples=self.config.encoder_frame_samples,
             bucket_buffer_size=self.config.bucket_buffer_size,
             show_initial_buffer_progress=show_initial_buffer_progress,
+            repeat=self.trainer.world_size > 1,
         )
 
     def _data_loader(

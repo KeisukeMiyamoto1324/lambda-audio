@@ -25,6 +25,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         encoder_frame_samples: int,
         bucket_buffer_size: int,
         show_initial_buffer_progress: bool = False,
+        repeat: bool = False,
     ) -> None:
         self.dataset = dataset
         self.max_batch_padded_audio_samples = max_batch_padded_audio_samples
@@ -32,6 +33,7 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         self.encoder_frame_samples = encoder_frame_samples
         self.bucket_buffer_size = bucket_buffer_size
         self.show_initial_buffer_progress = show_initial_buffer_progress
+        self.repeat = repeat
         self.epoch = multiprocessing.Value("q", 0)
 
         if max_batch_padded_audio_samples < 1:
@@ -69,6 +71,16 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
                     next_window,
                     source,
                     refill_target,
+                    False,
+                )
+            if self.repeat and source_exhausted and not next_window:
+                epoch += 1
+                self.dataset.set_epoch(epoch)
+                source = iter(self.dataset)
+                source_exhausted = self._fill_window(
+                    next_window,
+                    source,
+                    self.bucket_buffer_size,
                     False,
                 )
             window = next_window

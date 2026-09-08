@@ -118,3 +118,44 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     assert not any(name.startswith("decoder.") and "cross_attention" not in name for name in trainable_names)
     assert model.decoder.model.embed_tokens.weight.dtype == torch.bfloat16
     assert cross_attention.attention.out_proj.weight.dtype == torch.float32
+
+
+def test_ctc_loss_ignores_unalignable_examples(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        lfm2_decoder_module,
+        "_get_fused_cross_entropy",
+        lambda: ReferenceFusedCrossEntropy(),
+    )
+    config = Lfm2Config(
+        vocab_size=32,
+        hidden_size=16,
+        intermediate_size=32,
+        num_hidden_layers=1,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        layer_types=["full_attention"],
+        pad_token_id=0,
+    )
+    model = LambdaAudioModel(
+        DummyEncoder(),
+        AudioLfm2ForCausalLM(config),
+        ctc_vocab_size=8,
+        ctc_blank_token_id=0,
+        ctc_loss_weight=0.3,
+        encoder_hidden_size=8,
+    )
+
+    output = model(
+        input_values=torch.randn(2, 2),
+        audio_padding_mask=torch.zeros(2, 2, dtype=torch.bool),
+        input_ids=torch.tensor([[1, 2], [1, 3]]),
+        attention_mask=torch.ones(2, 2, dtype=torch.long),
+        labels=torch.tensor([[1, 2], [1, 3]]),
+        ctc_labels=torch.tensor([[1, 1], [2, 3]]),
+        ctc_label_lengths=torch.tensor([2, 2]),
+    )
+
+    assert output.loss is not None
+    assert torch.isfinite(output.loss)
+    output.loss.backward()
+    assert model.ctc_output.weight.grad is not None

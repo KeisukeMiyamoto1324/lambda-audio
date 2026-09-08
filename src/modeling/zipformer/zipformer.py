@@ -566,8 +566,10 @@ class Zipformer2EncoderLayer(nn.Module):
 
         self.conv_module2 = ConvolutionModule(embed_dim, cnn_module_kernel, causal=causal)
 
-        # TODO: remove it
-        self.bypass_scale = nn.Parameter(torch.full((embed_dim,), 0.5))
+        # ---------------------------------------------------------
+        # Retain the unused checkpoint value without exposing it to DDP.
+        # ---------------------------------------------------------
+        self.register_buffer("bypass_scale", torch.full((embed_dim,), 0.5))
 
         self.norm = BiasNorm(embed_dim)
 

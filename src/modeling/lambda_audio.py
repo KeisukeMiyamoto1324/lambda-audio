@@ -88,13 +88,21 @@ class LambdaAudioModel(nn.Module):
         # ---------------------------------------------------------
         ctc_logits = self.ctc_output(audio_features)
         ctc_input_lengths = (~encoded_padding_mask).sum(dim=-1)
-        ctc_loss = F.ctc_loss(
-            ctc_logits.log_softmax(dim=-1, dtype=torch.float32).transpose(0, 1),
-            ctc_labels,
-            ctc_input_lengths,
-            ctc_label_lengths,
-            blank=self.ctc_blank_token_id,
-        )
+        label_positions = torch.arange(ctc_labels.shape[1] - 1, device=ctc_labels.device)
+        repeated_labels = ctc_labels[:, 1:].eq(ctc_labels[:, :-1])
+        repeated_labels.logical_and_(label_positions.unsqueeze(0) < (ctc_label_lengths - 1).unsqueeze(1))
+        required_ctc_frames = ctc_label_lengths + repeated_labels.sum(dim=-1)
+        valid_ctc_examples = ctc_input_lengths >= required_ctc_frames
+        if valid_ctc_examples.any():
+            ctc_loss = F.ctc_loss(
+                ctc_logits[valid_ctc_examples].log_softmax(dim=-1, dtype=torch.float32).transpose(0, 1),
+                ctc_labels[valid_ctc_examples],
+                ctc_input_lengths[valid_ctc_examples],
+                ctc_label_lengths[valid_ctc_examples],
+                blank=self.ctc_blank_token_id,
+            )
+        else:
+            ctc_loss = ctc_logits.sum() * 0.0
         decoder_output.loss = decoder_output.loss + self.ctc_loss_weight * ctc_loss
         return decoder_output
 
