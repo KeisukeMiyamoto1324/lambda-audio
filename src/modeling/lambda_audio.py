@@ -3,6 +3,7 @@ from typing import Any
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -16,6 +17,9 @@ class LambdaAudioModel(nn.Module):
         self,
         encoder: PreTrainedModel,
         decoder: AudioLfm2ForCausalLM,
+        ctc_vocab_size: int,
+        ctc_blank_token_id: int,
+        ctc_loss_weight: float,
         encoder_hidden_size: int = 768,
         encoder_full_precision: bool = False,
     ) -> None:
@@ -23,7 +27,10 @@ class LambdaAudioModel(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.encoder_full_precision = encoder_full_precision
+        self.ctc_blank_token_id = ctc_blank_token_id
+        self.ctc_loss_weight = ctc_loss_weight
         self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
+        self.ctc_output = nn.Linear(decoder.config.hidden_size, ctc_vocab_size)
         add_cross_attention(self.decoder)
 
     def encode(
@@ -57,6 +64,8 @@ class LambdaAudioModel(nn.Module):
         input_ids: torch.LongTensor,
         attention_mask: torch.Tensor,
         labels: torch.LongTensor,
+        ctc_labels: torch.LongTensor,
+        ctc_label_lengths: torch.LongTensor,
     ) -> CausalLMOutputWithPast:
         audio_features, encoded_padding_mask = self.encode(
             input_values,
@@ -64,13 +73,30 @@ class LambdaAudioModel(nn.Module):
         )
         audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
-        return self.decoder(
+        decoder_output = self.decoder(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             audio_key_values=audio_key_values,
             audio_padding_mask=encoded_padding_mask,
         )
+        if decoder_output.loss is None:
+            raise RuntimeError("The decoder did not return a training loss.")
+
+        # ---------------------------------------------------------
+        # Add monotonic alignment supervision to the decoder loss.
+        # ---------------------------------------------------------
+        ctc_logits = self.ctc_output(audio_features)
+        ctc_input_lengths = (~encoded_padding_mask).sum(dim=-1)
+        ctc_loss = F.ctc_loss(
+            ctc_logits.log_softmax(dim=-1, dtype=torch.float32).transpose(0, 1),
+            ctc_labels,
+            ctc_input_lengths,
+            ctc_label_lengths,
+            blank=self.ctc_blank_token_id,
+        )
+        decoder_output.loss = decoder_output.loss + self.ctc_loss_weight * ctc_loss
+        return decoder_output
 
     def cast_frozen_linear_embedding_weights(self, dtype: torch.dtype) -> None:
         # ---------------------------------------------------------

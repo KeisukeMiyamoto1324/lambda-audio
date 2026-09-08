@@ -17,6 +17,10 @@ def parse_arguments() -> InferenceConfig:
         default=defaults.input_path,
     )
     parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument(
+        "--ctc-tokenizer-model-id",
+        default=defaults.ctc_tokenizer_model_id,
+    )
     try:
         return InferenceConfig.model_validate(vars(parser.parse_args()))
     except ValidationError as error:

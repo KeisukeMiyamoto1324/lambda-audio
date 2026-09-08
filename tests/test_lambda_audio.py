@@ -43,7 +43,14 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         pad_token_id=0,
     )
     decoder = AudioLfm2ForCausalLM(config)
-    model = LambdaAudioModel(DummyEncoder(), decoder, encoder_hidden_size=8)
+    model = LambdaAudioModel(
+        DummyEncoder(),
+        decoder,
+        ctc_vocab_size=8,
+        ctc_blank_token_id=0,
+        ctc_loss_weight=0.3,
+        encoder_hidden_size=8,
+    )
     projection_calls = 0
     cross_attention = decoder.model.layers[0].cross_attention
     project_key_value = cross_attention.project_key_value
@@ -61,10 +68,16 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         input_ids=torch.tensor([[1, 2, 3], [1, 4, 5]]),
         attention_mask=torch.ones(2, 3, dtype=torch.long),
         labels=torch.tensor([[1, 2, 3], [1, 4, 5]]),
+        ctc_labels=torch.tensor([[1, 2], [3, 4]]),
+        ctc_label_lengths=torch.tensor([2, 2]),
     )
 
     assert output.logits.shape == (2, 3, 32)
     assert output.loss is not None
+    output.loss.backward()
+    assert model.ctc_output.weight.grad is not None
+    assert model.adapter.projection.weight.grad is not None
+    assert decoder.model.layers[0].cross_attention.gate.grad is not None
 
     # ---------------------------------------------------------
     # Check generation and the first training stage settings.

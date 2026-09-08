@@ -72,3 +72,71 @@ def test_zipformer_trains_only_selected_later_stacks() -> None:
     assert not any(parameter.requires_grad for parameter in model.feature_extractor.parameters())
     for index, stack in enumerate(model.encoder.encoders):
         assert all(parameter.requires_grad == (index >= 3) for parameter in stack.parameters())
+
+
+def test_padding_mask_uses_convolution_output_lengths() -> None:
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2), (8, 3, 2)),
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+    )
+    model = ZipformerModel(config)
+    features = torch.zeros(2, 4, 8)
+    input_padding_mask = torch.tensor(
+        [
+            [False] * 19,
+            [False] * 11 + [True] * 8,
+        ]
+    )
+
+    output_padding_mask = model.forward_padding_mask(features, input_padding_mask)
+
+    torch.testing.assert_close(
+        output_padding_mask,
+        torch.tensor(
+            [
+                [False, False, False, False],
+                [False, False, True, True],
+            ]
+        ),
+    )
+
+
+def test_time_mask_changes_only_valid_training_frames() -> None:
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2),),
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+        mask_time_probability=1.0,
+        mask_time_length=1,
+    )
+    model = ZipformerModel(config).train()
+    features = torch.randn(2, 4, 8)
+    padding_mask = torch.tensor([[False, False, False, False], [False, False, True, True]])
+
+    masked = model.apply_time_mask(features, padding_mask)
+
+    torch.testing.assert_close(masked[0], model.mask_emb.expand(4, -1))
+    torch.testing.assert_close(masked[1, :2], model.mask_emb.expand(2, -1))
+    torch.testing.assert_close(masked[1, 2:], features[1, 2:])
+
+    model.eval()
+    torch.testing.assert_close(model.apply_time_mask(features, padding_mask), features)

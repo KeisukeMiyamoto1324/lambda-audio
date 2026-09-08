@@ -22,6 +22,7 @@ class DummyTrainingModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.adapter = nn.Linear(2, 2)
+        self.ctc_output = nn.Linear(2, 2)
         self.encoder = nn.Linear(2, 2)
         self.decoder = nn.Linear(2, 2)
 
@@ -63,7 +64,8 @@ def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
         output_dir=Path("outputs"),
         initialization_checkpoint=checkpoint_path,
     )
-    module = Stage2LightningModule(DummyTrainingModel(), config)  # type: ignore[arg-type]
+    model = DummyTrainingModel()
+    module = Stage2LightningModule(model, config)  # type: ignore[arg-type]
     optimizer = module.configure_optimizers()["optimizer"]
     learning_rates = {group["initial_lr"] for group in optimizer.param_groups}
 
@@ -72,6 +74,9 @@ def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
         config.encoder_learning_rate,
         config.backbone_learning_rate,
     }
+    ctc_parameter = model.ctc_output.weight
+    ctc_group = next(group for group in optimizer.param_groups if any(parameter is ctc_parameter for parameter in group["params"]))
+    assert ctc_group["initial_lr"] == config.adapter_learning_rate
 
 
 def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:

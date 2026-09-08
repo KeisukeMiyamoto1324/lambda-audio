@@ -73,9 +73,16 @@ class ZipformerConfig(PretrainedConfig):
         cnn_module_kernel: tuple[int, ...] = (31, 31, 15, 15, 15, 31),
         vocab_size: int = 512,
         initializer_range: float = 0.02,
+        mask_time_probability: float = 0.05,
+        mask_time_length: int = 10,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        if not 0.0 <= mask_time_probability <= 1.0:
+            raise ValueError("mask_time_probability must be between 0 and 1.")
+        if mask_time_length < 1:
+            raise ValueError("mask_time_length must be positive.")
+
         self.conv_feature_layers = conv_feature_layers
         self.extractor_mode = extractor_mode
         self.conv_bias = conv_bias
@@ -95,3 +102,5 @@ class ZipformerConfig(PretrainedConfig):
         self.cnn_module_kernel = cnn_module_kernel
         self.vocab_size = vocab_size
         self.initializer_range = initializer_range
+        self.mask_time_probability = mask_time_probability
+        self.mask_time_length = mask_time_length

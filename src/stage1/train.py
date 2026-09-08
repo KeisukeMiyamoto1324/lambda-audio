@@ -22,6 +22,7 @@ def main() -> None:
     data_module = LambdaAudioDataModule(
         components.feature_extractor,
         components.tokenizer,
+        components.ctc_tokenizer,
         config,
         token,
     )

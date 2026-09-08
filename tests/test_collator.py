@@ -27,7 +27,13 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
         sampling_rate=16_000,
         return_attention_mask=True,
     )
-    collator = AudioTextCollator(feature_extractor, tokenizer, 16_000, 8)
+    collator = AudioTextCollator(
+        feature_extractor,
+        tokenizer,
+        tokenizer,
+        16_000,
+        8,
+    )
 
     batch = collator(
         [
@@ -49,3 +55,5 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
         torch.tensor([[False, False, False, False], [False, False, True, True]]),
     )
     assert batch["labels"][1, -1].item() == -100
+    torch.testing.assert_close(batch["ctc_label_lengths"], torch.tensor([2, 1]))
+    assert batch["ctc_labels"][0, :2].tolist() == [4, 4]

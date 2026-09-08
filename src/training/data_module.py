@@ -21,6 +21,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self,
         feature_extractor: SequenceFeatureExtractor,
         tokenizer: PreTrainedTokenizerBase,
+        ctc_tokenizer: PreTrainedTokenizerBase,
         config: BaseTrainingConfig,
         token: str,
     ) -> None:
@@ -30,6 +31,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.collator = AudioTextCollator(
             feature_extractor,
             tokenizer,
+            ctc_tokenizer,
             config.sampling_rate,
             config.max_text_length,
         )

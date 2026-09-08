@@ -78,6 +78,25 @@ def parse_arguments() -> Stage1Config:
         type=float,
         default=defaults.learning_rate,
     )
+    parser.add_argument(
+        "--ctc-tokenizer-model-id",
+        default=defaults.ctc_tokenizer_model_id,
+    )
+    parser.add_argument(
+        "--ctc-loss-weight",
+        type=float,
+        default=defaults.ctc_loss_weight,
+    )
+    parser.add_argument(
+        "--time-mask-probability",
+        type=float,
+        default=defaults.time_mask_probability,
+    )
+    parser.add_argument(
+        "--time-mask-length",
+        type=int,
+        default=defaults.time_mask_length,
+    )
     try:
         return Stage1Config.model_validate(vars(parser.parse_args()))
     except ValidationError as error:

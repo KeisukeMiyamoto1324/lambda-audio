@@ -24,6 +24,12 @@ def test_stage2_cli_uses_renamed_training_options(
             "800",
             "--train-max-batch-attention-cost",
             "20000000",
+            "--ctc-loss-weight",
+            "0.2",
+            "--time-mask-probability",
+            "0.1",
+            "--time-mask-length",
+            "8",
         ],
     )
 
@@ -31,6 +37,9 @@ def test_stage2_cli_uses_renamed_training_options(
 
     assert config.train_max_batch_padded_audio_seconds == 800
     assert config.train_max_batch_attention_cost == 20_000_000
+    assert config.ctc_loss_weight == 0.2
+    assert config.time_mask_probability == 0.1
+    assert config.time_mask_length == 8
 
 
 def test_stage1_cli_reports_pydantic_error(

@@ -3,6 +3,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput, Wav2Vec2BaseModelOutput
 
@@ -125,12 +126,54 @@ class ZipformerModel(ZipformerPreTrainedModel):
         features: torch.Tensor,
         padding_mask: torch.Tensor,
     ) -> torch.Tensor:
-        extra = padding_mask.size(1) % features.size(1)
-        if extra > 0:
-            padding_mask = padding_mask[:, :-extra]
-        padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
-        padding_mask = padding_mask.all(-1)
-        return padding_mask
+        input_lengths = (~padding_mask).sum(dim=-1)
+        output_lengths = input_lengths
+        for _, kernel_size, stride in self.config.conv_feature_layers:
+            output_lengths = (
+                torch.div(
+                    output_lengths - kernel_size,
+                    stride,
+                    rounding_mode="floor",
+                )
+                + 1
+            )
+        frame_indices = torch.arange(features.size(1), device=features.device)
+        return frame_indices.unsqueeze(0) >= output_lengths.unsqueeze(1)
+
+    def apply_time_mask(
+        self,
+        features: torch.Tensor,
+        padding_mask: torch.BoolTensor,
+    ) -> torch.Tensor:
+        if not self.training or self.config.mask_time_probability == 0.0:
+            return features
+
+        # ---------------------------------------------------------
+        # Mask short spans only inside the valid audio region.
+        # ---------------------------------------------------------
+        batch_size, sequence_length, _ = features.shape
+        span_length = self.config.mask_time_length
+        valid_lengths = (~padding_mask).sum(dim=-1)
+        frame_indices = torch.arange(sequence_length, device=features.device)
+        valid_starts = frame_indices.unsqueeze(0) + span_length <= valid_lengths.unsqueeze(1)
+        start_probability = self.config.mask_time_probability / span_length
+        mask_starts = torch.rand(
+            batch_size,
+            sequence_length,
+            device=features.device,
+        ).lt(start_probability)
+        mask_starts.logical_and_(valid_starts)
+        time_mask = F.conv1d(
+            mask_starts.unsqueeze(1).to(features.dtype),
+            torch.ones(1, 1, span_length, device=features.device, dtype=features.dtype),
+            padding=span_length - 1,
+        )[:, 0, :sequence_length].gt(0)
+        time_mask.logical_and_(~padding_mask)
+        return torch.where(
+            time_mask.unsqueeze(-1),
+            self.mask_emb.view(1, 1, -1),
+            features,
+        )
 
     def forward(
         self,
@@ -155,6 +198,7 @@ class ZipformerModel(ZipformerPreTrainedModel):
             features = self.post_extract_proj(features)
 
         features = self.dropout_input(features)
+        features = self.apply_time_mask(features, padding_mask)
         x = features
 
         # feature: (B, T, D), float
@@ -163,7 +207,11 @@ class ZipformerModel(ZipformerPreTrainedModel):
         # padding_mask: (B, T), bool
         # mask_indices: (B, T), bool
         x = x.transpose(0, 1)
-        x, _ = self.encoder(x, (~padding_mask).sum(dim=-1))
+        x, _ = self.encoder(
+            x,
+            (~padding_mask).sum(dim=-1),
+            src_key_padding_mask=padding_mask,
+        )
         x = x.transpose(0, 1)
 
         return Wav2Vec2BaseModelOutput(
