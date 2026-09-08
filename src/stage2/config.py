@@ -12,7 +12,7 @@ class Stage2Config(BaseTrainingConfig):
 
     gradient_accumulation_steps: PositiveInt = 1
     max_steps: PositiveInt = 51200
-    adapter_learning_rate: PositiveFloat = 1e-4
+    adapter_learning_rate: PositiveFloat = 5e-5
     encoder_learning_rate: PositiveFloat = 5e-6
     backbone_learning_rate: PositiveFloat = 5e-5
     min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
