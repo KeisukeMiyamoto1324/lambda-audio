@@ -1,14 +1,14 @@
 from typing import Any, cast
 
 import torch
-from datasets import IterableDataset, load_dataset
 
 from src.environment import load_hf_token
 from src.inference.loader import select_device
 from src.modeling.checkpoint import load_model_checkpoint
 from src.modeling.loading import load_model_components
 from src.test.cli import parse_arguments
-from src.test.evaluation import TEST_DATASET_ID, evaluate_test_dataset
+from src.test.dataset import load_local_test_dataset
+from src.test.evaluation import evaluate_test_dataset
 
 
 def main() -> None:
@@ -22,19 +22,7 @@ def main() -> None:
     components.model.to(device)
     components.model.eval()
 
-    # ---------------------------------------------------------
-    # Stream only the test split from the private dataset.
-    # ---------------------------------------------------------
-    rows = cast(
-        IterableDataset,
-        load_dataset(
-            TEST_DATASET_ID,
-            split="test",
-            streaming=True,
-            token=token,
-        ),
-    ).select_columns(["id", "audio", "text"])
-    rows = rows.decode(num_threads=config.num_decode_threads)
+    rows = load_local_test_dataset(config.dataset_dir)
     summary = evaluate_test_dataset(
         components.model,
         components.feature_extractor,

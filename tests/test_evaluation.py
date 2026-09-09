@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -141,3 +142,42 @@ def test_evaluate_test_dataset_limits_rows_by_ratio(
 
     assert summary.samples == 3
     assert sum(processed_batch_sizes) == 3
+
+
+def test_evaluation_runs_inference_before_reading_next_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    config = EvaluationConfig(
+        checkpoint_path=checkpoint_path,
+        output_path=tmp_path / "results.jsonl",
+        batch_size=2,
+    )
+    processed_batch_sizes: list[int] = []
+
+    def rows() -> Iterator[dict[str, Any]]:
+        for index in range(5):
+            assert sum(processed_batch_sizes) == (index // 2) * 2
+            yield {"id": str(index), "audio": DummyAudio(), "text": "正解"}
+
+    def transcribe(*args: Any, **kwargs: Any) -> list[TranscriptionResult]:
+        batch_size = len(args[5])
+        processed_batch_sizes.append(batch_size)
+        return [TranscriptionResult(text="正解", audio_seconds=0.01)] * batch_size
+
+    monkeypatch.setattr("src.test.evaluation.transcribe_audio_batch", transcribe)
+    summary = evaluate_test_dataset(
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        object(),  # type: ignore[arg-type]
+        config,
+        torch.device("cpu"),
+        rows(),
+    )
+
+    assert summary.samples == 5
+    assert processed_batch_sizes == [2, 2, 1]
+    records = [json.loads(line) for line in config.output_path.read_text(encoding="utf-8").splitlines()]
+    assert [record["id"] for record in records] == [str(index) for index in range(5)]

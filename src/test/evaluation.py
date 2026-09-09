@@ -1,7 +1,7 @@
 import json
 import unicodedata
 from collections.abc import Iterable, Iterator
-from itertools import islice
+from itertools import batched, islice
 from math import ceil
 from time import perf_counter
 from typing import Any, TypedDict, cast
@@ -62,10 +62,9 @@ def create_evaluation_batches(
     rows: Iterable[dict[str, Any]],
     config: EvaluationConfig,
 ) -> Iterator[list[EvaluationExample]]:
-    row_iterator = iter(rows)
-    while row_buffer := list(islice(row_iterator, config.bucket_buffer_size)):
+    for row_batch in batched(rows, config.batch_size):
         examples: list[EvaluationExample] = []
-        for row in row_buffer:
+        for row in row_batch:
             samples = row["audio"].get_all_samples()
             examples.append(
                 {
@@ -79,12 +78,7 @@ def create_evaluation_batches(
                 }
             )
 
-        # ---------------------------------------------------------
-        # Group similar lengths to reduce padding work on the GPU.
-        # ---------------------------------------------------------
-        examples.sort(key=lambda example: example["audio_array"].size)
-        for offset in range(0, len(examples), config.batch_size):
-            yield examples[offset : offset + config.batch_size]
+        yield examples
 
 
 def evaluate_test_dataset(

@@ -108,8 +108,7 @@ def test_test_cli_accepts_checkpoint_and_output(
     config = parse_test_arguments()
 
     assert config.checkpoint_path == checkpoint_path
+    assert config.dataset_dir == Path("outputs/datasets/lambda-audio-corpus-1/test")
     assert config.output_path == output_path
     assert config.batch_size == 16
-    assert config.bucket_buffer_size == 256
-    assert config.num_decode_threads == 16
     assert config.dataset_ratio == 0.1
