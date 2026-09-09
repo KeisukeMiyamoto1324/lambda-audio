@@ -23,8 +23,6 @@ def test_stage2_cli_uses_renamed_training_options(
             str(checkpoint_path),
             "--train-max-batch-padded-audio-seconds",
             "800",
-            "--train-max-batch-attention-cost",
-            "20000000",
             "--ctc-loss-weight",
             "0.2",
         ],
@@ -33,7 +31,6 @@ def test_stage2_cli_uses_renamed_training_options(
     config = parse_stage2_arguments()
 
     assert config.train_max_batch_padded_audio_seconds == 800
-    assert config.train_max_batch_attention_cost == 20_000_000
     assert config.ctc_loss_weight == 0.2
 
 

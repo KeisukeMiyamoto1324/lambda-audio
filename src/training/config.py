@@ -16,11 +16,8 @@ class BaseTrainingConfig(ModelConfig):
     bucket_buffer_size: PositiveInt = 128
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 2
-    encoder_frame_samples: PositiveInt = 320
     train_max_batch_padded_audio_seconds: PositiveFloat = 1_400.0
     validation_max_batch_padded_audio_seconds: PositiveFloat = 120.0
-    train_max_batch_attention_cost: PositiveInt = 56_000_000
-    validation_max_batch_attention_cost: PositiveInt = 12_000_000
     gradient_accumulation_steps: PositiveInt = 8
     max_steps: PositiveInt = 10_000
     warmup_steps: PositiveInt = 500

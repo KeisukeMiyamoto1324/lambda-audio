@@ -56,13 +56,11 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.training_dataset = self._batch_dataset(
             training_source,
             self.config.train_max_batch_padded_audio_seconds,
-            self.config.train_max_batch_attention_cost,
             True,
         )
         self.validation_dataset = self._batch_dataset(
             validation_source,
             self.config.validation_max_batch_padded_audio_seconds,
-            self.config.validation_max_batch_attention_cost,
             False,
         )
 
@@ -85,14 +83,11 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self,
         source: EpochTranscribedAudioDataset,
         max_padded_audio_seconds: float,
-        max_attention_cost: int,
         show_initial_buffer_progress: bool,
     ) -> AudioBatchDataset:
         return AudioBatchDataset(
             source,
             max_batch_padded_audio_samples=int(max_padded_audio_seconds * self.config.sampling_rate),
-            max_batch_attention_cost=max_attention_cost,
-            encoder_frame_samples=self.config.encoder_frame_samples,
             bucket_buffer_size=self.config.bucket_buffer_size,
             show_initial_buffer_progress=show_initial_buffer_progress,
             repeat=self.trainer.world_size > 1,
