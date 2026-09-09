@@ -10,14 +10,14 @@ class Stage2Config(BaseTrainingConfig):
     output_dir: Path = Path("outputs/stage2")
     initialization_checkpoint: Path = Path("outputs/stage1/model.ckpt")
 
-    gradient_accumulation_steps: PositiveInt = 1
+    gradient_accumulation_steps: PositiveInt = 4
     max_steps: PositiveInt = 51200
     adapter_learning_rate: PositiveFloat = 5e-5
     encoder_learning_rate: PositiveFloat = 5e-6
     backbone_learning_rate: PositiveFloat = 5e-5
     min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
-    train_max_batch_padded_audio_seconds: PositiveFloat = 1_500.0
-    train_max_batch_attention_cost: PositiveInt = 40_000_000
+    train_max_batch_padded_audio_seconds: PositiveFloat = 900.0
+    train_max_batch_attention_cost: PositiveInt = 32_000_000
 
     validation_batches: PositiveInt = 2_560
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
