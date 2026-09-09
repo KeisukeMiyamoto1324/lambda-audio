@@ -5,6 +5,7 @@ from src.modeling.cross_attention import GatedCrossAttention
 
 def test_zero_gate_preserves_hidden_states() -> None:
     module = GatedCrossAttention(hidden_size=16, num_heads=4, norm_eps=1e-5)
+    assert module.gate.shape == (16,)
     hidden_states = torch.randn(2, 3, 16)
     audio_features = torch.randn(2, 5, 16)
     audio_padding_mask = torch.zeros(2, 5, dtype=torch.bool)
@@ -17,7 +18,7 @@ def test_zero_gate_preserves_hidden_states() -> None:
 
 def test_cached_attention_matches_multihead_attention() -> None:
     module = GatedCrossAttention(hidden_size=16, num_heads=4, norm_eps=1e-5)
-    module.gate.data.fill_(1.0)
+    module.gate.data.copy_(torch.linspace(-1.0, 1.0, 16))
     hidden_states = torch.randn(2, 3, 16)
     audio_features = torch.randn(2, 5, 16)
     audio_padding_mask = torch.tensor([[False, False, False, True, True], [False, False, False, False, True]])

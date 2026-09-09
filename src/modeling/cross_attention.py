@@ -15,7 +15,7 @@ class GatedCrossAttention(nn.Module):
             bias=False,
             batch_first=True,
         )
-        self.gate = nn.Parameter(torch.zeros(()))
+        self.gate = nn.Parameter(torch.zeros(hidden_size))
 
     def project_key_value(self, audio_features: torch.Tensor) -> AudioKeyValue:
         # ---------------------------------------------------------
