@@ -5,6 +5,7 @@ import pytest
 
 from src.stage1.cli import parse_arguments as parse_stage1_arguments
 from src.stage2.cli import parse_arguments as parse_stage2_arguments
+from src.test.cli import parse_arguments as parse_test_arguments
 
 
 def test_stage2_cli_uses_renamed_training_options(
@@ -83,3 +84,28 @@ def test_stage2_cli_accepts_resume_checkpoint(
     config = parse_stage2_arguments()
 
     assert config.resume_checkpoint == checkpoint_path
+
+
+def test_test_cli_accepts_checkpoint_and_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    output_path = tmp_path / "results.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "test",
+            "--checkpoint",
+            str(checkpoint_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    config = parse_test_arguments()
+
+    assert config.checkpoint_path == checkpoint_path
+    assert config.output_path == output_path

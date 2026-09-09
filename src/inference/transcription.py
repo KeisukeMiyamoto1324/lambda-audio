@@ -2,7 +2,9 @@ from io import BytesIO
 from typing import Protocol
 
 import librosa
+import numpy as np
 import torch
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
@@ -39,14 +41,39 @@ def transcribe(
         mono=True,
         dtype="float32",
     )
+    return transcribe_audio_array(
+        model,
+        feature_extractor,
+        tokenizer,
+        config,
+        device,
+        audio_array,
+        int(sampling_rate),
+    )
+
+
+def transcribe_audio_array(
+    model: LambdaAudioModel,
+    feature_extractor: SequenceFeatureExtractor,
+    tokenizer: PreTrainedTokenizerBase,
+    config: TranscriptionConfig,
+    device: torch.device,
+    audio_array: NDArray[np.float32],
+    sampling_rate: int,
+) -> TranscriptionResult:
+    # ---------------------------------------------------------
+    # Validate decoded audio before feature extraction.
+    # ---------------------------------------------------------
     if audio_array.size == 0:
         raise ValueError("The audio file is empty.")
+    if sampling_rate != config.sampling_rate:
+        raise ValueError(f"The audio sampling rate must be {config.sampling_rate} Hz.")
     if audio_array.size > config.sampling_rate * config.max_audio_seconds:
         raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
 
     audio_batch = feature_extractor(
         audio_array,
-        sampling_rate=int(sampling_rate),
+        sampling_rate=sampling_rate,
         return_attention_mask=True,
         return_tensors="pt",
     )
