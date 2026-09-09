@@ -15,7 +15,7 @@ def main() -> None:
     components = load_model_components(config, token)
     model = components.model
     model.set_backbones_trainable(False)
-    model.cast_frozen_linear_embedding_weights(torch.bfloat16)
+    model.cast_frozen_weights(torch.bfloat16)
     model.decoder.config.use_cache = False
 
     lightning_model = Stage1LightningModule(model, config)

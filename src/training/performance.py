@@ -24,10 +24,6 @@ class TrainingProgressBar(RichProgressBar):
         self.progress.console.print(table)
 
 
-def audio_batch_sizes(input_values: torch.Tensor, valid_samples: int) -> tuple[int, int]:
-    return valid_samples, input_values.numel()
-
-
 class TrainingPerformanceMonitor(L.Callback):
     def __init__(self, sampling_rate: int, log_steps: int) -> None:
         self.sampling_rate = sampling_rate
@@ -65,13 +61,12 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_data_time_max = max(self.window_data_time_max, data_time)
         if data_time >= DATA_STALL_SECONDS:
             self.window_data_stalls += 1
-        input_values = batch["input_values"]
         valid_samples_value = batch["audio_valid_samples"]
-        if not isinstance(input_values, torch.Tensor) or not isinstance(valid_samples_value, int):
+        padded_samples_value = batch["audio_padded_samples"]
+        if not isinstance(valid_samples_value, int) or not isinstance(padded_samples_value, int):
             raise TypeError("Training batch audio statistics are invalid.")
-        valid_samples, padded_samples = audio_batch_sizes(input_values, valid_samples_value)
-        self.window_valid_samples += valid_samples
-        self.window_padded_samples += padded_samples
+        self.window_valid_samples += valid_samples_value
+        self.window_padded_samples += padded_samples_value
         self.window_batches += 1
         self.start_event = torch.cuda.Event(enable_timing=True)
         self.start_event.record()

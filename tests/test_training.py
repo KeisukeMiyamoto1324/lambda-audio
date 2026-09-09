@@ -9,7 +9,6 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.strategies import DDPStrategy
 from torch import nn
 
-from src.modeling.zipformer.scaling import ScheduledFloat
 from src.stage1.config import Stage1Config
 from src.stage1.training import Stage1LightningModule
 from src.stage2.config import Stage2Config
@@ -26,18 +25,6 @@ class DummyTrainingModel(nn.Module):
         self.ctc_output = nn.Linear(2, 2)
         self.encoder = nn.Linear(2, 2)
         self.decoder = nn.Linear(2, 2)
-
-
-class DummyScheduledEncoder(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.dropout = ScheduledFloat((0.0, 0.3), (100.0, 0.1))
-
-
-class DummyScheduledModel(DummyTrainingModel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.encoder = DummyScheduledEncoder()
 
 
 class DummyLossModel(DummyTrainingModel):
@@ -95,18 +82,6 @@ def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:
     optimized_parameters = {id(parameter) for group in optimizer.param_groups for parameter in group["params"]}
 
     assert not any(id(parameter) in optimized_parameters for parameter in model.encoder.parameters())
-
-
-def test_training_step_updates_zipformer_schedules() -> None:
-    config = Stage1Config(output_dir=Path("outputs"))
-    model = DummyScheduledModel()
-    module = Stage1LightningModule(model, config)  # type: ignore[arg-type]
-    module._trainer = SimpleNamespace(global_step=17)  # type: ignore[assignment]
-
-    module.on_train_batch_start({}, 0)
-
-    assert model.encoder.dropout.batch_count == 17
-    assert model.encoder.dropout.name == "encoder.dropout"
 
 
 def test_training_step_defers_nonfinite_check_to_gradient_clipping(monkeypatch: pytest.MonkeyPatch) -> None:

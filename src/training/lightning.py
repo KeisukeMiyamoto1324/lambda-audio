@@ -4,7 +4,6 @@ import lightning as L
 import torch
 
 from src.modeling.lambda_audio import LambdaAudioModel
-from src.modeling.zipformer.scaling import ScheduledFloat
 from src.training.config import BaseTrainingConfig
 from src.training.data_module import LambdaAudioDataModule
 
@@ -38,19 +37,6 @@ class BaseLambdaAudioLightningModule(
             batch_size=batch["input_ids"].shape[0],
         )
         return output.loss
-
-    def on_train_batch_start(
-        self,
-        batch: dict[str, torch.Tensor],
-        batch_idx: int,
-    ) -> None:
-        # ---------------------------------------------------------
-        # Advance the numerical schedules used inside Zipformer.
-        # ---------------------------------------------------------
-        for name, module in self.model.encoder.named_modules():
-            if isinstance(module, ScheduledFloat):
-                module.batch_count = self.global_step
-                module.name = f"encoder.{name}"
 
     def configure_gradient_clipping(
         self,

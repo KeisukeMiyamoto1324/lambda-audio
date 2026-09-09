@@ -29,7 +29,7 @@ class AudioTextCollator:
         examples: list[TranscribedAudioExample],
     ) -> dict[str, torch.Tensor | int]:
         # ---------------------------------------------------------
-        # Pad raw audio and convert its attention mask to padding mask.
+        # Extract padded Fbank features and convert their attention mask.
         # ---------------------------------------------------------
         audio_arrays = [example["audio_array"] for example in examples]
         audio_batch = self.feature_extractor(
@@ -77,7 +77,7 @@ class AudioTextCollator:
             raise ValueError("CTC targets must not contain the blank token.")
 
         return {
-            "input_values": audio_batch["input_values"],
+            "input_features": audio_batch["input_features"],
             "audio_padding_mask": audio_batch["attention_mask"].eq(0),
             "input_ids": text_batch["input_ids"],
             "attention_mask": text_batch["attention_mask"],
@@ -85,4 +85,5 @@ class AudioTextCollator:
             "ctc_labels": ctc_labels,
             "ctc_label_lengths": ctc_label_lengths,
             "audio_valid_samples": sum(audio_array.size for audio_array in audio_arrays),
+            "audio_padded_samples": max(audio_array.size for audio_array in audio_arrays) * len(audio_arrays),
         }

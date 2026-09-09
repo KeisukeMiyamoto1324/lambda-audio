@@ -33,15 +33,15 @@ class DummyFeatureExtractor:
     ) -> dict[str, torch.Tensor]:
         audio_arrays = audio if isinstance(audio, list) else [audio]
         lengths = [audio_array.size for audio_array in audio_arrays]
-        input_values = torch.nn.utils.rnn.pad_sequence(
-            [torch.from_numpy(audio_array) for audio_array in audio_arrays],
+        input_features = torch.nn.utils.rnn.pad_sequence(
+            [torch.from_numpy(audio_array).unsqueeze(-1) for audio_array in audio_arrays],
             batch_first=True,
         )
-        attention_mask = torch.zeros_like(input_values, dtype=torch.long)
+        attention_mask = torch.zeros(input_features.shape[:2], dtype=torch.long)
         for index, length in enumerate(lengths):
             attention_mask[index, :length] = 1
         return {
-            "input_values": input_values,
+            "input_features": input_features,
             "attention_mask": attention_mask,
         }
 

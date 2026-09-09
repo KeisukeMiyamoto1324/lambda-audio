@@ -1,3 +1,5 @@
+import torch
+
 from src.environment import load_hf_token
 from src.modeling.checkpoint import load_checkpoint_state
 from src.modeling.loading import load_model_components
@@ -11,13 +13,11 @@ def main() -> None:
     config = parse_arguments()
     configure_training_environment(config.seed)
     token = load_hf_token()
-    components = load_model_components(
-        config,
-        token,
-        encoder_full_precision=True,
-    )
+    components = load_model_components(config, token)
     model = components.model
-    model.encoder.set_trainable_stacks(3)
+    model.set_encoder_trainable_layers(12)
+    model.cast_frozen_weights(torch.bfloat16)
+    model.encoder.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     model.decoder.config.use_cache = False
     model.decoder.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 

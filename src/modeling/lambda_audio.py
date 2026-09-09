@@ -1,10 +1,9 @@
-from contextlib import nullcontext
 from typing import Any
 
 import torch
 from torch import nn
 from torch.nn import functional as F
-from transformers import PreTrainedModel
+from transformers import Wav2Vec2BertModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from src.modeling.adapter import AudioAdapter
@@ -15,51 +14,42 @@ from src.modeling.lfm2_decoder import AudioLfm2ForCausalLM, add_cross_attention
 class LambdaAudioModel(nn.Module):
     def __init__(
         self,
-        encoder: PreTrainedModel,
+        encoder: Wav2Vec2BertModel,
         decoder: AudioLfm2ForCausalLM,
         ctc_vocab_size: int,
         ctc_blank_token_id: int,
         ctc_loss_weight: float,
-        encoder_hidden_size: int = 768,
-        encoder_full_precision: bool = False,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.encoder_full_precision = encoder_full_precision
         self.ctc_blank_token_id = ctc_blank_token_id
         self.ctc_loss_weight = ctc_loss_weight
-        self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
+        self.adapter = AudioAdapter(encoder.config.hidden_size, decoder.config.hidden_size)
         self.ctc_output = nn.Linear(decoder.config.hidden_size, ctc_vocab_size)
         add_cross_attention(self.decoder)
 
     def encode(
         self,
-        input_values: torch.Tensor,
+        input_features: torch.Tensor,
         audio_padding_mask: torch.BoolTensor,
     ) -> tuple[torch.Tensor, torch.BoolTensor]:
         # ---------------------------------------------------------
-        # Encode audio and create the mask for encoder output frames.
+        # Encode Fbank features using their frame-level padding mask.
         # ---------------------------------------------------------
-        precision_context = torch.autocast(device_type=input_values.device.type, enabled=False) if self.encoder_full_precision else nullcontext()
-        with precision_context:
-            encoder_output = self.encoder(
-                input_values=input_values,
-                padding_mask=audio_padding_mask,
-            )
-        encoder_padding_mask = self.encoder.forward_padding_mask(
-            encoder_output.last_hidden_state,
-            audio_padding_mask,
+        encoder_output = self.encoder(
+            input_features=input_features,
+            attention_mask=~audio_padding_mask,
         )
 
         return self.adapter(
             encoder_output.last_hidden_state,
-            encoder_padding_mask,
+            audio_padding_mask,
         )
 
     def forward(
         self,
-        input_values: torch.Tensor,
+        input_features: torch.Tensor,
         audio_padding_mask: torch.BoolTensor,
         input_ids: torch.LongTensor,
         attention_mask: torch.Tensor,
@@ -68,7 +58,7 @@ class LambdaAudioModel(nn.Module):
         ctc_label_lengths: torch.LongTensor,
     ) -> CausalLMOutputWithPast:
         audio_features, encoded_padding_mask = self.encode(
-            input_values,
+            input_features,
             audio_padding_mask,
         )
         audio_key_values = self.decoder.project_audio_key_values(audio_features)
@@ -106,13 +96,13 @@ class LambdaAudioModel(nn.Module):
         decoder_output.loss = decoder_output.loss + self.ctc_loss_weight * ctc_loss
         return decoder_output
 
-    def cast_frozen_linear_embedding_weights(self, dtype: torch.dtype) -> None:
+    def cast_frozen_weights(self, dtype: torch.dtype) -> None:
         # ---------------------------------------------------------
-        # Store large frozen matrix weights in the autocast dtype.
+        # Store large frozen weights in the autocast dtype.
         # Keep trainable layers and normalization parameters in FP32.
         # ---------------------------------------------------------
         for module in self.modules():
-            if not isinstance(module, (nn.Linear, nn.Embedding)):
+            if not isinstance(module, (nn.Linear, nn.Embedding, nn.Conv1d)):
                 continue
             parameters = list(module.parameters(recurse=False))
             if any(parameter.requires_grad for parameter in parameters):
@@ -121,27 +111,37 @@ class LambdaAudioModel(nn.Module):
 
     def generate(
         self,
-        input_values: torch.Tensor,
+        input_features: torch.Tensor,
         audio_padding_mask: torch.BoolTensor,
         input_ids: torch.LongTensor,
         attention_mask: torch.Tensor,
         **kwargs: Any,
     ) -> torch.LongTensor:
-        precision_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16) if input_values.is_cuda else nullcontext()
-        with precision_context:
-            audio_features, encoded_padding_mask = self.encode(
-                input_values,
-                audio_padding_mask,
-            )
-            audio_key_values = self.decoder.project_audio_key_values(audio_features)
+        audio_features, encoded_padding_mask = self.encode(
+            input_features,
+            audio_padding_mask,
+        )
+        audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
-            return self.decoder.generate(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                audio_key_values=audio_key_values,
-                audio_padding_mask=encoded_padding_mask,
-                **kwargs,
-            )
+        return self.decoder.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            audio_key_values=audio_key_values,
+            audio_padding_mask=encoded_padding_mask,
+            **kwargs,
+        )
+
+    def set_encoder_trainable_layers(self, first_layer_index: int) -> None:
+        # ---------------------------------------------------------
+        # Freeze the frontend and train only the selected later layers.
+        # ---------------------------------------------------------
+        layers = self.encoder.encoder.layers
+        if not 0 <= first_layer_index < len(layers):
+            raise ValueError(f"Invalid first trainable layer index: {first_layer_index}")
+
+        self.encoder.requires_grad_(False)
+        for layer in layers[first_layer_index:]:
+            layer.requires_grad_(True)
 
     def set_backbones_trainable(self, trainable: bool) -> None:
         # ---------------------------------------------------------

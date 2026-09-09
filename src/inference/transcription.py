@@ -102,7 +102,7 @@ def transcribe_audio_batch(
         return_attention_mask=True,
         return_tensors="pt",
     )
-    input_values = audio_batch["input_values"].to(device)
+    input_features = audio_batch["input_features"].to(device)
     audio_padding_mask = audio_batch["attention_mask"].eq(0).to(device)
 
     if tokenizer.bos_token_id is None or tokenizer.eos_token_id is None:
@@ -119,7 +119,7 @@ def transcribe_audio_batch(
     attention_mask = torch.ones_like(input_ids)
     with torch.inference_mode():
         generated_ids = model.generate(
-            input_values=input_values,
+            input_features=input_features,
             audio_padding_mask=audio_padding_mask,
             input_ids=input_ids,
             attention_mask=attention_mask,

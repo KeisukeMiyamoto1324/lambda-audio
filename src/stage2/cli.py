@@ -97,16 +97,6 @@ def parse_arguments() -> Stage2Config:
         type=float,
         default=defaults.ctc_loss_weight,
     )
-    parser.add_argument(
-        "--time-mask-probability",
-        type=float,
-        default=defaults.time_mask_probability,
-    )
-    parser.add_argument(
-        "--time-mask-length",
-        type=int,
-        default=defaults.time_mask_length,
-    )
     try:
         return Stage2Config.model_validate(vars(parser.parse_args()))
     except ValidationError as error:
