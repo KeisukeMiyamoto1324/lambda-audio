@@ -11,7 +11,7 @@ from torch import nn
 from src.inference.config import InferenceConfig
 from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
-from src.inference.transcription import transcribe
+from src.inference.transcription import transcribe, transcribe_audio_batch
 from src.modeling.checkpoint import load_model_checkpoint
 
 
@@ -22,14 +22,27 @@ class DummyModel(nn.Module):
 
     def generate(self, **kwargs: Any) -> torch.LongTensor:
         self.generation_arguments = kwargs
-        return torch.tensor([[1, 4, 2]])
+        return torch.tensor([[1, 4, 2]]).repeat(kwargs["input_ids"].shape[0], 1)
 
 
 class DummyFeatureExtractor:
-    def __call__(self, audio: np.ndarray, **kwargs: Any) -> dict[str, torch.Tensor]:
+    def __call__(
+        self,
+        audio: np.ndarray | list[np.ndarray],
+        **kwargs: Any,
+    ) -> dict[str, torch.Tensor]:
+        audio_arrays = audio if isinstance(audio, list) else [audio]
+        lengths = [audio_array.size for audio_array in audio_arrays]
+        input_values = torch.nn.utils.rnn.pad_sequence(
+            [torch.from_numpy(audio_array) for audio_array in audio_arrays],
+            batch_first=True,
+        )
+        attention_mask = torch.zeros_like(input_values, dtype=torch.long)
+        for index, length in enumerate(lengths):
+            attention_mask[index, :length] = 1
         return {
-            "input_values": torch.from_numpy(audio).unsqueeze(0),
-            "attention_mask": torch.ones(1, audio.size, dtype=torch.long),
+            "input_values": input_values,
+            "attention_mask": attention_mask,
         }
 
 
@@ -42,9 +55,9 @@ class DummyTokenizer:
         token_ids: torch.LongTensor,
         skip_special_tokens: bool,
     ) -> list[str]:
-        assert token_ids.tolist() == [[4, 2]]
+        assert all(sequence == [4, 2] for sequence in token_ids.tolist())
         assert skip_special_tokens
-        return [" transcription "]
+        return [" transcription "] * token_ids.shape[0]
 
 
 @pytest.mark.parametrize(
@@ -114,6 +127,30 @@ def test_transcribe_generates_from_bos(
     assert model.generation_arguments["input_ids"].tolist() == [[1]]
     assert model.generation_arguments["max_new_tokens"] == 256
     assert not model.generation_arguments["audio_padding_mask"].any()
+
+
+def test_transcribe_audio_batch_pads_and_generates_together(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    config = InferenceConfig(
+        checkpoint_path=checkpoint_path,
+        input_path=checkpoint_path,
+    )
+    model = DummyModel()
+
+    results = transcribe_audio_batch(
+        model,  # type: ignore[arg-type]
+        DummyFeatureExtractor(),  # type: ignore[arg-type]
+        DummyTokenizer(),  # type: ignore[arg-type]
+        config,
+        torch.device("cpu"),
+        [np.ones(160, dtype=np.float32), np.ones(80, dtype=np.float32)],
+        [16_000, 16_000],
+    )
+
+    assert [result.text for result in results] == ["transcription", "transcription"]
+    assert model.generation_arguments["input_ids"].shape == (2, 1)
+    assert model.generation_arguments["audio_padding_mask"][1, 80:].all()
 
 
 def test_transcribe_rejects_audio_longer_than_30_seconds(

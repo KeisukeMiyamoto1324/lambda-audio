@@ -1,5 +1,6 @@
 from typing import Any, cast
 
+import torch
 from datasets import IterableDataset, load_dataset
 
 from src.environment import load_hf_token
@@ -14,6 +15,8 @@ def main() -> None:
     config = parse_arguments()
     token = load_hf_token()
     device = select_device()
+    if device.type == "cuda":
+        torch.set_float32_matmul_precision("high")
     components = load_model_components(config, token)
     load_model_checkpoint(components.model, config.checkpoint_path)
     components.model.to(device)
@@ -31,6 +34,7 @@ def main() -> None:
             token=token,
         ),
     ).select_columns(["id", "audio", "text"])
+    rows = rows.decode(num_threads=config.num_decode_threads)
     summary = evaluate_test_dataset(
         components.model,
         components.feature_extractor,

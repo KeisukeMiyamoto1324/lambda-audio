@@ -109,3 +109,7 @@ def test_test_cli_accepts_checkpoint_and_output(
 
     assert config.checkpoint_path == checkpoint_path
     assert config.output_path == output_path
+    assert config.batch_size == 16
+    assert config.bucket_buffer_size == 256
+    assert config.num_decode_threads == 16
+    assert config.dataset_ratio == 0.1

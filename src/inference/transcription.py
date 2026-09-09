@@ -61,19 +61,44 @@ def transcribe_audio_array(
     audio_array: NDArray[np.float32],
     sampling_rate: int,
 ) -> TranscriptionResult:
+    return transcribe_audio_batch(
+        model,
+        feature_extractor,
+        tokenizer,
+        config,
+        device,
+        [audio_array],
+        [sampling_rate],
+    )[0]
+
+
+def transcribe_audio_batch(
+    model: LambdaAudioModel,
+    feature_extractor: SequenceFeatureExtractor,
+    tokenizer: PreTrainedTokenizerBase,
+    config: TranscriptionConfig,
+    device: torch.device,
+    audio_arrays: list[NDArray[np.float32]],
+    sampling_rates: list[int],
+) -> list[TranscriptionResult]:
     # ---------------------------------------------------------
-    # Validate decoded audio before feature extraction.
+    # Validate decoded audio before padded batch feature extraction.
     # ---------------------------------------------------------
-    if audio_array.size == 0:
+    if not audio_arrays:
+        raise ValueError("The audio batch is empty.")
+    if len(audio_arrays) != len(sampling_rates):
+        raise ValueError("Audio arrays and sampling rates must have the same length.")
+    if any(audio_array.size == 0 for audio_array in audio_arrays):
         raise ValueError("The audio file is empty.")
-    if sampling_rate != config.sampling_rate:
+    if any(sampling_rate != config.sampling_rate for sampling_rate in sampling_rates):
         raise ValueError(f"The audio sampling rate must be {config.sampling_rate} Hz.")
-    if audio_array.size > config.sampling_rate * config.max_audio_seconds:
+    if any(audio_array.size > config.sampling_rate * config.max_audio_seconds for audio_array in audio_arrays):
         raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
 
     audio_batch = feature_extractor(
-        audio_array,
-        sampling_rate=sampling_rate,
+        audio_arrays,
+        sampling_rate=config.sampling_rate,
+        padding=True,
         return_attention_mask=True,
         return_tensors="pt",
     )
@@ -86,7 +111,11 @@ def transcribe_audio_array(
     # ---------------------------------------------------------
     # Generate from BOS and decode only newly generated transcription tokens.
     # ---------------------------------------------------------
-    input_ids = torch.tensor([[tokenizer.bos_token_id]], device=device)
+    input_ids = torch.full(
+        (len(audio_arrays), 1),
+        tokenizer.bos_token_id,
+        device=device,
+    )
     attention_mask = torch.ones_like(input_ids)
     with torch.inference_mode():
         generated_ids = model.generate(
@@ -100,11 +129,14 @@ def transcribe_audio_array(
         )
 
     transcription_ids = generated_ids[:, input_ids.shape[1] :]
-    text = tokenizer.batch_decode(
+    texts = tokenizer.batch_decode(
         transcription_ids,
         skip_special_tokens=True,
-    )[0].strip()
-    return TranscriptionResult(
-        text=text,
-        audio_seconds=audio_array.size / config.sampling_rate,
     )
+    return [
+        TranscriptionResult(
+            text=text.strip(),
+            audio_seconds=audio_array.size / config.sampling_rate,
+        )
+        for text, audio_array in zip(texts, audio_arrays, strict=True)
+    ]
