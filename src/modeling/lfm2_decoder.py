@@ -2,12 +2,27 @@ from typing import Any
 
 import torch
 from cut_cross_entropy import linear_cross_entropy
+from kernels import LayerRepository
 from transformers.cache_utils import Cache
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.models.lfm2 import modeling_lfm2
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 from transformers.models.lfm2.modeling_lfm2 import Lfm2DecoderLayer, Lfm2ForCausalLM
 
 from src.modeling.cross_attention import GatedCrossAttention
+
+
+def enable_causal_convolution_kernels() -> None:
+    # ---------------------------------------------------------
+    # Replace LFM reference convolutions with CUDA 13 Hub kernels.
+    # ---------------------------------------------------------
+    for kernel_name in ("causal_conv1d_fn", "causal_conv1d_update"):
+        kernel_class = LayerRepository(
+            repo_id="kernels-community/mamba-ssm",
+            layer_name=kernel_name,
+            version=3,
+        ).load()
+        setattr(modeling_lfm2, kernel_name, kernel_class())
 
 
 class AudioLfm2DecoderLayer(Lfm2DecoderLayer):

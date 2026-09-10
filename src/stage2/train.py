@@ -1,5 +1,6 @@
 from src.environment import load_hf_token
 from src.modeling.checkpoint import load_checkpoint_state
+from src.modeling.lfm2_decoder import enable_causal_convolution_kernels
 from src.modeling.loading import load_model_components
 from src.stage2.cli import parse_arguments
 from src.stage2.training import Stage2LightningModule
@@ -11,11 +12,13 @@ def main() -> None:
     config = parse_arguments()
     configure_training_environment(config.seed)
     token = load_hf_token()
+    enable_causal_convolution_kernels()
     components = load_model_components(config, token)
     model = components.model
     model.encoder.requires_grad_(False)
     model.decoder.config.use_cache = False
-    model.compile_decoder()
+    model.train()
+    model.encoder.eval()
 
     lightning_model = Stage2LightningModule(model, config)
     if config.resume_checkpoint is None:

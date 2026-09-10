@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any
 
 import torch
 from torch import nn
@@ -22,15 +22,6 @@ class LambdaAudioModel(nn.Module):
         self.decoder = decoder
         self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
         add_cross_attention(self.decoder)
-        self._decoder_forward: Callable[..., CausalLMOutputWithPast] = (
-            self.decoder.forward
-        )
-
-    def compile_decoder(self) -> None:
-        self._decoder_forward = torch.compile(
-            self.decoder.forward,
-            dynamic=True,
-        )
 
     def encode(
         self,
@@ -68,7 +59,7 @@ class LambdaAudioModel(nn.Module):
         )
         audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
-        return self._decoder_forward(
+        return self.decoder(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
@@ -100,15 +91,20 @@ class LambdaAudioModel(nn.Module):
 
     def set_backbones_trainable(self, trainable: bool) -> None:
         # ---------------------------------------------------------
-        # Freeze only pretrained weights during the first stage.
+        # Freeze pretrained weights and their stochastic layers.
         # ---------------------------------------------------------
         self.encoder.requires_grad_(trainable)
         self.decoder.requires_grad_(trainable)
         self.adapter.requires_grad_(True)
 
         if trainable:
+            self.train()
             return
 
+        self.encoder.eval()
+        self.decoder.eval()
+        self.adapter.train()
         for module in self.decoder.modules():
             if isinstance(module, GatedCrossAttention):
                 module.requires_grad_(True)
+                module.train()

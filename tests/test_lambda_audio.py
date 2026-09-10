@@ -46,23 +46,8 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     model = LambdaAudioModel(DummyEncoder(), decoder, encoder_hidden_size=8)
     loss_arguments: dict[str, Any] = {}
     projection_calls = 0
-    compiled_forward_calls = 0
     cross_attention = decoder.model.layers[0].cross_attention
     project_key_value = cross_attention.project_key_value
-
-    def compile_decoder_forward(
-        function: Any,
-        *,
-        dynamic: bool,
-    ) -> Any:
-        assert dynamic is True
-
-        def compiled_forward(**kwargs: Any) -> Any:
-            nonlocal compiled_forward_calls
-            compiled_forward_calls += 1
-            return function(**kwargs)
-
-        return compiled_forward
 
     def count_projection(audio_features: torch.Tensor) -> torch.Tensor:
         nonlocal projection_calls
@@ -90,8 +75,6 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(cross_attention, "project_key_value", count_projection)
     monkeypatch.setattr("src.modeling.lfm2_decoder.linear_cross_entropy", compute_loss)
-    monkeypatch.setattr(torch, "compile", compile_decoder_forward)
-    model.compile_decoder()
 
     output = model(
         input_values=torch.randn(2, 8),
@@ -103,7 +86,6 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
 
     assert output.logits is None
     assert output.loss is not None
-    assert compiled_forward_calls == 1
     assert loss_arguments["hidden_states"].dtype == torch.bfloat16
     assert loss_arguments["classifier"] is decoder.lm_head.weight
     assert torch.equal(
@@ -131,10 +113,13 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     ]
 
     assert generated_ids.shape[0] == 1
-    assert compiled_forward_calls == 1
     assert generation_projection_calls == 1
     assert any(name.startswith("adapter.") for name in trainable_names)
     assert any("cross_attention" in name for name in trainable_names)
+    assert not model.encoder.training
+    assert not model.decoder.training
+    assert model.adapter.training
+    assert cross_attention.training
     assert not any(
         name.startswith("decoder.") and "cross_attention" not in name
         for name in trainable_names

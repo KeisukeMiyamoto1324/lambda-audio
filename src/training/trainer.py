@@ -1,7 +1,10 @@
+import warnings
+
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.utilities.warnings import PossibleUserWarning
 
 from src.environment import configure_cuda_allocator
 from src.training.config import BaseTrainingConfig
@@ -14,6 +17,20 @@ def configure_training_environment(seed: int) -> None:
     if not torch.cuda.is_available():
         raise RuntimeError("Training requires an NVIDIA CUDA GPU.")
 
+    # ---------------------------------------------------------
+    # Ignore a known Lightning 2.6 incompatibility with PyTorch 2.14.
+    # ---------------------------------------------------------
+    warnings.filterwarnings(
+        "ignore",
+        message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+        category=FutureWarning,
+        module=r"lightning\.pytorch\.utilities\._pytree",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Found \d+ module\(s\) in eval mode at the start of training.*",
+        category=PossibleUserWarning,
+    )
     torch.set_float32_matmul_precision("high")
     torch.backends.cuda.matmul.allow_tf32 = True
     L.seed_everything(seed, workers=True)
