@@ -7,7 +7,7 @@ from rich.text import Text
 
 
 class TrainingLossPlot:
-    def __init__(self, height: int = 14) -> None:
+    def __init__(self, height: int = 28) -> None:
         self.height = height
         self.steps: list[int] = []
         self.losses: list[float] = []
