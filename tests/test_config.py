@@ -27,6 +27,13 @@ def test_training_config_is_frozen() -> None:
         config.max_steps = 1  # type: ignore[misc]
 
 
+def test_stage1_uses_throughput_optimized_defaults() -> None:
+    config = Stage1Config()
+
+    assert config.bucket_buffer_size == 2048
+    assert config.validation_batches == 256
+
+
 def test_stage2_config_validates_checkpoint_path(tmp_path: Path) -> None:
     with pytest.raises(ValidationError):
         Stage2Config(initialization_checkpoint=tmp_path / "missing.ckpt")

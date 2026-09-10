@@ -14,9 +14,9 @@ class Stage1Config(BaseTrainingConfig):
     min_learning_rate_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 6400
-    bucket_buffer_size: PositiveInt = 256
+    bucket_buffer_size: PositiveInt = 2048
 
-    validation_batches: PositiveInt = 2_560
+    validation_batches: PositiveInt = 256
     validation_max_batch_padded_audio_seconds: PositiveFloat = 700
 
     num_workers: PositiveInt = 8

@@ -17,6 +17,7 @@ def main() -> None:
     model.set_backbones_trainable(False)
     model.cast_frozen_weights(torch.bfloat16)
     model.decoder.config.use_cache = False
+    model.compile(dynamic=True)
 
     lightning_model = Stage1LightningModule(model, config)
     data_module = LambdaAudioDataModule(
