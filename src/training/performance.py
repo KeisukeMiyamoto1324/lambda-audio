@@ -1,18 +1,60 @@
 import time
+from collections.abc import Iterable
+from typing import Any, Callable
 
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import RichProgressBar
+from rich.console import RenderableType
 from rich.table import Table
+
+from src.training.loss_plot import TrainingLossPlot
 
 DATA_STALL_SECONDS = 1.0
 
 
 class TrainingProgressBar(RichProgressBar):
+    def __init__(self) -> None:
+        super().__init__()
+        self.loss_plot = TrainingLossPlot()
+        self.progress_renderables: Callable[[], Iterable[RenderableType]] | None = None
+
+    def _init_progress(self, trainer: L.Trainer) -> None:
+        previous_progress = self.progress
+        super()._init_progress(trainer)
+        if self.progress is None or self.progress is previous_progress:
+            return
+
+        self.progress_renderables = self.progress.get_renderables
+        self.progress.get_renderables = self._get_progress_renderables
+
+    def _get_progress_renderables(self) -> Iterable[RenderableType]:
+        if self.progress_renderables is None:
+            raise RuntimeError("Progress renderables are not initialized.")
+        yield self.loss_plot
+        yield from self.progress_renderables()
+
     def _get_train_description(self, current_epoch: int) -> str:
         if self.trainer.max_epochs == -1:
             return f"Epoch {current_epoch}"
         return super()._get_train_description(current_epoch)
+
+    def on_train_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        outputs: torch.Tensor | dict[str, torch.Tensor] | None,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        loss = trainer.progress_bar_metrics.get("train_loss")
+        if isinstance(loss, torch.Tensor):
+            loss = loss.item()
+        if loss is not None:
+            if not isinstance(loss, (int, float)):
+                raise TypeError("train_loss must be numeric.")
+            self.loss_plot.update(trainer.global_step, float(loss))
+        super().on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx)
 
     def get_metrics(
         self,
