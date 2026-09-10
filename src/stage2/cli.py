@@ -16,16 +16,6 @@ def parse_arguments() -> Stage2Config:
         default=defaults.resume_checkpoint,
     )
     parser.add_argument(
-        "--metadata-index-path",
-        type=Path,
-        default=defaults.metadata_index_path,
-    )
-    parser.add_argument(
-        "--shard-cache-dir",
-        type=Path,
-        default=defaults.shard_cache_dir,
-    )
-    parser.add_argument(
         "--bucket-buffer-size",
         type=int,
         default=defaults.bucket_buffer_size,
