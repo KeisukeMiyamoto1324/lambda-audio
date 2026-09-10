@@ -5,7 +5,9 @@ from pytest import MonkeyPatch
 
 from src.environment import (
     CUDA_ALLOCATOR_CONFIGURATION,
+    TRAINING_CPU_THREADS,
     configure_cuda_allocator,
+    configure_training_cpu_threads,
     load_hf_token,
 )
 
@@ -16,6 +18,16 @@ def test_configure_cuda_allocator(monkeypatch: MonkeyPatch) -> None:
     configure_cuda_allocator()
 
     assert os.environ["PYTORCH_ALLOC_CONF"] == CUDA_ALLOCATOR_CONFIGURATION
+
+
+def test_configure_training_cpu_threads(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENBLAS_NUM_THREADS", raising=False)
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+
+    configure_training_cpu_threads()
+
+    assert os.environ["OPENBLAS_NUM_THREADS"] == TRAINING_CPU_THREADS
+    assert os.environ["OMP_NUM_THREADS"] == TRAINING_CPU_THREADS
 
 
 def test_load_hf_token_from_dotenv(

@@ -1,1 +1,3 @@
+from src.environment import configure_training_cpu_threads
 
+configure_training_cpu_threads()
