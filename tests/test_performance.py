@@ -39,6 +39,17 @@ def test_training_loss_plot_replaces_loss_within_same_optimizer_step() -> None:
     assert progress_bar.loss_plot.losses == [1.5, 1.0]
 
 
+def test_training_loss_plot_displays_latest_500_steps() -> None:
+    progress_bar = TrainingProgressBar()
+    for step in range(1, 502):
+        progress_bar.loss_plot.update(step, float(step))
+
+    steps, losses = progress_bar.loss_plot.visible_data()
+
+    assert steps == list(range(2, 502))
+    assert losses == [float(step) for step in range(2, 502)]
+
+
 def test_training_loss_plot_is_rendered_above_progress() -> None:
     progress_bar = TrainingProgressBar()
     progress_bar.progress_renderables = lambda: iter(["progress"])
