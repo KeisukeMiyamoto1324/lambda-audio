@@ -3,7 +3,6 @@ from time import perf_counter
 
 import lightning as L
 from rich.table import Table
-from rich.text import Text
 
 from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
@@ -11,6 +10,7 @@ from src.training.config import BaseTrainingConfig
 from src.training.data_module import LambdaAudioDataModule
 from src.training.lightning import BaseLambdaAudioLightningModule
 from src.training.performance import TrainingProgressBar
+from src.training.text_diff import create_text_diff
 
 
 class ValidationInferenceMonitor(L.Callback):
@@ -65,10 +65,14 @@ class ValidationInferenceMonitor(L.Callback):
                 sample.audio,
             )
             inference_seconds = perf_counter() - inference_start
+            reference_text, prediction_text = create_text_diff(
+                sample.reference,
+                result.text,
+            )
             table.add_row(
                 sample.audio_name,
-                Text(sample.reference),
-                Text(result.text),
+                reference_text,
+                prediction_text,
             )
             records.append(
                 {
