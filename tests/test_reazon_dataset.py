@@ -3,12 +3,14 @@ import tarfile
 import threading
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import soundfile as sf
+from numpy.typing import NDArray
 from pytest import MonkeyPatch
 
 from src.data.reazon_dataset import ReazonSpeechShardDataset
@@ -77,6 +79,7 @@ def create_dataset(
     split: Literal["train", "validation"],
     global_rank: int = 0,
     world_size: int = 1,
+    validation_samples: int = 1,
 ) -> ReazonSpeechShardDataset:
     return ReazonSpeechShardDataset(
         token="token",
@@ -84,7 +87,7 @@ def create_dataset(
         shard_files=shard_files,
         cache_dir=tmp_path / "cache",
         split=split,
-        validation_samples=1,
+        validation_samples=validation_samples,
         shuffle_buffer_size=1,
         sampling_rate=16_000,
         seed=42,
@@ -241,6 +244,51 @@ def test_reazon_dataset_partitions_shards_between_ranks(
         "002/audio",
         "003/audio",
     }
+
+
+def test_validation_decodes_each_sample_on_only_one_consumer(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    shard_file = "data/000.tar"
+    source_path = tmp_path / "remote" / shard_file
+    expected_keys = [f"000/audio-{index}" for index in range(8)]
+    create_shard(source_path, expected_keys)
+    decoded_keys: list[str] = []
+    yielded_keys: list[str] = []
+
+    for rank in range(2):
+        dataset = create_dataset(
+            tmp_path / f"rank-{rank}",
+            [shard_file],
+            split="validation",
+            global_rank=rank,
+            world_size=2,
+            validation_samples=len(expected_keys),
+        )
+        validation_path = dataset.cache_dir / "validation" / shard_file
+        validation_path.parent.mkdir(parents=True)
+        shutil.copyfile(source_path, validation_path)
+        decode_audio = dataset._decode_audio
+
+        def track_decode(
+            audio: bytes,
+            member_name: str,
+        ) -> NDArray[np.float32]:
+            decoded_keys.append(member_name.removesuffix(".flac"))
+            return decode_audio(audio, member_name)
+
+        monkeypatch.setattr(dataset, "_decode_audio", track_decode)
+        for worker_id in range(2):
+            worker = SimpleNamespace(id=worker_id, num_workers=2)
+            monkeypatch.setattr(
+                "src.data.reazon_dataset.get_worker_info",
+                lambda: worker,
+            )
+            yielded_keys.extend(example["audio_key"] for example in dataset)
+
+    assert sorted(yielded_keys) == expected_keys
+    assert sorted(decoded_keys) == expected_keys
 
 
 def test_reazon_dataset_skips_invalid_audio(

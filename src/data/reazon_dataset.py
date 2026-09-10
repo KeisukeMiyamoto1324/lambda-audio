@@ -133,26 +133,49 @@ class ReazonSpeechShardDataset(IterableDataset[AudioExample]):
                 f"Prepared validation shard not found: {shard_path}"
             )
 
-        for position, example in enumerate(self._read_shard(shard_path)):
-            if position >= self.validation_samples:
-                return
-            if position % consumer_count == consumer_index:
-                yield example
+        yield from self._read_shard(
+            shard_path,
+            start_position=consumer_index,
+            position_stride=consumer_count,
+            stop_position=self.validation_samples,
+        )
 
     def _read_training_shard(
         self,
         shard_file: str,
         shard_path: Path,
     ) -> Iterator[AudioExample]:
-        for position, example in enumerate(self._read_shard(shard_path)):
-            if shard_file == self.shard_files[0] and position < self.validation_samples:
-                continue
-            yield example
+        start_position = (
+            self.validation_samples if shard_file == self.shard_files[0] else 0
+        )
+        yield from self._read_shard(
+            shard_path,
+            start_position=start_position,
+            position_stride=1,
+            stop_position=None,
+        )
 
-    def _read_shard(self, shard_path: Path) -> Iterator[AudioExample]:
+    def _read_shard(
+        self,
+        shard_path: Path,
+        *,
+        start_position: int,
+        position_stride: int,
+        stop_position: int | None,
+    ) -> Iterator[AudioExample]:
+        position = 0
         with tarfile.open(shard_path, mode="r") as archive:
             for member in archive:
                 if not member.isfile() or not member.name.endswith(".flac"):
+                    continue
+                if stop_position is not None and position >= stop_position:
+                    return
+                selected = (
+                    position >= start_position
+                    and (position - start_position) % position_stride == 0
+                )
+                position += 1
+                if not selected:
                     continue
                 audio_file = archive.extractfile(member)
                 if audio_file is None:

@@ -1,6 +1,7 @@
 from typing import Any
 
 import torch
+from cut_cross_entropy import linear_cross_entropy
 from transformers.cache_utils import Cache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
@@ -94,18 +95,47 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         audio_padding_mask: torch.BoolTensor,
         **kwargs: Any,
     ) -> CausalLMOutputWithPast:
-        return super().forward(
+        outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
-            labels=labels,
             use_cache=use_cache,
-            logits_to_keep=logits_to_keep,
             audio_key_values=audio_key_values,
             audio_padding_mask=audio_padding_mask,
             **kwargs,
+        )
+        hidden_states = outputs.last_hidden_state
+
+        # ---------------------------------------------------------
+        # Fuse the classifier and training loss without materializing logits.
+        # ---------------------------------------------------------
+        if labels is not None:
+            loss = linear_cross_entropy(
+                hidden_states,
+                self.lm_head.weight,
+                labels,
+                shift=True,
+                filter_eps="high",
+                impl="cce",
+            )
+            logits = None
+        else:
+            slice_indices = (
+                slice(-logits_to_keep, None)
+                if isinstance(logits_to_keep, int)
+                else logits_to_keep
+            )
+            logits = self.lm_head(hidden_states[:, slice_indices, :])
+            loss = None
+
+        return CausalLMOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
         )
 
 

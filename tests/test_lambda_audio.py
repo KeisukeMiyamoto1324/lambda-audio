@@ -44,6 +44,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     )
     decoder = AudioLfm2ForCausalLM(config)
     model = LambdaAudioModel(DummyEncoder(), decoder, encoder_hidden_size=8)
+    loss_arguments: dict[str, Any] = {}
     projection_calls = 0
     compiled_forward_calls = 0
     cross_attention = decoder.model.layers[0].cross_attention
@@ -68,7 +69,27 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         projection_calls += 1
         return project_key_value(audio_features)
 
+    def compute_loss(
+        hidden_states: torch.Tensor,
+        classifier: torch.Tensor,
+        labels: torch.Tensor,
+        *,
+        shift: bool,
+        filter_eps: str,
+        impl: str,
+    ) -> torch.Tensor:
+        loss_arguments.update(
+            hidden_states=hidden_states,
+            classifier=classifier,
+            labels=labels,
+            shift=shift,
+            filter_eps=filter_eps,
+            impl=impl,
+        )
+        return hidden_states.sum() * 0.0
+
     monkeypatch.setattr(cross_attention, "project_key_value", count_projection)
+    monkeypatch.setattr("src.modeling.lfm2_decoder.linear_cross_entropy", compute_loss)
     monkeypatch.setattr(torch, "compile", compile_decoder_forward)
     model.compile_decoder()
 
@@ -80,9 +101,17 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         labels=torch.tensor([[1, 2, 3], [1, 4, 5]]),
     )
 
-    assert output.logits.shape == (2, 3, 32)
+    assert output.logits is None
     assert output.loss is not None
     assert compiled_forward_calls == 1
+    assert loss_arguments["classifier"] is decoder.lm_head.weight
+    assert torch.equal(
+        loss_arguments["labels"],
+        torch.tensor([[1, 2, 3], [1, 4, 5]]),
+    )
+    assert loss_arguments["shift"] is True
+    assert loss_arguments["filter_eps"] == "high"
+    assert loss_arguments["impl"] == "cce"
 
     # ---------------------------------------------------------
     # Check generation and the first training stage settings.

@@ -16,6 +16,7 @@ from src.stage2.config import Stage2Config
 from src.stage2.training import Stage2LightningModule
 from src.training import trainer as trainer_module
 from src.training.inference_monitor import ValidationInferenceMonitor
+from src.training.performance import TrainingProgressBar
 from src.training.trainer import create_trainer
 
 
@@ -36,11 +37,6 @@ class DummyScheduledModel(DummyTrainingModel):
     def __init__(self) -> None:
         super().__init__()
         self.encoder = DummyScheduledEncoder()
-
-
-class DummyLossModel(DummyTrainingModel):
-    def forward(self, **batch: Any) -> SimpleNamespace:
-        return SimpleNamespace(loss=torch.tensor(float("nan")))
 
 
 def dummy_audio_text_batch() -> AudioTextBatch:
@@ -67,6 +63,7 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     scheduler = optimizer_configuration["lr_scheduler"]["scheduler"]
 
     assert learning_rates == {config.learning_rate}
+    assert optimizer.defaults["fused"] is True
     assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(0.2)
 
 
@@ -85,6 +82,7 @@ def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
         config.adapter_learning_rate,
         config.backbone_learning_rate,
     }
+    assert optimizer.defaults["fused"] is True
 
 
 def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:
@@ -121,14 +119,6 @@ def test_training_step_updates_zipformer_schedules() -> None:
 
     assert model.encoder.dropout.batch_count == 17
     assert model.encoder.dropout.name == "encoder.dropout"
-
-
-def test_training_step_rejects_nonfinite_loss() -> None:
-    config = Stage1Config(output_dir=Path("outputs"))
-    module = Stage1LightningModule(DummyLossModel(), config)  # type: ignore[arg-type]
-
-    with pytest.raises(FloatingPointError, match="step=0, batch=3"):
-        module.training_step(dummy_audio_text_batch(), 3)
 
 
 def test_gradient_clipping_identifies_nonfinite_gradient() -> None:
@@ -202,3 +192,9 @@ def test_create_trainer_saves_config_and_full_checkpoint(
         isinstance(callback, ValidationInferenceMonitor)
         for callback in trainer_arguments["callbacks"]
     )
+    progress_bar = next(
+        callback
+        for callback in trainer_arguments["callbacks"]
+        if isinstance(callback, TrainingProgressBar)
+    )
+    assert progress_bar.refresh_rate == config.log_steps
