@@ -9,7 +9,7 @@ class Stage1Config(BaseTrainingConfig):
     output_dir: Path = Path("outputs/stage1")
 
     gradient_accumulation_steps: PositiveInt = 1
-    max_steps: PositiveInt = 6400
+    max_steps: PositiveInt = 25600
     learning_rate: PositiveFloat = 2e-4
     min_learning_rate_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
