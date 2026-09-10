@@ -1,16 +1,19 @@
 from collections.abc import Iterator
 from io import BytesIO
+from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
 import soundfile as sf
-from datasets import IterableDataset
+from datasets import Dataset, IterableDataset
 from pytest import MonkeyPatch
 
 from src.data.lambda_audio_dataset import (
     DATASET_ID,
     LambdaAudioDataset,
+    list_validation_cache_files,
     load_lambda_audio_dataset,
+    prepare_validation_dataset,
 )
 
 
@@ -19,6 +22,7 @@ class FakeDataset:
         self.rows = rows
         self.selected_columns: list[str] = []
         self.cast_sampling_rate: int | None = None
+        self.decode_audio: bool | None = None
         self.shuffle_arguments: tuple[int, int] | None = None
         self.epoch: int | None = None
 
@@ -32,6 +36,7 @@ class FakeDataset:
     def cast_column(self, column: str, feature: Any) -> "FakeDataset":
         assert column == "audio"
         self.cast_sampling_rate = cast(int, feature.sampling_rate)
+        self.decode_audio = cast(bool, feature.decode)
         return self
 
     def shuffle(self, buffer_size: int, seed: int) -> "FakeDataset":
@@ -64,6 +69,7 @@ def test_lambda_audio_dataset_reads_audio_and_text_columns() -> None:
 
 def test_load_lambda_audio_dataset_configures_streaming_and_sharding(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     source = FakeDataset([])
     load_arguments: dict[str, Any] = {}
@@ -88,15 +94,119 @@ def test_load_lambda_audio_dataset_configures_streaming_and_sharding(
         shard_stub,
     )
 
-    load_lambda_audio_dataset("token", "train", 1_000, 16_000, 42, 1, 4)
+    load_lambda_audio_dataset(
+        "token",
+        "train",
+        tmp_path,
+        1_000,
+        16_000,
+        42,
+        1,
+        4,
+        8,
+    )
 
     assert load_arguments == {
         "dataset_id": DATASET_ID,
         "split": "train",
+        "data_files": {"train": "train/*.parquet"},
         "streaming": True,
         "token": "token",
+        "cache_dir": str(tmp_path),
     }
     assert source.selected_columns == ["audio", "text"]
     assert source.cast_sampling_rate == 16_000
+    assert source.decode_audio is False
     assert source.shuffle_arguments == (1_000, 42)
     assert shard_arguments == (1, 4)
+
+
+def test_validation_dataset_uses_cached_ten_percent(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = FakeDataset([])
+    load_calls: list[dict[str, Any]] = []
+    iterable_shards: int | None = None
+
+    class FakeCachedDataset:
+        def to_iterable_dataset(self, num_shards: int) -> IterableDataset:
+            nonlocal iterable_shards
+            iterable_shards = num_shards
+            return cast(IterableDataset, source)
+
+    def load_stub(dataset_id: str, **kwargs: Any) -> Dataset:
+        load_calls.append({"dataset_id": dataset_id, **kwargs})
+        return cast(Dataset, FakeCachedDataset())
+
+    monkeypatch.setattr("src.data.lambda_audio_dataset.load_dataset", load_stub)
+    monkeypatch.setattr(
+        "src.data.lambda_audio_dataset.list_validation_cache_files",
+        lambda token: ["validation/part-000000.parquet"],
+    )
+    monkeypatch.setattr(
+        "src.data.lambda_audio_dataset.split_dataset_by_node",
+        lambda dataset, rank, world_size: dataset,
+    )
+
+    prepare_validation_dataset("token", tmp_path)
+    load_lambda_audio_dataset(
+        "token",
+        "validation",
+        tmp_path,
+        1_000,
+        16_000,
+        42,
+        0,
+        2,
+        4,
+    )
+
+    assert load_calls == [
+        {
+            "dataset_id": DATASET_ID,
+            "split": "validation",
+            "data_files": {
+                "validation": ["validation/part-000000.parquet"]
+            },
+            "streaming": False,
+            "token": "token",
+            "cache_dir": str(tmp_path),
+            "verification_mode": "no_checks",
+        },
+        {
+            "dataset_id": DATASET_ID,
+            "split": "validation",
+            "data_files": {
+                "validation": ["validation/part-000000.parquet"]
+            },
+            "streaming": False,
+            "token": "token",
+            "cache_dir": str(tmp_path),
+            "verification_mode": "no_checks",
+        },
+    ]
+    assert iterable_shards == 8
+    assert source.shuffle_arguments is None
+
+
+def test_validation_cache_selects_only_ten_percent_of_validation_shards(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    class FakeApi:
+        def list_repo_files(self, dataset_id: str, repo_type: str) -> list[str]:
+            assert dataset_id == DATASET_ID
+            assert repo_type == "dataset"
+            return [
+                *[f"train/part-{index:06d}.parquet" for index in range(1_030)],
+                *[f"validation/part-{index:06d}.parquet" for index in range(10)],
+            ]
+
+    monkeypatch.setattr(
+        "src.data.lambda_audio_dataset.HfApi",
+        lambda token: FakeApi(),
+    )
+
+    files = list_validation_cache_files("token")
+
+    assert files == ["validation/part-000000.parquet"]

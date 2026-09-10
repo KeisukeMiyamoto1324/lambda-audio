@@ -8,6 +8,7 @@ from src.modeling.config import ModelConfig
 class BaseTrainingConfig(ModelConfig):
     output_dir: Path
     resume_checkpoint: FilePath | None = None
+    dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus-1")
     inference_samples_path: FilePath = Path("data/data.parquet")
     max_audio_seconds: PositiveFloat = 30.0
     max_new_tokens: PositiveInt = 256

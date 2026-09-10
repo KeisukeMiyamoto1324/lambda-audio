@@ -11,6 +11,7 @@ from src.data.dataset import (
 )
 from src.data.lambda_audio_dataset import (
     load_lambda_audio_dataset,
+    prepare_validation_dataset,
 )
 from src.training.config import BaseTrainingConfig
 
@@ -35,6 +36,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.training_dataset: AudioBatchDataset | None = None
         self.validation_dataset: AudioBatchDataset | None = None
 
+    def prepare_data(self) -> None:
+        prepare_validation_dataset(self.token, self.config.dataset_cache_dir)
+
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
@@ -42,20 +46,24 @@ class LambdaAudioDataModule(L.LightningDataModule):
         training_source = load_lambda_audio_dataset(
             self.token,
             "train",
+            self.config.dataset_cache_dir,
             self.config.shuffle_buffer_size,
             self.config.sampling_rate,
             self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,
+            self.config.num_workers,
         )
         validation_source = load_lambda_audio_dataset(
             self.token,
             "validation",
+            self.config.dataset_cache_dir,
             self.config.shuffle_buffer_size,
             self.config.sampling_rate,
             self.config.seed,
             self.trainer.global_rank,
             self.trainer.world_size,
+            self.config.num_workers,
         )
         self.training_dataset = self._batch_dataset(
             training_source,

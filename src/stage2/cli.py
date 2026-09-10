@@ -16,6 +16,11 @@ def parse_arguments() -> Stage2Config:
         default=defaults.resume_checkpoint,
     )
     parser.add_argument(
+        "--dataset-cache-dir",
+        type=Path,
+        default=defaults.dataset_cache_dir,
+    )
+    parser.add_argument(
         "--bucket-buffer-size",
         type=int,
         default=defaults.bucket_buffer_size,
