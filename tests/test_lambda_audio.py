@@ -104,6 +104,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     assert output.logits is None
     assert output.loss is not None
     assert compiled_forward_calls == 1
+    assert loss_arguments["hidden_states"].dtype == torch.bfloat16
     assert loss_arguments["classifier"] is decoder.lm_head.weight
     assert torch.equal(
         loss_arguments["labels"],

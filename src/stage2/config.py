@@ -17,12 +17,10 @@ class Stage2Config(BaseTrainingConfig):
     early_stopping_min_delta: NonNegativeFloat = 0.01
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 1_500.0
-    train_max_batch_attention_cost: PositiveInt = 40_000_000
 
     validation_samples: PositiveInt = 2_560
     validation_batches: PositiveInt = 2_560
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
-    validation_max_batch_attention_cost: PositiveInt = 20_000_000
 
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4

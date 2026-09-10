@@ -64,8 +64,6 @@ def test_audio_batch_dataset_limits_padded_audio_samples(
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=12,
-        max_batch_attention_cost=1_000,
-        encoder_frame_samples=1,
         bucket_buffer_size=4,
         seed=42,
     )
@@ -82,34 +80,6 @@ def test_audio_batch_dataset_limits_padded_audio_samples(
     )
 
 
-def test_audio_batch_dataset_limits_attention_cost(tmp_path: Path) -> None:
-    source = create_transcribed_dataset(
-        tmp_path / "metadata.sqlite3",
-        [
-            ("000/first", 8),
-            ("000/second", 8),
-            ("000/third", 4),
-            ("000/fourth", 4),
-        ],
-    )
-    dataset = AudioBatchDataset(
-        source,
-        max_batch_padded_audio_samples=1_000,
-        max_batch_attention_cost=64,
-        encoder_frame_samples=1,
-        bucket_buffer_size=4,
-        seed=42,
-    )
-
-    batches = list(dataset)
-
-    assert sorted(len(batch) for batch in batches) == [1, 1, 2]
-    assert all(
-        len(batch) * max(len(example["audio_array"]) for example in batch) ** 2 <= 64
-        for batch in batches
-    )
-
-
 def test_audio_batch_dataset_reduces_weighted_padding_ratio(
     tmp_path: Path,
 ) -> None:
@@ -120,8 +90,6 @@ def test_audio_batch_dataset_reduces_weighted_padding_ratio(
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=20_000,
-        max_batch_attention_cost=1_000_000_000,
-        encoder_frame_samples=1,
         bucket_buffer_size=512,
         seed=42,
     )
@@ -162,8 +130,6 @@ def test_audio_batch_dataset_refills_between_ready_batches(
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=8,
-        max_batch_attention_cost=1_000,
-        encoder_frame_samples=1,
         bucket_buffer_size=4,
         seed=42,
     )
@@ -211,11 +177,9 @@ def test_audio_batch_dataset_rejects_oversized_audio(tmp_path: Path) -> None:
     dataset = AudioBatchDataset(
         source,
         max_batch_padded_audio_samples=12,
-        max_batch_attention_cost=1_000,
-        encoder_frame_samples=1,
         bucket_buffer_size=4,
         seed=42,
     )
 
-    with pytest.raises(ValueError, match="exceeds the batch limits"):
+    with pytest.raises(ValueError, match="exceeds the padded audio limit"):
         list(dataset)

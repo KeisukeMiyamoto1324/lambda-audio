@@ -113,7 +113,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
         # ---------------------------------------------------------
         if labels is not None:
             loss = linear_cross_entropy(
-                hidden_states,
+                hidden_states.to(torch.bfloat16),
                 self.lm_head.weight,
                 labels,
                 shift=True,

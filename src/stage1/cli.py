@@ -42,19 +42,9 @@ def parse_arguments() -> Stage1Config:
         default=defaults.train_max_batch_padded_audio_seconds,
     )
     parser.add_argument(
-        "--train-max-batch-attention-cost",
-        type=int,
-        default=defaults.train_max_batch_attention_cost,
-    )
-    parser.add_argument(
         "--validation-max-batch-padded-audio-seconds",
         type=float,
         default=defaults.validation_max_batch_padded_audio_seconds,
-    )
-    parser.add_argument(
-        "--validation-max-batch-attention-cost",
-        type=int,
-        default=defaults.validation_max_batch_attention_cost,
     )
     parser.add_argument(
         "--gradient-accumulation-steps",
