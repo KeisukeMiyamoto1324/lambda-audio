@@ -54,32 +54,33 @@ class ValidationInferenceMonitor(L.Callback):
         model = pl_module.model
         model.eval()
         model.decoder.config.use_cache = True
-        for sample in samples:
-            inference_start = perf_counter()
-            result = transcribe(
-                model,
-                data_module.collator.feature_extractor,
-                data_module.collator.tokenizer,
-                self.config,
-                pl_module.device,
-                sample.audio,
-            )
-            inference_seconds = perf_counter() - inference_start
-            table.add_row(
-                sample.audio_name,
-                Text(sample.reference),
-                Text(result.text),
-            )
-            records.append(
-                {
-                    "step": trainer.global_step,
-                    "audio": sample.audio_name,
-                    "reference": sample.reference,
-                    "prediction": result.text,
-                    "audio_seconds": result.audio_seconds,
-                    "inference_seconds": inference_seconds,
-                }
-            )
+        with trainer.precision_plugin.forward_context():
+            for sample in samples:
+                inference_start = perf_counter()
+                result = transcribe(
+                    model,
+                    data_module.collator.feature_extractor,
+                    data_module.collator.tokenizer,
+                    self.config,
+                    pl_module.device,
+                    sample.audio,
+                )
+                inference_seconds = perf_counter() - inference_start
+                table.add_row(
+                    sample.audio_name,
+                    Text(sample.reference),
+                    Text(result.text),
+                )
+                records.append(
+                    {
+                        "step": trainer.global_step,
+                        "audio": sample.audio_name,
+                        "reference": sample.reference,
+                        "prediction": result.text,
+                        "audio_seconds": result.audio_seconds,
+                        "inference_seconds": inference_seconds,
+                    }
+                )
         model.decoder.config.use_cache = False
 
         # ---------------------------------------------------------
