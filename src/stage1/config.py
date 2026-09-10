@@ -7,6 +7,7 @@ from src.training.config import BaseTrainingConfig
 
 class Stage1Config(BaseTrainingConfig):
     output_dir: Path = Path("outputs/stage1")
+    compile_model: bool = True
 
     gradient_accumulation_steps: PositiveInt = 1
     max_steps: PositiveInt = 25600

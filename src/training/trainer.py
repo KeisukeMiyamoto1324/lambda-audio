@@ -23,6 +23,12 @@ def configure_training_environment(seed: int) -> None:
         category=FutureWarning,
         module=r"lightning\.pytorch\.utilities\._pytree",
     )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Dynamo detected a call to a `functools\.lru_cache`-wrapped function",
+        category=UserWarning,
+        module=r"torch\._dynamo\.variables\.functions",
+    )
     configure_cuda_allocator()
     if not torch.cuda.is_available():
         raise RuntimeError("Training requires an NVIDIA CUDA GPU.")
@@ -56,7 +62,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         patience=config.early_stopping_patience,
         min_delta=config.early_stopping_min_delta,
     )
-    progress_bar = TrainingProgressBar()
+    progress_bar = TrainingProgressBar(config.compile_model)
     callbacks = [
         checkpoint,
         early_stopping,

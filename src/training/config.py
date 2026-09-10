@@ -7,6 +7,7 @@ from src.modeling.config import ModelConfig
 
 class BaseTrainingConfig(ModelConfig):
     output_dir: Path
+    compile_model: bool = False
     resume_checkpoint: FilePath | None = None
     inference_samples_path: FilePath = Path("data/data.parquet")
     max_audio_seconds: PositiveFloat = 30.0

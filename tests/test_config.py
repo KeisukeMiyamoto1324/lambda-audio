@@ -30,6 +30,7 @@ def test_training_config_is_frozen() -> None:
 def test_stage1_uses_throughput_optimized_defaults() -> None:
     config = Stage1Config()
 
+    assert config.compile_model
     assert config.bucket_buffer_size == 2048
     assert config.validation_batches == 256
 

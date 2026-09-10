@@ -114,6 +114,23 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     assert model.decoder.model.embed_tokens.weight.dtype == torch.bfloat16
     assert cross_attention.attention.out_proj.weight.dtype == torch.float32
 
+    compiled_modules: list[str] = []
+
+    def compile_encoder(**kwargs: Any) -> None:
+        assert kwargs == {"dynamic": True}
+        compiled_modules.append("encoder")
+
+    def compile_decoder(**kwargs: Any) -> None:
+        assert kwargs == {"dynamic": True}
+        compiled_modules.append("decoder")
+
+    monkeypatch.setattr(model.encoder, "compile", compile_encoder)
+    monkeypatch.setattr(model.decoder.model, "compile", compile_decoder)
+
+    model.compile_training_graphs()
+
+    assert compiled_modules == ["encoder", "decoder"]
+
 
 def test_ctc_loss_ignores_unalignable_examples(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(

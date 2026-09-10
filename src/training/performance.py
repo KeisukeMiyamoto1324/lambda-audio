@@ -6,6 +6,7 @@ import lightning as L
 import torch
 from lightning.pytorch.callbacks import RichProgressBar
 from rich.console import RenderableType
+from rich.spinner import Spinner
 from rich.table import Table
 
 from src.training.loss_plot import TrainingLossPlot
@@ -14,10 +15,12 @@ DATA_STALL_SECONDS = 1.0
 
 
 class TrainingProgressBar(RichProgressBar):
-    def __init__(self) -> None:
+    def __init__(self, compilation_pending: bool = False) -> None:
         super().__init__()
         self.loss_plot = TrainingLossPlot()
         self.progress_renderables: Callable[[], Iterable[RenderableType]] | None = None
+        self.compilation_pending = compilation_pending
+        self.compilation_status: Spinner | None = None
 
     def _init_progress(self, trainer: L.Trainer) -> None:
         previous_progress = self.progress
@@ -31,6 +34,8 @@ class TrainingProgressBar(RichProgressBar):
     def _get_progress_renderables(self) -> Iterable[RenderableType]:
         if self.progress_renderables is None:
             raise RuntimeError("Progress renderables are not initialized.")
+        if self.compilation_status is not None:
+            yield self.compilation_status
         yield self.loss_plot
         yield from self.progress_renderables()
 
@@ -38,6 +43,21 @@ class TrainingProgressBar(RichProgressBar):
         if self.trainer.max_epochs == -1:
             return f"Epoch {current_epoch}"
         return super()._get_train_description(current_epoch)
+
+    def on_train_batch_start(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        if not self.compilation_pending:
+            return
+        self.compilation_status = Spinner(
+            "dots",
+            text="Compiling model with torch.compile — first batch may take several minutes",
+        )
+        self.refresh()
 
     def on_train_batch_end(
         self,
@@ -47,6 +67,8 @@ class TrainingProgressBar(RichProgressBar):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        self.compilation_pending = False
+        self.compilation_status = None
         loss = trainer.progress_bar_metrics.get("train_loss")
         if isinstance(loss, torch.Tensor):
             loss = loss.item()

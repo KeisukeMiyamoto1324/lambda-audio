@@ -109,6 +109,13 @@ class LambdaAudioModel(nn.Module):
                 continue
             module.to(dtype=dtype)
 
+    def compile_training_graphs(self) -> None:
+        # ---------------------------------------------------------
+        # Compile compute-heavy backbones while keeping fused losses eager.
+        # ---------------------------------------------------------
+        self.encoder.compile(dynamic=True)
+        self.decoder.model.compile(dynamic=True)
+
     def generate(
         self,
         input_features: torch.Tensor,
