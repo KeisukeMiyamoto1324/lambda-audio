@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import soundfile as sf
 from datasets import Dataset, IterableDataset
 from pytest import MonkeyPatch
@@ -11,6 +13,8 @@ from pytest import MonkeyPatch
 from src.data.lambda_audio_dataset import (
     DATASET_ID,
     LambdaAudioDataset,
+    TrainLambdaAudioDataset,
+    list_train_shard_files,
     list_validation_cache_files,
     load_lambda_audio_dataset,
     prepare_validation_dataset,
@@ -67,34 +71,16 @@ def test_lambda_audio_dataset_reads_audio_and_text_columns() -> None:
     assert source.epoch == 3
 
 
-def test_load_lambda_audio_dataset_configures_streaming_and_sharding(
+def test_load_training_dataset_uses_local_shards(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    source = FakeDataset([])
-    load_arguments: dict[str, Any] = {}
-    shard_arguments: tuple[int, int] | None = None
-
-    def load_stub(dataset_id: str, **kwargs: Any) -> IterableDataset:
-        load_arguments.update({"dataset_id": dataset_id, **kwargs})
-        return cast(IterableDataset, source)
-
-    def shard_stub(
-        dataset: IterableDataset,
-        rank: int,
-        world_size: int,
-    ) -> IterableDataset:
-        nonlocal shard_arguments
-        shard_arguments = (rank, world_size)
-        return dataset
-
-    monkeypatch.setattr("src.data.lambda_audio_dataset.load_dataset", load_stub)
     monkeypatch.setattr(
-        "src.data.lambda_audio_dataset.split_dataset_by_node",
-        shard_stub,
+        "src.data.lambda_audio_dataset.list_train_shard_files",
+        lambda token: ["train/part-000000.parquet"],
     )
 
-    load_lambda_audio_dataset(
+    dataset = load_lambda_audio_dataset(
         "token",
         "train",
         tmp_path,
@@ -106,19 +92,74 @@ def test_load_lambda_audio_dataset_configures_streaming_and_sharding(
         8,
     )
 
-    assert load_arguments == {
-        "dataset_id": DATASET_ID,
-        "split": "train",
-        "data_files": {"train": "train/*.parquet"},
-        "streaming": True,
-        "token": "token",
-        "cache_dir": str(tmp_path),
-    }
-    assert source.selected_columns == ["audio", "text"]
-    assert source.cast_sampling_rate == 16_000
-    assert source.decode_audio is False
-    assert source.shuffle_arguments == (1_000, 42)
-    assert shard_arguments == (1, 4)
+    assert isinstance(dataset, TrainLambdaAudioDataset)
+    assert dataset.shard_files == ["train/part-000000.parquet"]
+    assert dataset.shuffle_buffer_size == 1_000
+    assert dataset.global_rank == 1
+    assert dataset.world_size == 4
+
+
+def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    audio_file = BytesIO()
+    sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
+    downloaded_paths: list[Path] = []
+
+    def download_stub(
+        *,
+        repo_id: str,
+        filename: str,
+        repo_type: str,
+        token: str,
+        local_dir: Path,
+    ) -> str:
+        assert repo_id == DATASET_ID
+        assert repo_type == "dataset"
+        assert token == "token"
+        path = local_dir / filename
+        path.parent.mkdir(parents=True)
+        table = pa.Table.from_pylist(
+            [
+                {
+                    "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
+                    "text": " 音声 ",
+                },
+                {
+                    "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
+                    "text": " 音声 ",
+                },
+            ]
+        )
+        pq.write_table(table, path)
+        downloaded_paths.append(path)
+        return str(path)
+
+    monkeypatch.setattr(
+        "src.data.lambda_audio_dataset.hf_hub_download",
+        download_stub,
+    )
+    dataset = TrainLambdaAudioDataset(
+        "token",
+        ["train/part-000000.parquet"],
+        1,
+        16_000,
+        42,
+        0,
+        1,
+    )
+
+    iterator = iter(dataset)
+    example = next(iterator)
+    iterator.close()
+
+    assert example["transcription"] == "音声"
+    np.testing.assert_allclose(
+        example["audio_array"],
+        np.array([0.25, -0.5], dtype=np.float32),
+        atol=1e-4,
+    )
+    assert all(not path.exists() for path in downloaded_paths)
 
 
 def test_validation_dataset_uses_cached_ten_percent(
@@ -210,3 +251,29 @@ def test_validation_cache_selects_only_ten_percent_of_validation_shards(
     files = list_validation_cache_files("token")
 
     assert files == ["validation/part-000000.parquet"]
+
+
+def test_training_shards_select_only_train_parquet_files(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    class FakeApi:
+        def list_repo_files(self, dataset_id: str, repo_type: str) -> list[str]:
+            assert dataset_id == DATASET_ID
+            assert repo_type == "dataset"
+            return [
+                "train/part-000001.parquet",
+                "validation/part-000000.parquet",
+                "train/part-000000.parquet",
+            ]
+
+    monkeypatch.setattr(
+        "src.data.lambda_audio_dataset.HfApi",
+        lambda token: FakeApi(),
+    )
+
+    files = list_train_shard_files("token")
+
+    assert files == [
+        "train/part-000000.parquet",
+        "train/part-000001.parquet",
+    ]
