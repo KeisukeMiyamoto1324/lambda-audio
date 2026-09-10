@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Self
 
-from pydantic import PositiveFloat, PositiveInt, model_validator
+from pydantic import NonNegativeFloat, PositiveFloat, PositiveInt, model_validator
 
 from src.training.config import BaseTrainingConfig
 

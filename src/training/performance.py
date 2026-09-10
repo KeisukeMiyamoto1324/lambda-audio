@@ -5,6 +5,8 @@ import torch
 from lightning.pytorch.callbacks import RichProgressBar
 from rich.table import Table
 
+from src.data.types import AudioTextBatch
+
 DATA_STALL_SECONDS = 1.0
 
 
@@ -24,10 +26,8 @@ class TrainingProgressBar(RichProgressBar):
         self.progress.console.print(table)
 
 
-def audio_batch_sizes(audio_padding_mask: torch.Tensor) -> tuple[int, int]:
-    padded_samples = audio_padding_mask.numel()
-    valid_samples = padded_samples - torch.count_nonzero(audio_padding_mask).item()
-    return valid_samples, padded_samples
+def audio_batch_sizes(batch: AudioTextBatch) -> tuple[int, int]:
+    return batch["audio_valid_samples"], batch["audio_padded_samples"]
 
 
 class TrainingPerformanceMonitor(L.Callback):
@@ -58,7 +58,7 @@ class TrainingPerformanceMonitor(L.Callback):
         self,
         trainer: L.Trainer,
         pl_module: L.LightningModule,
-        batch: dict[str, torch.Tensor],
+        batch: AudioTextBatch,
         batch_idx: int,
     ) -> None:
         now = time.perf_counter()
@@ -67,7 +67,7 @@ class TrainingPerformanceMonitor(L.Callback):
         self.window_data_time_max = max(self.window_data_time_max, data_time)
         if data_time >= DATA_STALL_SECONDS:
             self.window_data_stalls += 1
-        valid_samples, padded_samples = audio_batch_sizes(batch["audio_padding_mask"])
+        valid_samples, padded_samples = audio_batch_sizes(batch)
         self.window_valid_samples += valid_samples
         self.window_padded_samples += padded_samples
         self.window_batches += 1
@@ -79,7 +79,7 @@ class TrainingPerformanceMonitor(L.Callback):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
         outputs: torch.Tensor | dict[str, torch.Tensor] | None,
-        batch: dict[str, torch.Tensor],
+        batch: AudioTextBatch,
         batch_idx: int,
     ) -> None:
         if self.start_event is None:

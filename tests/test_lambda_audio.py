@@ -45,8 +45,23 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     decoder = AudioLfm2ForCausalLM(config)
     model = LambdaAudioModel(DummyEncoder(), decoder, encoder_hidden_size=8)
     projection_calls = 0
+    compiled_forward_calls = 0
     cross_attention = decoder.model.layers[0].cross_attention
     project_key_value = cross_attention.project_key_value
+
+    def compile_decoder_forward(
+        function: Any,
+        *,
+        dynamic: bool,
+    ) -> Any:
+        assert dynamic is True
+
+        def compiled_forward(**kwargs: Any) -> Any:
+            nonlocal compiled_forward_calls
+            compiled_forward_calls += 1
+            return function(**kwargs)
+
+        return compiled_forward
 
     def count_projection(audio_features: torch.Tensor) -> torch.Tensor:
         nonlocal projection_calls
@@ -54,6 +69,8 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         return project_key_value(audio_features)
 
     monkeypatch.setattr(cross_attention, "project_key_value", count_projection)
+    monkeypatch.setattr(torch, "compile", compile_decoder_forward)
+    model.compile_decoder()
 
     output = model(
         input_values=torch.randn(2, 8),
@@ -65,6 +82,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
 
     assert output.logits.shape == (2, 3, 32)
     assert output.loss is not None
+    assert compiled_forward_calls == 1
 
     # ---------------------------------------------------------
     # Check generation and the first training stage settings.
@@ -83,6 +101,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     ]
 
     assert generated_ids.shape[0] == 1
+    assert compiled_forward_calls == 1
     assert generation_projection_calls == 1
     assert any(name.startswith("adapter.") for name in trainable_names)
     assert any("cross_attention" in name for name in trainable_names)

@@ -1,7 +1,6 @@
-import torch
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
-from src.data.types import TranscribedAudioExample
+from src.data.types import AudioTextBatch, TranscribedAudioExample
 
 
 class AudioTextCollator:
@@ -23,7 +22,7 @@ class AudioTextCollator:
     def __call__(
         self,
         examples: list[TranscribedAudioExample],
-    ) -> dict[str, torch.Tensor]:
+    ) -> AudioTextBatch:
         # ---------------------------------------------------------
         # Pad raw audio and convert its attention mask to padding mask.
         # ---------------------------------------------------------
@@ -58,10 +57,15 @@ class AudioTextCollator:
         labels = text_batch["input_ids"].clone()
         labels.masked_fill_(text_batch["attention_mask"].eq(0), -100)
 
+        audio_valid_samples = sum(example["audio_array"].size for example in examples)
+        audio_padded_samples = audio_batch["input_values"].numel()
+
         return {
             "input_values": audio_batch["input_values"],
             "audio_padding_mask": audio_batch["attention_mask"].eq(0),
             "input_ids": text_batch["input_ids"],
             "attention_mask": text_batch["attention_mask"],
             "labels": labels,
+            "audio_valid_samples": audio_valid_samples,
+            "audio_padded_samples": audio_padded_samples,
         }

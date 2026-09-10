@@ -26,8 +26,6 @@ class ModelComponents(BaseModel):
 def load_model_components(
     config: ModelConfig,
     token: str,
-    *,
-    encoder_full_precision: bool = False,
 ) -> ModelComponents:
     feature_extractor = cast(
         SequenceFeatureExtractor,
@@ -44,11 +42,7 @@ def load_model_components(
         dtype=torch.float32,
         token=token,
     )
-    model = LambdaAudioModel(
-        encoder,
-        decoder,
-        encoder_full_precision=encoder_full_precision,
-    )
+    model = LambdaAudioModel(encoder, decoder)
     return ModelComponents(
         model=model,
         feature_extractor=feature_extractor,

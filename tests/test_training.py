@@ -1,13 +1,14 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from torch import nn
 
+from src.data.types import AudioTextBatch
 from src.modeling.zipformer.scaling import ScheduledFloat
 from src.stage1.config import Stage1Config
 from src.stage1.training import Stage1LightningModule
@@ -40,6 +41,21 @@ class DummyScheduledModel(DummyTrainingModel):
 class DummyLossModel(DummyTrainingModel):
     def forward(self, **batch: Any) -> SimpleNamespace:
         return SimpleNamespace(loss=torch.tensor(float("nan")))
+
+
+def dummy_audio_text_batch() -> AudioTextBatch:
+    return cast(
+        AudioTextBatch,
+        {
+            "input_values": torch.empty(1, 1),
+            "audio_padding_mask": torch.zeros(1, 1, dtype=torch.bool),
+            "input_ids": torch.ones(1, 1, dtype=torch.long),
+            "attention_mask": torch.ones(1, 1, dtype=torch.long),
+            "labels": torch.ones(1, 1, dtype=torch.long),
+            "audio_valid_samples": 1,
+            "audio_padded_samples": 1,
+        },
+    )
 
 
 def test_stage1_optimizer_uses_one_learning_rate() -> None:
@@ -112,10 +128,10 @@ def test_training_step_rejects_nonfinite_loss() -> None:
     module = Stage1LightningModule(DummyLossModel(), config)  # type: ignore[arg-type]
 
     with pytest.raises(FloatingPointError, match="step=0, batch=3"):
-        module.training_step({}, 3)
+        module.training_step(dummy_audio_text_batch(), 3)
 
 
-def test_optimizer_step_identifies_nonfinite_gradient() -> None:
+def test_gradient_clipping_identifies_nonfinite_gradient() -> None:
     config = Stage1Config(output_dir=Path("outputs"))
     model = DummyTrainingModel()
     module = Stage1LightningModule(model, config)  # type: ignore[arg-type]
@@ -129,7 +145,25 @@ def test_optimizer_step_identifies_nonfinite_gradient() -> None:
         FloatingPointError,
         match="parameter=encoder.weight",
     ):
-        module.on_before_optimizer_step(optimizer)
+        module.configure_gradient_clipping(optimizer, 1.0, "norm")
+
+
+def test_gradient_clipping_limits_total_norm() -> None:
+    config = Stage1Config(output_dir=Path("outputs"))
+    model = DummyTrainingModel()
+    module = Stage1LightningModule(model, config)  # type: ignore[arg-type]
+    optimizer = torch.optim.AdamW(model.parameters())
+    for parameter in model.parameters():
+        parameter.grad = torch.full_like(parameter, 10.0)
+
+    module.configure_gradient_clipping(optimizer, 0.5, "norm")
+
+    total_norm = torch.linalg.vector_norm(
+        torch.stack(
+            [parameter.grad.norm() for parameter in model.parameters()]
+        )
+    )
+    assert total_norm.item() == pytest.approx(0.5)
 
 
 def test_create_trainer_saves_config_and_full_checkpoint(
@@ -163,7 +197,7 @@ def test_create_trainer_saves_config_and_full_checkpoint(
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
-    assert abs(early_stopping.min_delta) == 0.05
+    assert abs(early_stopping.min_delta) == 0.01
     assert any(
         isinstance(callback, ValidationInferenceMonitor)
         for callback in trainer_arguments["callbacks"]

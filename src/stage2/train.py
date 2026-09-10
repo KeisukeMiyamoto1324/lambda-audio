@@ -11,17 +11,11 @@ def main() -> None:
     config = parse_arguments()
     configure_training_environment(config.seed)
     token = load_hf_token()
-    components = load_model_components(
-        config,
-        token,
-        encoder_full_precision=True,
-    )
+    components = load_model_components(config, token)
     model = components.model
     model.encoder.requires_grad_(False)
     model.decoder.config.use_cache = False
-    model.decoder.gradient_checkpointing_enable(
-        gradient_checkpointing_kwargs={"use_reentrant": False}
-    )
+    model.compile_decoder()
 
     lightning_model = Stage2LightningModule(model, config)
     if config.resume_checkpoint is None:

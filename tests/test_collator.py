@@ -48,3 +48,5 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
         torch.tensor([[False, False, False, False], [False, False, True, True]]),
     )
     assert batch["labels"][1, -1].item() == -100
+    assert batch["audio_valid_samples"] == 6
+    assert batch["audio_padded_samples"] == 8

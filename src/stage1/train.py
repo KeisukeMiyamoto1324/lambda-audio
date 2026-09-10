@@ -14,6 +14,7 @@ def main() -> None:
     model = components.model
     model.set_backbones_trainable(False)
     model.decoder.config.use_cache = False
+    model.compile_decoder()
 
     lightning_model = Stage1LightningModule(model, config)
     data_module = LambdaAudioDataModule(

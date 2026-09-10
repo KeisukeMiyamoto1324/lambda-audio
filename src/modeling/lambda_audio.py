@@ -1,5 +1,4 @@
-from contextlib import nullcontext
-from typing import Any
+from typing import Any, Callable
 
 import torch
 from torch import nn
@@ -17,14 +16,21 @@ class LambdaAudioModel(nn.Module):
         encoder: PreTrainedModel,
         decoder: AudioLfm2ForCausalLM,
         encoder_hidden_size: int = 768,
-        encoder_full_precision: bool = False,
     ) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.encoder_full_precision = encoder_full_precision
         self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
         add_cross_attention(self.decoder)
+        self._decoder_forward: Callable[..., CausalLMOutputWithPast] = (
+            self.decoder.forward
+        )
+
+    def compile_decoder(self) -> None:
+        self._decoder_forward = torch.compile(
+            self.decoder.forward,
+            dynamic=True,
+        )
 
     def encode(
         self,
@@ -34,16 +40,10 @@ class LambdaAudioModel(nn.Module):
         # ---------------------------------------------------------
         # Encode audio and create the mask for encoder output frames.
         # ---------------------------------------------------------
-        precision_context = (
-            torch.autocast(device_type=input_values.device.type, enabled=False)
-            if self.encoder_full_precision
-            else nullcontext()
+        encoder_output = self.encoder(
+            input_values=input_values,
+            padding_mask=audio_padding_mask,
         )
-        with precision_context:
-            encoder_output = self.encoder(
-                input_values=input_values,
-                padding_mask=audio_padding_mask,
-            )
         encoder_padding_mask = self.encoder.forward_padding_mask(
             encoder_output.last_hidden_state,
             audio_padding_mask,
@@ -68,7 +68,7 @@ class LambdaAudioModel(nn.Module):
         )
         audio_key_values = self.decoder.project_audio_key_values(audio_features)
 
-        return self.decoder(
+        return self._decoder_forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
