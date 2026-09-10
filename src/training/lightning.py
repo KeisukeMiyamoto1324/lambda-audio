@@ -17,6 +17,7 @@ class BaseLambdaAudioLightningModule(
     def __init__(self, model: LambdaAudioModel, config: TrainingConfigT) -> None:
         super().__init__()
         self.model = model
+        self.model.train()
         self.config = config
 
     def training_step(

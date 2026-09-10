@@ -1,3 +1,5 @@
+import warnings
+
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
@@ -11,6 +13,16 @@ from src.training.performance import TrainingPerformanceMonitor, TrainingProgres
 
 
 def configure_training_environment(seed: int) -> None:
+    # ---------------------------------------------------------
+    # Suppress a harmless incompatibility warning in Lightning's PyTree shim.
+    # Lightning still uses LeafSpec internally with newer PyTorch releases.
+    # ---------------------------------------------------------
+    warnings.filterwarnings(
+        "ignore",
+        message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+        category=FutureWarning,
+        module=r"lightning\.pytorch\.utilities\._pytree",
+    )
     configure_cuda_allocator()
     if not torch.cuda.is_available():
         raise RuntimeError("Training requires an NVIDIA CUDA GPU.")

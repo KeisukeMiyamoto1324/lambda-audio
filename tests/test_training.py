@@ -45,6 +45,15 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(config.min_learning_rate_ratio)
 
 
+def test_lightning_module_puts_pretrained_model_in_training_mode() -> None:
+    config = Stage1Config(output_dir=Path("outputs"))
+    model = DummyTrainingModel().eval()
+
+    Stage1LightningModule(model, config)  # type: ignore[arg-type]
+
+    assert all(module.training for module in model.modules())
+
+
 def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()

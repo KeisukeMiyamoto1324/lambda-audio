@@ -133,7 +133,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
     ) -> CausalLMOutputWithPast | tuple[Any, ...]:
         if labels is not None:
             return_dict = kwargs.get("return_dict")
-            use_return_dict = self.config.use_return_dict if return_dict is None else return_dict
+            use_return_dict = self.config.return_dict if return_dict is None else return_dict
             outputs = self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,

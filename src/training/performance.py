@@ -9,6 +9,11 @@ DATA_STALL_SECONDS = 1.0
 
 
 class TrainingProgressBar(RichProgressBar):
+    def _get_train_description(self, current_epoch: int) -> str:
+        if self.trainer.max_epochs == -1:
+            return f"Epoch {current_epoch}"
+        return super()._get_train_description(current_epoch)
+
     def get_metrics(
         self,
         trainer: L.Trainer,
