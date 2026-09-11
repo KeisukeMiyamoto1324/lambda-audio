@@ -12,7 +12,7 @@ class Stage1Config(BaseTrainingConfig):
     max_steps: PositiveInt = 38400
     learning_rate: PositiveFloat = 5e-4
 
-    train_max_batch_padded_audio_seconds: PositiveFloat = 1200
+    train_max_batch_padded_audio_seconds: PositiveFloat = 1000
 
     validation_max_batch_padded_audio_seconds: PositiveFloat = 700
 
