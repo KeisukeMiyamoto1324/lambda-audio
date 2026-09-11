@@ -21,12 +21,12 @@ class BaseTrainingConfig(ModelConfig):
     validation_max_batch_padded_audio_seconds: PositiveFloat = 120.0
     gradient_accumulation_steps: PositiveInt = 8
     max_steps: PositiveInt = 10_000
-    warmup_steps: PositiveInt = 500
+    warmup_steps: PositiveInt = 2000
     min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
     weight_decay: NonNegativeFloat = 0.01
     max_grad_norm: PositiveFloat = 1.0
     log_steps: PositiveInt = 10
-    evaluation_steps: PositiveInt = 500
+    evaluation_steps: PositiveInt = 2000
     save_steps: PositiveInt = 500
     validation_batches: PositiveInt = 32
     early_stopping_patience: PositiveInt = 5
