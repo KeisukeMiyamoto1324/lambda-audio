@@ -11,4 +11,5 @@ outputs/datasets/reazon-speech-v2-shards/
 *.parquet
 outputs-v1/
 outputs-v2/
+outputs/
 **.wav

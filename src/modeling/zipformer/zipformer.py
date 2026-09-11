@@ -295,14 +295,13 @@ class Zipformer2(nn.Module):
             attn_mask = self._get_attn_mask(x, chunk_size, left_context_chunks)
 
         for i, module in enumerate(self.encoders):
-            ds = self.downsampling_factor[i]
             x = convert_num_channels(x, self.encoder_dim[i])
 
             x = module(
                 x,
                 chunk_size=chunk_size,
                 feature_mask=feature_masks[i],
-                src_key_padding_mask=(None if src_key_padding_mask is None else src_key_padding_mask[..., ::ds]),
+                src_key_padding_mask=src_key_padding_mask,
                 attn_mask=attn_mask,
             )
             outputs.append(x)
@@ -1124,17 +1123,18 @@ class DownsampledZipformer2Encoder(nn.Module):
         Returns: a Tensor with the same shape as src.
         """
         src_orig = src
-        src = self.downsample(src)
         ds = self.downsample_factor
+        src = self.downsample(src, src_key_padding_mask)
         if attn_mask is not None:
             attn_mask = attn_mask[::ds, ::ds]
 
+        downsampled_padding_mask = None if src_key_padding_mask is None else src_key_padding_mask[..., ::ds]
         src = self.encoder(
             src,
             chunk_size=chunk_size // ds,
             feature_mask=feature_mask,
             attn_mask=attn_mask,
-            src_key_padding_mask=src_key_padding_mask,
+            src_key_padding_mask=downsampled_padding_mask,
         )
         src = self.upsample(src)
         # remove any extra frames that are not a multiple of downsample_factor
@@ -1199,7 +1199,11 @@ class SimpleDownsample(torch.nn.Module):
 
         self.downsample = downsample
 
-    def forward(self, src: Tensor) -> Tensor:
+    def forward(
+        self,
+        src: Tensor,
+        src_key_padding_mask: Optional[Tensor] = None,
+    ) -> Tensor:
         """
         x: (seq_len, batch_size, in_channels)
         Returns a tensor of shape
@@ -1208,6 +1212,22 @@ class SimpleDownsample(torch.nn.Module):
         (seq_len, batch_size, in_channels) = src.shape
         ds = self.downsample
         d_seq_len = (seq_len + ds - 1) // ds
+
+        # ---------------------------------------------------------
+        # Match unpadded inference by extending each sequence's last valid frame.
+        # ---------------------------------------------------------
+        if src_key_padding_mask is not None:
+            lengths = (~src_key_padding_mask).sum(dim=-1)
+            last_valid_indices = lengths.sub(1).view(1, batch_size, 1)
+            last_valid = src.gather(
+                0,
+                last_valid_indices.expand(1, batch_size, in_channels),
+            )
+            src = torch.where(
+                src_key_padding_mask.transpose(0, 1).unsqueeze(-1),
+                last_valid,
+                src,
+            )
 
         # Pad to an exact multiple of self.downsample
         # right-pad src, repeating the last element.
