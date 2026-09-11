@@ -12,8 +12,8 @@ class Stage2Config(BaseTrainingConfig):
 
     gradient_accumulation_steps: PositiveInt = 4
     max_steps: PositiveInt = 51200
-    adapter_learning_rate: PositiveFloat = 1e-5
-    backbone_learning_rate: PositiveFloat = 2e-5
+    adapter_learning_rate: PositiveFloat = 5e-5
+    backbone_learning_rate: PositiveFloat = 1e-4
     early_stopping_min_delta: NonNegativeFloat = 0.01
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 800
