@@ -97,16 +97,9 @@ def test_stage2_optimizer_excludes_frozen_encoder(tmp_path: Path) -> None:
     module = Stage2LightningModule(model, config)  # type: ignore[arg-type]
 
     optimizer = module.configure_optimizers()["optimizer"]
-    optimized_parameters = {
-        id(parameter)
-        for group in optimizer.param_groups
-        for parameter in group["params"]
-    }
+    optimized_parameters = {id(parameter) for group in optimizer.param_groups for parameter in group["params"]}
 
-    assert not any(
-        id(parameter) in optimized_parameters
-        for parameter in model.encoder.parameters()
-    )
+    assert not any(id(parameter) in optimized_parameters for parameter in model.encoder.parameters())
 
 
 def test_training_step_updates_zipformer_schedules() -> None:
@@ -148,11 +141,7 @@ def test_gradient_clipping_limits_total_norm() -> None:
 
     module.configure_gradient_clipping(optimizer, 0.5, "norm")
 
-    total_norm = torch.linalg.vector_norm(
-        torch.stack(
-            [parameter.grad.norm() for parameter in model.parameters()]
-        )
-    )
+    total_norm = torch.linalg.vector_norm(torch.stack([parameter.grad.norm() for parameter in model.parameters()]))
     assert total_norm.item() == pytest.approx(0.5)
 
 
@@ -171,30 +160,13 @@ def test_create_trainer_saves_config_and_full_checkpoint(
 
     create_trainer(config)
 
-    saved_config = json.loads(
-        (tmp_path / "training_config.json").read_text(encoding="utf-8")
-    )
-    checkpoint = next(
-        callback
-        for callback in trainer_arguments["callbacks"]
-        if isinstance(callback, ModelCheckpoint)
-    )
-    early_stopping = next(
-        callback
-        for callback in trainer_arguments["callbacks"]
-        if isinstance(callback, EarlyStopping)
-    )
+    saved_config = json.loads((tmp_path / "training_config.json").read_text(encoding="utf-8"))
+    checkpoint = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, ModelCheckpoint))
+    early_stopping = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, EarlyStopping))
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
     assert abs(early_stopping.min_delta) == 0.01
-    assert any(
-        isinstance(callback, ValidationInferenceMonitor)
-        for callback in trainer_arguments["callbacks"]
-    )
-    progress_bar = next(
-        callback
-        for callback in trainer_arguments["callbacks"]
-        if isinstance(callback, TrainingProgressBar)
-    )
+    assert any(isinstance(callback, ValidationInferenceMonitor) for callback in trainer_arguments["callbacks"])
+    progress_bar = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, TrainingProgressBar))
     assert progress_bar.refresh_rate == config.log_steps

@@ -70,12 +70,7 @@ class BaseLambdaAudioLightningModule(
         # ---------------------------------------------------------
         if gradient_clip_val is None:
             raise RuntimeError("A gradient clipping value is required.")
-        parameters = [
-            parameter
-            for group in optimizer.param_groups
-            for parameter in group["params"]
-            if parameter.grad is not None
-        ]
+        parameters = [parameter for group in optimizer.param_groups for parameter in group["params"] if parameter.grad is not None]
         try:
             torch.nn.utils.clip_grad_norm_(
                 parameters,
@@ -87,12 +82,8 @@ class BaseLambdaAudioLightningModule(
             for name, parameter in self.model.named_parameters():
                 if parameter.grad is None or torch.isfinite(parameter.grad).all():
                     continue
-                raise FloatingPointError(
-                    f"Non-finite gradient at step={self.global_step}, parameter={name}."
-                ) from error
-            raise FloatingPointError(
-                f"Non-finite gradient norm at step={self.global_step}."
-            ) from error
+                raise FloatingPointError(f"Non-finite gradient at step={self.global_step}, parameter={name}.") from error
+            raise FloatingPointError(f"Non-finite gradient norm at step={self.global_step}.") from error
 
     def validation_step(
         self,

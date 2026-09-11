@@ -28,6 +28,19 @@
 ## Testing
 - Use pytest for testing your code. Write test code under tests/ directory.
 
+## Code Quality
+
+After modifying Python code, run:
+
+```bash
+pytest
+ruff check . --fix
+ruff format .
+pyright
+```
+
+Keep changes automatically made by Ruff, including changes outside the immediate task scope.
+
 ## Libraries
 - You can freely install necessary libraries using pip3.
 

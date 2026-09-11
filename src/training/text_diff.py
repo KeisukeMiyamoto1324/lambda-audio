@@ -11,9 +11,7 @@ def create_text_diff(reference: str, prediction: str) -> tuple[Text, Text]:
     prediction_text = Text()
     matcher = SequenceMatcher(None, reference, prediction, autojunk=False)
 
-    for tag, reference_start, reference_end, prediction_start, prediction_end in (
-        matcher.get_opcodes()
-    ):
+    for tag, reference_start, reference_end, prediction_start, prediction_end in matcher.get_opcodes():
         style_changed = tag != "equal"
         reference_text.append(
             reference[reference_start:reference_end],

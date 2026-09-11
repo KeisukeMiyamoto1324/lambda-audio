@@ -45,10 +45,7 @@ class AudioTextCollator:
             truncation=True,
             max_length=self.max_text_length - 2,
         )
-        sequences = [
-            [self.tokenizer.bos_token_id, *token_ids, self.tokenizer.eos_token_id]
-            for token_ids in tokenized["input_ids"]
-        ]
+        sequences = [[self.tokenizer.bos_token_id, *token_ids, self.tokenizer.eos_token_id] for token_ids in tokenized["input_ids"]]
         text_batch = self.tokenizer.pad(
             {"input_ids": sequences},
             padding=True,

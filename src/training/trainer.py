@@ -80,9 +80,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         accumulate_grad_batches=config.gradient_accumulation_steps,
         gradient_clip_val=config.max_grad_norm,
         log_every_n_steps=config.log_steps,
-        val_check_interval=(
-            config.evaluation_steps * config.gradient_accumulation_steps
-        ),
+        val_check_interval=(config.evaluation_steps * config.gradient_accumulation_steps),
         check_val_every_n_epoch=None,
         limit_val_batches=config.validation_batches,
         num_sanity_val_steps=0,

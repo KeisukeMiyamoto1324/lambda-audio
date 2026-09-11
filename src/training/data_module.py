@@ -96,9 +96,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
     ) -> AudioBatchDataset:
         return AudioBatchDataset(
             source,
-            max_batch_padded_audio_samples=int(
-                max_padded_audio_seconds * self.config.sampling_rate
-            ),
+            max_batch_padded_audio_samples=int(max_padded_audio_seconds * self.config.sampling_rate),
             bucket_buffer_size=self.config.bucket_buffer_size,
             seed=self.config.seed + self.trainer.global_rank,
         )

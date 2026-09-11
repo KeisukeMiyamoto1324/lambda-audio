@@ -54,9 +54,7 @@ class ZipformerConfig(PretrainedConfig):
 
     def __init__(
         self,
-        conv_feature_layers: tuple[tuple[int, int, int], ...] = (
-            DEFAULT_CONV_FEATURE_LAYERS
-        ),
+        conv_feature_layers: tuple[tuple[int, int, int], ...] = (DEFAULT_CONV_FEATURE_LAYERS),
         extractor_mode: str = "default",
         conv_bias: bool = False,
         encoder_dim: tuple[int, ...] = (192, 256, 448, 768, 448, 192),

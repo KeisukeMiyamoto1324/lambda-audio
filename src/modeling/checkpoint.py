@@ -14,8 +14,5 @@ def load_checkpoint_state(path: Path) -> dict[str, torch.Tensor]:
 
 
 def load_model_checkpoint(model: nn.Module, path: Path) -> None:
-    state_dict = {
-        name.removeprefix("model."): parameter
-        for name, parameter in load_checkpoint_state(path).items()
-    }
+    state_dict = {name.removeprefix("model."): parameter for name, parameter in load_checkpoint_state(path).items()}
     model.load_state_dict(state_dict, strict=True)

@@ -9,9 +9,7 @@ from src.inference.config import InferenceConfig
 def parse_arguments() -> InferenceConfig:
     defaults = InferenceConfig.model_construct()
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--checkpoint", dest="checkpoint_path", type=Path, required=True
-    )
+    parser.add_argument("--checkpoint", dest="checkpoint_path", type=Path, required=True)
     parser.add_argument(
         "--input",
         dest="input_path",
