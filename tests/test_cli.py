@@ -13,7 +13,7 @@ def test_stage1_cli_uses_config_defaults(monkeypatch: pytest.MonkeyPatch) -> Non
     config = parse_stage1_arguments()
 
     assert config.output_dir == Path("outputs/stage1")
-    assert config.max_steps == 51_200
+    assert config.max_steps == 38_400
     assert config.gradient_accumulation_steps == 1
 
 

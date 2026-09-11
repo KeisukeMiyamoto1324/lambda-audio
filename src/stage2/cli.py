@@ -42,6 +42,11 @@ def parse_arguments() -> Stage2Config:
         default=defaults.validation_max_batch_padded_audio_seconds,
     )
     parser.add_argument(
+        "--cer-max-batch-padded-audio-seconds",
+        type=float,
+        default=defaults.cer_max_batch_padded_audio_seconds,
+    )
+    parser.add_argument(
         "--gradient-accumulation-steps",
         type=int,
         default=defaults.gradient_accumulation_steps,

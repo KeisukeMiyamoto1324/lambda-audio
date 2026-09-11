@@ -7,6 +7,7 @@ from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.utilities.warnings import PossibleUserWarning
 
 from src.environment import configure_cuda_allocator
+from src.training.checkpoint import BestModelCheckpoint
 from src.training.config import BaseTrainingConfig
 from src.training.inference_monitor import ValidationInferenceMonitor
 from src.training.performance import TrainingPerformanceMonitor, TrainingProgressBar
@@ -42,20 +43,19 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         f"{config.model_dump_json(indent=2)}\n",
         encoding="utf-8",
     )
-    checkpoint = ModelCheckpoint(
+    checkpoint = BestModelCheckpoint(config.output_dir)
+    recovery_checkpoint = ModelCheckpoint(
         dirpath=config.output_dir,
-        filename="model",
-        monitor="validation_loss",
-        mode="min",
+        monitor=None,
         every_n_train_steps=config.save_steps,
-        save_top_k=1,
+        save_top_k=0,
         save_last=True,
         save_weights_only=False,
         save_on_train_epoch_end=False,
         enable_version_counter=False,
     )
     early_stopping = EarlyStopping(
-        monitor="validation_loss",
+        monitor="validation_cer",
         mode="min",
         patience=config.early_stopping_patience,
         min_delta=config.early_stopping_min_delta,
@@ -63,6 +63,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
     progress_bar = TrainingProgressBar(refresh_rate=config.log_steps)
     callbacks = [
         checkpoint,
+        recovery_checkpoint,
         early_stopping,
         TrainingPerformanceMonitor(config.sampling_rate, config.log_steps),
         progress_bar,

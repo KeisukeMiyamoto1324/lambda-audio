@@ -15,6 +15,7 @@ from src.stage1.training import Stage1LightningModule
 from src.stage2.config import Stage2Config
 from src.stage2.training import Stage2LightningModule
 from src.training import trainer as trainer_module
+from src.training.checkpoint import BestModelCheckpoint
 from src.training.inference_monitor import ValidationInferenceMonitor
 from src.training.performance import TrainingProgressBar
 from src.training.trainer import create_trainer
@@ -170,6 +171,48 @@ def test_accumulated_gradients_are_normalized_by_token_count() -> None:
     assert module.training_token_count == 0
 
 
+def test_cer_validation_aggregates_edit_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyDataModule:
+        def __init__(self) -> None:
+            self.collator = SimpleNamespace(tokenizer=object())
+
+    config = Stage1Config(output_dir=Path("outputs"))
+    module = Stage1LightningModule(DummyTrainingModel(), config)  # type: ignore[arg-type]
+    logged: dict[str, torch.Tensor] = {}
+    data_module = DummyDataModule()
+    module._trainer = SimpleNamespace(  # type: ignore[assignment]
+        datamodule=data_module,
+        strategy=SimpleNamespace(reduce=lambda value, reduce_op: value),
+    )
+    monkeypatch.setattr(
+        "src.training.lightning.LambdaAudioDataModule",
+        DummyDataModule,
+    )
+    monkeypatch.setattr(
+        "src.training.lightning.generate_transcriptions",
+        lambda model, tokenizer, batch, max_new_tokens: ["音生", "abc"],
+    )
+    monkeypatch.setattr(
+        module,
+        "log",
+        lambda name, value, **kwargs: logged.__setitem__(name, value),
+    )
+    batch = {
+        "input_values": torch.ones(2, 4),
+        "audio_padding_mask": torch.zeros(2, 4, dtype=torch.bool),
+        "references": ["音声", "ab"],
+    }
+
+    module.on_validation_epoch_start()
+    module.validation_step(batch, 0, dataloader_idx=1)  # type: ignore[arg-type]
+    module.on_validation_epoch_end()
+
+    assert logged["validation_cer"].item() == pytest.approx(0.5)
+    assert logged["validation_cer_samples"].item() == 2
+
+
 def test_create_trainer_saves_config_and_full_checkpoint(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -186,12 +229,20 @@ def test_create_trainer_saves_config_and_full_checkpoint(
     create_trainer(config)
 
     saved_config = json.loads((tmp_path / "training_config.json").read_text(encoding="utf-8"))
-    checkpoint = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, ModelCheckpoint))
+    checkpoints = [callback for callback in trainer_arguments["callbacks"] if isinstance(callback, ModelCheckpoint)]
+    checkpoint = next(callback for callback in checkpoints if isinstance(callback, BestModelCheckpoint))
+    recovery_checkpoint = next(callback for callback in checkpoints if not isinstance(callback, BestModelCheckpoint))
     early_stopping = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, EarlyStopping))
     assert saved_config == config.model_dump(mode="json")
-    assert checkpoint.save_last is True
+    assert checkpoint.monitor == "validation_cer"
+    assert checkpoint.save_top_k == 3
+    assert checkpoint.save_last is False
     assert checkpoint.save_weights_only is False
-    assert abs(early_stopping.min_delta) == 0.01
+    assert recovery_checkpoint.save_last is True
+    assert recovery_checkpoint._every_n_train_steps == config.save_steps
+    assert early_stopping.monitor == "validation_cer"
+    assert abs(early_stopping.min_delta) == config.early_stopping_min_delta
+    assert early_stopping.patience == config.early_stopping_patience
     assert any(isinstance(callback, ValidationInferenceMonitor) for callback in trainer_arguments["callbacks"])
     progress_bar = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, TrainingProgressBar))
     assert progress_bar.refresh_rate == config.log_steps

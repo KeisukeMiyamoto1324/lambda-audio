@@ -180,7 +180,7 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
     assert all(not path.exists() for path in downloaded_paths)
 
 
-def test_validation_dataset_uses_cached_ten_percent(
+def test_validation_dataset_uses_cached_twenty_percent(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -245,7 +245,7 @@ def test_validation_dataset_uses_cached_ten_percent(
     assert source.shuffle_arguments is None
 
 
-def test_validation_cache_selects_fixed_ten_percent_of_validation_shards(
+def test_validation_cache_selects_fixed_twenty_percent_of_validation_shards(
     monkeypatch: MonkeyPatch,
 ) -> None:
     class FakeApi:
@@ -264,7 +264,10 @@ def test_validation_cache_selects_fixed_ten_percent_of_validation_shards(
 
     files = list_validation_cache_files("token")
 
-    assert files == ["validation/part-000001.parquet"]
+    assert files == [
+        "validation/part-000000.parquet",
+        "validation/part-000001.parquet",
+    ]
 
 
 def test_training_shards_select_only_train_parquet_files(

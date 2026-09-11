@@ -23,7 +23,7 @@ from src.data.text import normalize_transcription
 from src.data.types import TranscribedAudioExample
 
 DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-1"
-VALIDATION_CACHE_RATIO = 0.1
+VALIDATION_CACHE_RATIO = 0.2
 VALIDATION_SELECTION_SEED = 42
 PARQUET_BATCH_SIZE = 128
 DatasetSplit = Literal["train", "validation"]
@@ -191,19 +191,7 @@ def load_lambda_audio_dataset(
             world_size,
         )
 
-    validation_files = list_validation_cache_files(token)
-    cached_dataset = cast(
-        Dataset,
-        load_dataset(
-            DATASET_ID,
-            split="validation",
-            data_files={"validation": validation_files},
-            streaming=False,
-            token=token,
-            cache_dir=str(cache_dir),
-            verification_mode="no_checks",
-        ),
-    )
+    cached_dataset = load_cached_validation_dataset(token, cache_dir)
     dataset = cached_dataset.to_iterable_dataset(num_shards=world_size * num_workers)
     dataset = dataset.select_columns(["audio", "text"])
     dataset = dataset.cast_column(
@@ -215,15 +203,22 @@ def load_lambda_audio_dataset(
 
 
 def prepare_validation_dataset(token: str, cache_dir: Path) -> None:
+    load_cached_validation_dataset(token, cache_dir)
+
+
+def load_cached_validation_dataset(token: str, cache_dir: Path) -> Dataset:
     validation_files = list_validation_cache_files(token)
-    load_dataset(
-        DATASET_ID,
-        split="validation",
-        data_files={"validation": validation_files},
-        streaming=False,
-        token=token,
-        cache_dir=str(cache_dir),
-        verification_mode="no_checks",
+    return cast(
+        Dataset,
+        load_dataset(
+            DATASET_ID,
+            split="validation",
+            data_files={"validation": validation_files},
+            streaming=False,
+            token=token,
+            cache_dir=str(cache_dir),
+            verification_mode="no_checks",
+        ),
     )
 
 

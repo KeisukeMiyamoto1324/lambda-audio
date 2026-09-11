@@ -4,6 +4,8 @@ import lightning as L
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
+from src.cer.collator import CerCollator
+from src.cer.dataset import load_cer_dataset
 from src.data.collator import AudioTextCollator
 from src.data.dataset import (
     AudioBatchDataset,
@@ -32,8 +34,10 @@ class LambdaAudioDataModule(L.LightningDataModule):
             tokenizer,
             config.sampling_rate,
         )
+        self.cer_collator = CerCollator(feature_extractor, config.sampling_rate)
         self.training_dataset: AudioBatchDataset | None = None
         self.validation_dataset: AudioBatchDataset | None = None
+        self.cer_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
         prepare_validation_dataset(self.token, self.config.dataset_cache_dir)
@@ -64,6 +68,14 @@ class LambdaAudioDataModule(L.LightningDataModule):
             self.trainer.world_size,
             self.config.num_workers,
         )
+        cer_source = load_cer_dataset(
+            self.token,
+            self.config.dataset_cache_dir,
+            self.config.sampling_rate,
+            self.trainer.global_rank,
+            self.trainer.world_size,
+            self.config.num_workers,
+        )
         self.training_dataset = self._batch_dataset(
             training_source,
             self.config.train_max_batch_padded_audio_seconds,
@@ -71,6 +83,10 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_dataset = self._batch_dataset(
             validation_source,
             self.config.validation_max_batch_padded_audio_seconds,
+        )
+        self.cer_dataset = self._batch_dataset(
+            cer_source,
+            self.config.cer_max_batch_padded_audio_seconds,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
@@ -82,14 +98,26 @@ class LambdaAudioDataModule(L.LightningDataModule):
             in_order=False,
         )
 
-    def val_dataloader(self) -> DataLoader[Any]:
-        if self.validation_dataset is None:
-            raise RuntimeError("Validation dataset is not initialized.")
-        return self._data_loader(
-            self.validation_dataset,
-            persistent_workers=False,
-            in_order=True,
-        )
+    def val_dataloader(self) -> list[DataLoader[Any]]:
+        if self.validation_dataset is None or self.cer_dataset is None:
+            raise RuntimeError("Validation datasets are not initialized.")
+        return [
+            self._data_loader(
+                self.validation_dataset,
+                persistent_workers=False,
+                in_order=True,
+            ),
+            DataLoader(
+                self.cer_dataset,
+                batch_size=None,
+                collate_fn=self.cer_collator,
+                pin_memory=True,
+                num_workers=self.config.num_workers,
+                persistent_workers=False,
+                prefetch_factor=self.config.prefetch_factor,
+                in_order=True,
+            ),
+        ]
 
     def set_epoch(self, epoch: int) -> None:
         if self.training_dataset is None:

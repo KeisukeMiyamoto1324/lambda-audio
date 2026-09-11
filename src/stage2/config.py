@@ -14,7 +14,7 @@ class Stage2Config(BaseTrainingConfig):
     max_steps: PositiveInt = 51200
     adapter_learning_rate: PositiveFloat = 1e-5
     backbone_learning_rate: PositiveFloat = 1e-5
-    early_stopping_min_delta: NonNegativeFloat = 0.01
+    early_stopping_min_delta: NonNegativeFloat = 0.001
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 1000
 
@@ -23,7 +23,7 @@ class Stage2Config(BaseTrainingConfig):
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4
 
-    early_stopping_patience: PositiveInt = 5
+    early_stopping_patience: PositiveInt = 10
 
     @model_validator(mode="after")
     def validate_initialization_checkpoint(self) -> Self:

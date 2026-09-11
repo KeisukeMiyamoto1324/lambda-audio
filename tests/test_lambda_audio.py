@@ -104,16 +104,16 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     # ---------------------------------------------------------
     model.set_backbones_trainable(False)
     generated_ids = model.generate(
-        input_values=torch.randn(1, 8),
-        audio_padding_mask=torch.zeros(1, 8, dtype=torch.bool),
-        input_ids=torch.tensor([[1]]),
-        attention_mask=torch.ones(1, 1, dtype=torch.long),
+        input_values=torch.randn(2, 8),
+        audio_padding_mask=torch.tensor([[False] * 8, [False] * 6 + [True] * 2]),
+        input_ids=torch.tensor([[1], [1]]),
+        attention_mask=torch.ones(2, 1, dtype=torch.long),
         max_new_tokens=2,
     )
     generation_projection_calls = projection_calls - 1
     trainable_names = [name for name, parameter in model.named_parameters() if parameter.requires_grad]
 
-    assert generated_ids.shape[0] == 1
+    assert generated_ids.shape[0] == 2
     assert generation_projection_calls == 1
     assert any(name.startswith("adapter.") for name in trainable_names)
     assert any("cross_attention" in name for name in trainable_names)

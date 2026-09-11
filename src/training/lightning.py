@@ -1,8 +1,11 @@
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast
 
 import lightning as L
 import torch
 
+from src.cer.inference import generate_transcriptions
+from src.cer.metric import compute_cer_counts
+from src.cer.types import CerBatch
 from src.data.types import AudioTextBatch
 from src.modeling.lambda_audio import LambdaAudioModel
 from src.modeling.zipformer.scaling import ScheduledFloat
@@ -21,6 +24,11 @@ class BaseLambdaAudioLightningModule(
         self.model = model
         self.config = config
         self.training_token_count = 0
+        self.register_buffer(
+            "cer_counts",
+            torch.zeros(5, dtype=torch.long),
+            persistent=False,
+        )
 
     def training_step(
         self,
@@ -107,29 +115,76 @@ class BaseLambdaAudioLightningModule(
 
     def validation_step(
         self,
-        batch: AudioTextBatch,
+        batch: AudioTextBatch | CerBatch,
         batch_idx: int,
-    ) -> torch.Tensor:
+        dataloader_idx: int = 0,
+    ) -> torch.Tensor | None:
+        if dataloader_idx == 1:
+            self._cer_step(cast(CerBatch, batch))
+            return None
+
+        audio_text_batch = cast(AudioTextBatch, batch)
         output = self.model(
-            input_values=batch["input_values"],
-            audio_padding_mask=batch["audio_padding_mask"],
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-            labels=batch["labels"],
+            input_values=audio_text_batch["input_values"],
+            audio_padding_mask=audio_text_batch["audio_padding_mask"],
+            input_ids=audio_text_batch["input_ids"],
+            attention_mask=audio_text_batch["attention_mask"],
+            labels=audio_text_batch["labels"],
         )
         if output.loss is None:
             raise RuntimeError("The model did not return validation loss.")
 
-        mean_loss = output.loss / batch["target_token_count"]
+        mean_loss = output.loss / audio_text_batch["target_token_count"]
         self.log(
             "validation_loss",
             mean_loss,
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
-            batch_size=batch["target_token_count"],
+            batch_size=audio_text_batch["target_token_count"],
+            add_dataloader_idx=False,
         )
         return output.loss
+
+    def on_validation_epoch_start(self) -> None:
+        self.cer_counts.zero_()
+
+    def on_validation_epoch_end(self) -> None:
+        counts = self.trainer.strategy.reduce(self.cer_counts, reduce_op="sum")
+        reference_characters = counts[3]
+        if reference_characters.item() == 0:
+            raise RuntimeError("CER validation references contain no characters.")
+        cer = counts[:3].sum().to(torch.float64) / reference_characters
+        self.log(
+            "validation_cer",
+            cer,
+            prog_bar=True,
+            sync_dist=False,
+        )
+        self.log("validation_cer_samples", counts[4], sync_dist=False)
+
+    def _cer_step(self, batch: CerBatch) -> None:
+        data_module = self.trainer.datamodule
+        if not isinstance(data_module, LambdaAudioDataModule):
+            raise TypeError("LambdaAudioDataModule is required.")
+        hypotheses = generate_transcriptions(
+            self.model,
+            data_module.collator.tokenizer,
+            batch,
+            self.config.max_new_tokens,
+        )
+        counts = compute_cer_counts(batch["references"], hypotheses)
+        self.cer_counts += torch.tensor(
+            [
+                counts.substitutions,
+                counts.deletions,
+                counts.insertions,
+                counts.reference_characters,
+                counts.samples,
+            ],
+            dtype=torch.long,
+            device=self.cer_counts.device,
+        )
 
     def on_train_epoch_start(self) -> None:
         data_module = self.trainer.datamodule

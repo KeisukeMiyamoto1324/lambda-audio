@@ -18,6 +18,7 @@ class BaseTrainingConfig(ModelConfig):
     prefetch_factor: PositiveInt = 2
     train_max_batch_padded_audio_seconds: PositiveFloat = 1_400.0
     validation_max_batch_padded_audio_seconds: PositiveFloat = 120.0
+    cer_max_batch_padded_audio_seconds: PositiveFloat = 120.0
     gradient_accumulation_steps: PositiveInt = 8
     max_steps: PositiveInt = 10_000
     warmup_steps: PositiveInt = 2000
@@ -27,6 +28,6 @@ class BaseTrainingConfig(ModelConfig):
     log_steps: PositiveInt = 10
     evaluation_steps: PositiveInt = 2000
     save_steps: PositiveInt = 500
-    early_stopping_patience: PositiveInt = 5
-    early_stopping_min_delta: NonNegativeFloat = 0.01
+    early_stopping_patience: PositiveInt = 10
+    early_stopping_min_delta: NonNegativeFloat = 0.001
     seed: int = Field(default=42, ge=0)
