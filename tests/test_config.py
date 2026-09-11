@@ -58,43 +58,24 @@ def test_inference_config_validates_paths(tmp_path: Path) -> None:
 def test_src_does_not_use_dataclasses() -> None:
     for path in Path("src").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        imports = {
-            alias.name
-            for node in tree.body
-            if isinstance(node, (ast.Import, ast.ImportFrom))
-            for alias in node.names
-        }
+        imports = {alias.name for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
         assert "dataclasses" not in imports, path
 
 
 def test_src_functions_have_type_annotations() -> None:
     for path in Path("src").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        functions = (
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        )
+        functions = (node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)))
         for function in functions:
             arguments = [
                 *function.args.posonlyargs,
                 *function.args.args,
                 *function.args.kwonlyargs,
             ]
-            missing = [
-                argument.arg
-                for argument in arguments
-                if argument.arg not in {"self", "cls"} and argument.annotation is None
-            ]
-            if (
-                function.args.vararg is not None
-                and function.args.vararg.annotation is None
-            ):
+            missing = [argument.arg for argument in arguments if argument.arg not in {"self", "cls"} and argument.annotation is None]
+            if function.args.vararg is not None and function.args.vararg.annotation is None:
                 missing.append(f"*{function.args.vararg.arg}")
-            if (
-                function.args.kwarg is not None
-                and function.args.kwarg.annotation is None
-            ):
+            if function.args.kwarg is not None and function.args.kwarg.annotation is None:
                 missing.append(f"**{function.args.kwarg.arg}")
             assert not missing, f"{path}:{function.lineno}: {missing}"
             assert function.returns is not None, f"{path}:{function.lineno}"

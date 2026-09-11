@@ -20,9 +20,7 @@ def test_cached_attention_matches_multihead_attention() -> None:
     module.gate.data.fill_(1.0)
     hidden_states = torch.randn(2, 3, 16)
     audio_features = torch.randn(2, 5, 16)
-    audio_padding_mask = torch.tensor(
-        [[False, False, False, True, True], [False, False, False, False, True]]
-    )
+    audio_padding_mask = torch.tensor([[False, False, False, True, True], [False, False, False, False, True]])
 
     expected_attention, _ = module.attention(
         query=module.norm(hidden_states),

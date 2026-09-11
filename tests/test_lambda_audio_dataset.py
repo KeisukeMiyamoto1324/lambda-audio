@@ -54,9 +54,7 @@ class FakeDataset:
 def test_lambda_audio_dataset_reads_audio_and_text_columns() -> None:
     audio_file = BytesIO()
     sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
-    source = FakeDataset(
-        [{"audio": {"bytes": audio_file.getvalue()}, "text": " 音声 ", "unused": 1}]
-    )
+    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, "text": " 音声 ", "unused": 1}])
     dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
 
     example = next(iter(dataset))
@@ -69,6 +67,22 @@ def test_lambda_audio_dataset_reads_audio_and_text_columns() -> None:
     )
     assert example["transcription"] == "音声"
     assert source.epoch == 3
+
+
+def test_lambda_audio_dataset_skips_invalid_audio() -> None:
+    audio_file = BytesIO()
+    sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
+    source = FakeDataset(
+        [
+            {"audio": {"bytes": b"invalid"}, "text": "破損"},
+            {"audio": {"bytes": audio_file.getvalue()}, "text": "正常"},
+        ]
+    )
+    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
+
+    examples = list(dataset)
+
+    assert [example["transcription"] for example in examples] == ["正常"]
 
 
 def test_load_training_dataset_uses_local_shards(
@@ -121,6 +135,10 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
         path.parent.mkdir(parents=True)
         table = pa.Table.from_pylist(
             [
+                {
+                    "audio": {"bytes": b"invalid", "path": "invalid.flac"},
+                    "text": "破損",
+                },
                 {
                     "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
                     "text": " 音声 ",
@@ -207,9 +225,7 @@ def test_validation_dataset_uses_cached_ten_percent(
         {
             "dataset_id": DATASET_ID,
             "split": "validation",
-            "data_files": {
-                "validation": ["validation/part-000000.parquet"]
-            },
+            "data_files": {"validation": ["validation/part-000000.parquet"]},
             "streaming": False,
             "token": "token",
             "cache_dir": str(tmp_path),
@@ -218,9 +234,7 @@ def test_validation_dataset_uses_cached_ten_percent(
         {
             "dataset_id": DATASET_ID,
             "split": "validation",
-            "data_files": {
-                "validation": ["validation/part-000000.parquet"]
-            },
+            "data_files": {"validation": ["validation/part-000000.parquet"]},
             "streaming": False,
             "token": "token",
             "cache_dir": str(tmp_path),

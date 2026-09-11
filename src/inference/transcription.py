@@ -1,8 +1,10 @@
 from io import BytesIO
 from typing import Protocol
 
-import librosa
+import av
+import numpy as np
 import torch
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
@@ -33,22 +35,13 @@ def transcribe(
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
-    audio_array, sampling_rate = librosa.load(
-        BytesIO(audio),
-        sr=config.sampling_rate,
-        mono=True,
-        dtype="float32",
-    )
-    if audio_array.size == 0:
-        raise ValueError("The audio file is empty.")
+    audio_array = decode_audio(audio, config.sampling_rate)
     if audio_array.size > config.sampling_rate * config.max_audio_seconds:
-        raise ValueError(
-            f"The audio file must be {config.max_audio_seconds:g} seconds or shorter."
-        )
+        raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
 
     audio_batch = feature_extractor(
         audio_array,
-        sampling_rate=int(sampling_rate),
+        sampling_rate=config.sampling_rate,
         return_attention_mask=True,
         return_tensors="pt",
     )
@@ -83,3 +76,19 @@ def transcribe(
         text=text,
         audio_seconds=audio_array.size / config.sampling_rate,
     )
+
+
+def decode_audio(audio: bytes, sampling_rate: int) -> NDArray[np.float32]:
+    container = av.open(BytesIO(audio), mode="r")
+    with container:
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(
+            format="fltp",
+            layout="mono",
+            rate=sampling_rate,
+        )
+        arrays = [converted.to_ndarray()[0] for frame in container.decode(stream) for converted in resampler.resample(frame)]
+        arrays.extend(converted.to_ndarray()[0] for converted in resampler.resample(None))
+    if not arrays:
+        raise ValueError("The audio file is empty.")
+    return np.concatenate(arrays).astype(np.float32, copy=False)

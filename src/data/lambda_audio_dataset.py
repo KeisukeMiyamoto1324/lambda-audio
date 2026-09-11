@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 import random
 from collections.abc import Iterator
@@ -25,6 +26,7 @@ DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-1"
 VALIDATION_CACHE_RATIO = 0.1
 PARQUET_BATCH_SIZE = 128
 DatasetSplit = Literal["train", "validation"]
+LOGGER = logging.getLogger(__name__)
 
 
 class LambdaAudioDataset:
@@ -33,13 +35,16 @@ class LambdaAudioDataset:
         self.sampling_rate = sampling_rate
 
     def __iter__(self) -> Iterator[TranscribedAudioExample]:
-        for row in self.dataset:
+        for row_index, row in enumerate(self.dataset):
             audio = cast(Any, row["audio"])
-            yield _create_example(
+            example = _create_example_or_none(
                 cast(bytes, audio["bytes"]),
                 cast(str, row["text"]),
                 self.sampling_rate,
+                f"validation row {row_index}",
             )
+            if example is not None:
+                yield example
 
     def set_epoch(self, epoch: int) -> None:
         self.dataset.set_epoch(epoch)
@@ -77,12 +82,8 @@ class TrainLambdaAudioDataset:
         assigned_shards = shards[consumer_index::consumer_count]
 
         with TemporaryDirectory(prefix="lambda-audio-train-") as directory:
-            with closing(
-                self._iterate_shards(assigned_shards, Path(directory))
-            ) as examples:
-                with closing(
-                    self._shuffle_examples(examples, generator)
-                ) as shuffled_examples:
+            with closing(self._iterate_shards(assigned_shards, Path(directory))) as examples:
+                with closing(self._shuffle_examples(examples, generator)) as shuffled_examples:
                     yield from shuffled_examples
 
     def _iterate_shards(
@@ -116,6 +117,7 @@ class TrainLambdaAudioDataset:
             executor.shutdown(wait=True, cancel_futures=True)
 
     def _read_shard(self, shard_path: Path) -> Iterator[TranscribedAudioExample]:
+        row_index = 0
         with pq.ParquetFile(shard_path) as parquet_file:
             for batch in parquet_file.iter_batches(
                 batch_size=PARQUET_BATCH_SIZE,
@@ -123,11 +125,15 @@ class TrainLambdaAudioDataset:
             ):
                 for row in batch.to_pylist():
                     audio = cast(dict[str, Any], row["audio"])
-                    yield _create_example(
+                    example = _create_example_or_none(
                         cast(bytes, audio["bytes"]),
                         cast(str, row["text"]),
                         self.sampling_rate,
+                        f"{shard_path.name} row {row_index}",
                     )
+                    row_index += 1
+                    if example is not None:
+                        yield example
 
     def _shuffle_examples(
         self,
@@ -232,11 +238,7 @@ def list_validation_cache_files(token: str) -> list[str]:
 
 def _list_shard_files(token: str, split: DatasetSplit) -> list[str]:
     files = HfApi(token=token).list_repo_files(DATASET_ID, repo_type="dataset")
-    shard_files = sorted(
-        path
-        for path in files
-        if path.startswith(f"{split}/") and path.endswith(".parquet")
-    )
+    shard_files = sorted(path for path in files if path.startswith(f"{split}/") and path.endswith(".parquet"))
     if not shard_files:
         raise RuntimeError(f"The {split} split has no Parquet shards.")
     return shard_files
@@ -251,9 +253,7 @@ def _create_example(
     with container:
         stream = container.streams.audio[0]
         if stream.sample_rate != sampling_rate:
-            raise ValueError(
-                f"Expected {sampling_rate} Hz audio, got {stream.sample_rate} Hz."
-            )
+            raise ValueError(f"Expected {sampling_rate} Hz audio, got {stream.sample_rate} Hz.")
         if stream.channels != 1:
             raise ValueError("Audio must be mono.")
         resampler = av.AudioResampler(
@@ -261,17 +261,24 @@ def _create_example(
             layout="mono",
             rate=sampling_rate,
         )
-        arrays = [
-            converted.to_ndarray()[0]
-            for frame in container.decode(stream)
-            for converted in resampler.resample(frame)
-        ]
-        arrays.extend(
-            converted.to_ndarray()[0] for converted in resampler.resample(None)
-        )
+        arrays = [converted.to_ndarray()[0] for frame in container.decode(stream) for converted in resampler.resample(frame)]
+        arrays.extend(converted.to_ndarray()[0] for converted in resampler.resample(None))
     if not arrays:
         raise ValueError("Audio is empty.")
     return {
         "audio_array": np.concatenate(arrays).astype(np.float32, copy=False),
         "transcription": normalize_transcription(text),
     }
+
+
+def _create_example_or_none(
+    audio: bytes,
+    text: str,
+    sampling_rate: int,
+    source: str,
+) -> TranscribedAudioExample | None:
+    try:
+        return _create_example(audio, text, sampling_rate)
+    except (av.error.FFmpegError, ValueError, IndexError) as error:
+        LOGGER.warning("Skipping invalid audio at %s: %s", source, error)
+        return None

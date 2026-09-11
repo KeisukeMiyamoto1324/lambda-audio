@@ -38,10 +38,7 @@ class ZipformerPreTrainedModel(PreTrainedModel):
                 nn.init.kaiming_normal_(module.parametrizations.weight.original1.data)
             nn.init.kaiming_normal_(module.weight.data)
 
-        if (
-            isinstance(module, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d))
-            and module.bias is not None
-        ):
+        if isinstance(module, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)) and module.bias is not None:
             module.bias.data.zero_()
 
 
@@ -58,11 +55,7 @@ class ZipformerModel(ZipformerPreTrainedModel):
             conv_bias=config.conv_bias,
         )
         encoder_input_dim = config.encoder_dim[0]
-        self.post_extract_proj = (
-            nn.Linear(self.embed, encoder_input_dim)
-            if self.embed != encoder_input_dim
-            else None
-        )
+        self.post_extract_proj = nn.Linear(self.embed, encoder_input_dim) if self.embed != encoder_input_dim else None
 
         self.dropout_input = nn.Dropout(config.dropout_input)
         self.dropout_features = nn.Dropout(config.dropout_features)
@@ -204,6 +197,4 @@ class ZipformerForCTC(ZipformerPreTrainedModel):
         encoder_out = self.encoder(input_values, padding_mask)
         ctc_output = self.ctc_output(encoder_out.last_hidden_state)
 
-        return CausalLMOutput(
-            loss=None, logits=ctc_output, hidden_states=None, attentions=None
-        )
+        return CausalLMOutput(loss=None, logits=ctc_output, hidden_states=None, attentions=None)

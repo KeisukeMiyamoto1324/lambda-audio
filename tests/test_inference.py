@@ -1,4 +1,5 @@
 import sys
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -6,6 +7,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+import soundfile as sf
 import torch
 from torch import nn
 
@@ -13,7 +15,7 @@ from src.inference.cli import parse_arguments
 from src.inference.config import InferenceConfig
 from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
-from src.inference.transcription import transcribe
+from src.inference.transcription import decode_audio, transcribe
 from src.modeling.checkpoint import load_model_checkpoint
 
 
@@ -49,6 +51,19 @@ class DummyTokenizer:
         return [" transcription "]
 
 
+def test_decode_audio_reads_flac_with_unknown_total_sample_count() -> None:
+    audio_file = BytesIO()
+    source = np.array([0.25, -0.5], dtype=np.float32)
+    sf.write(audio_file, source, 16_000, format="FLAC")
+    encoded = bytearray(audio_file.getvalue())
+    stream_properties = int.from_bytes(encoded[18:26], "big")
+    encoded[18:26] = (stream_properties & ~((1 << 36) - 1)).to_bytes(8, "big")
+
+    decoded = decode_audio(bytes(encoded), 16_000)
+
+    np.testing.assert_allclose(decoded, source, atol=1e-4)
+
+
 @pytest.mark.parametrize(
     ("cuda_available", "mps_available", "expected_device"),
     [
@@ -73,10 +88,7 @@ def test_load_checkpoint_weights_removes_lightning_prefix(tmp_path: Path) -> Non
     source_model = nn.Linear(2, 2)
     target_model = nn.Linear(2, 2)
     checkpoint_path = tmp_path / "model.ckpt"
-    state_dict = {
-        f"model.{name}": parameter
-        for name, parameter in source_model.state_dict().items()
-    }
+    state_dict = {f"model.{name}": parameter for name, parameter in source_model.state_dict().items()}
     torch.save({"state_dict": state_dict}, checkpoint_path)
 
     load_model_checkpoint(target_model, checkpoint_path)
@@ -101,8 +113,8 @@ def test_transcribe_generates_from_bos(
     )
     model = DummyModel()
     monkeypatch.setattr(
-        "src.inference.transcription.librosa.load",
-        lambda *args, **kwargs: (np.ones(160, dtype=np.float32), 16_000),
+        "src.inference.transcription.decode_audio",
+        lambda audio, sampling_rate: np.ones(160, dtype=np.float32),
     )
 
     result = transcribe(
@@ -132,11 +144,8 @@ def test_transcribe_rejects_audio_longer_than_30_seconds(
         input_path=checkpoint_path,
     )
     monkeypatch.setattr(
-        "src.inference.transcription.librosa.load",
-        lambda *args, **kwargs: (
-            np.ones(16_000 * 30 + 1, dtype=np.float32),
-            16_000,
-        ),
+        "src.inference.transcription.decode_audio",
+        lambda audio, sampling_rate: np.ones(16_000 * 30 + 1, dtype=np.float32),
     )
 
     with pytest.raises(ValueError, match="30 seconds or shorter"):

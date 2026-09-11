@@ -10,12 +10,8 @@ def test_create_text_diff_highlights_replacement() -> None:
 
     assert reference.plain == "今日は晴れ"
     assert prediction.plain == "今日は雨"
-    assert [(span.start, span.end, span.style) for span in reference.spans] == [
-        (3, 5, REFERENCE_DIFFERENCE_STYLE)
-    ]
-    assert [(span.start, span.end, span.style) for span in prediction.spans] == [
-        (3, 4, PREDICTION_DIFFERENCE_STYLE)
-    ]
+    assert [(span.start, span.end, span.style) for span in reference.spans] == [(3, 5, REFERENCE_DIFFERENCE_STYLE)]
+    assert [(span.start, span.end, span.style) for span in prediction.spans] == [(3, 4, PREDICTION_DIFFERENCE_STYLE)]
 
 
 def test_create_text_diff_highlights_insertion_and_deletion() -> None:
