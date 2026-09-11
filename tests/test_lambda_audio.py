@@ -59,6 +59,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         classifier: torch.Tensor,
         labels: torch.Tensor,
         *,
+        reduction: str,
         shift: bool,
         filter_eps: str,
         impl: str,
@@ -67,6 +68,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
             hidden_states=hidden_states,
             classifier=classifier,
             labels=labels,
+            reduction=reduction,
             shift=shift,
             filter_eps=filter_eps,
             impl=impl,
@@ -93,6 +95,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         torch.tensor([[1, 2, 3], [1, 4, 5]]),
     )
     assert loss_arguments["shift"] is True
+    assert loss_arguments["reduction"] == "sum"
     assert loss_arguments["filter_eps"] == "high"
     assert loss_arguments["impl"] == "cce"
 

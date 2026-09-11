@@ -92,11 +92,34 @@ class ConvFeatureExtractionModel(nn.Module):
             )
             in_d = dim
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        padding_mask: torch.BoolTensor | None = None,
+    ) -> torch.Tensor:
         # BxT -> BxCxT
         x = x.unsqueeze(1)
+        lengths = None if padding_mask is None else (~padding_mask).sum(dim=-1)
+        feature_padding_mask = None
 
-        for conv in self.conv_layers:
-            x = conv(x)
+        for index, conv in enumerate(self.conv_layers):
+            convolution = conv[0]
+            x = convolution(x)
+            if lengths is not None:
+                kernel_size = convolution.kernel_size[0]
+                stride = convolution.stride[0]
+                lengths = torch.div(lengths - kernel_size, stride, rounding_mode="floor") + 1
+                positions = torch.arange(x.shape[-1], device=x.device)
+                feature_padding_mask = positions.unsqueeze(0) >= lengths.unsqueeze(1)
+
+            if index == 0 and len(conv) == 4 and isinstance(conv[2], Fp32GroupNorm) and feature_padding_mask is not None:
+                x = conv[1](x)
+                x = conv[2](x, feature_padding_mask)
+                x = conv[3](x)
+            else:
+                x = conv[1:](x)
+
+            if feature_padding_mask is not None:
+                x = x.masked_fill(feature_padding_mask.unsqueeze(1), 0.0)
 
         return x

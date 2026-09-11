@@ -99,14 +99,18 @@ class ZipformerModel(ZipformerPreTrainedModel):
         model.load_state_dict(state_dict, strict=True)
         return model
 
-    def forward_features(self, source: torch.Tensor) -> torch.Tensor:
+    def forward_features(
+        self,
+        source: torch.Tensor,
+        padding_mask: torch.BoolTensor | None = None,
+    ) -> torch.Tensor:
         if self.feature_grad_mult > 0:
-            features = self.feature_extractor(source)
+            features = self.feature_extractor(source, padding_mask)
             if self.feature_grad_mult != 1.0:
                 features = GradMultiply.apply(features, self.feature_grad_mult)
         else:
             with torch.no_grad():
-                features = self.feature_extractor(source)
+                features = self.feature_extractor(source, padding_mask)
         return features
 
     def forward_padding_mask(
@@ -134,7 +138,7 @@ class ZipformerModel(ZipformerPreTrainedModel):
         padding_mask: torch.BoolTensor | None = None,
     ) -> Wav2Vec2BaseModelOutput:
         """output layer is 1-based"""
-        features = self.forward_features(input_values)
+        features = self.forward_features(input_values, padding_mask)
 
         features = features.transpose(1, 2)
         features = self.layer_norm(features)

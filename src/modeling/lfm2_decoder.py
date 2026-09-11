@@ -127,6 +127,7 @@ class AudioLfm2ForCausalLM(Lfm2ForCausalLM):
                 hidden_states.to(torch.bfloat16),
                 self.lm_head.weight,
                 labels,
+                reduction="sum",
                 shift=True,
                 filter_eps="high",
                 impl="cce",

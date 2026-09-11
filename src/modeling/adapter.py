@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 
 class AudioAdapter(nn.Module):
@@ -34,10 +33,11 @@ class AudioAdapter(nn.Module):
         hidden_states = self.output_norm(hidden_states)
 
         # ---------------------------------------------------------
-        # Keep positions that contain at least one valid input.
+        # Derive exact convolution output lengths before batch padding.
         # ---------------------------------------------------------
-        valid_mask = (~padding_mask).to(hidden_states.dtype).unsqueeze(1)
-        valid_mask = F.max_pool1d(valid_mask, kernel_size=3, stride=2, padding=1)
-        output_padding_mask = valid_mask.squeeze(1) == 0
+        input_lengths = (~padding_mask).sum(dim=-1)
+        output_lengths = (input_lengths + 1) // 2
+        positions = torch.arange(hidden_states.shape[1], device=hidden_states.device)
+        output_padding_mask = positions.unsqueeze(0) >= output_lengths.unsqueeze(1)
 
         return hidden_states, output_padding_mask

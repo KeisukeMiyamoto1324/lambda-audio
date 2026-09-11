@@ -24,6 +24,7 @@ from src.data.types import TranscribedAudioExample
 
 DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-1"
 VALIDATION_CACHE_RATIO = 0.1
+VALIDATION_SELECTION_SEED = 42
 PARQUET_BATCH_SIZE = 128
 DatasetSplit = Literal["train", "validation"]
 LOGGER = logging.getLogger(__name__)
@@ -233,7 +234,8 @@ def list_train_shard_files(token: str) -> list[str]:
 def list_validation_cache_files(token: str) -> list[str]:
     validation_files = _list_shard_files(token, "validation")
     cache_shards = ceil(len(validation_files) * VALIDATION_CACHE_RATIO)
-    return validation_files[:cache_shards]
+    selected_files = random.Random(VALIDATION_SELECTION_SEED).sample(validation_files, cache_shards)
+    return sorted(selected_files)
 
 
 def _list_shard_files(token: str, split: DatasetSplit) -> list[str]:

@@ -90,3 +90,31 @@ def test_zipformer_output_is_independent_of_padded_audio() -> None:
         changed_output = model(changed_input_values, padding_mask).last_hidden_state
 
     torch.testing.assert_close(output[:, :9], changed_output[:, :9])
+
+
+def test_group_norm_ignores_batch_padding() -> None:
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2),),
+        extractor_mode="default",
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+    )
+    model = ZipformerModel(config).eval()
+    input_values = torch.randn(1, 33)
+    padded_input_values = torch.nn.functional.pad(input_values, (0, 15))
+    padding_mask = torch.arange(48).unsqueeze(0) >= 33
+
+    with torch.inference_mode():
+        expected = model.feature_extractor(input_values)
+        actual = model.feature_extractor(padded_input_values, padding_mask)
+
+    torch.testing.assert_close(actual[:, :, : expected.shape[-1]], expected)

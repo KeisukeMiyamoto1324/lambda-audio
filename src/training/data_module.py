@@ -76,12 +76,20 @@ class LambdaAudioDataModule(L.LightningDataModule):
     def train_dataloader(self) -> DataLoader[Any]:
         if self.training_dataset is None:
             raise RuntimeError("Training dataset is not initialized.")
-        return self._data_loader(self.training_dataset, persistent_workers=True)
+        return self._data_loader(
+            self.training_dataset,
+            persistent_workers=True,
+            in_order=False,
+        )
 
     def val_dataloader(self) -> DataLoader[Any]:
         if self.validation_dataset is None:
             raise RuntimeError("Validation dataset is not initialized.")
-        return self._data_loader(self.validation_dataset, persistent_workers=False)
+        return self._data_loader(
+            self.validation_dataset,
+            persistent_workers=False,
+            in_order=True,
+        )
 
     def set_epoch(self, epoch: int) -> None:
         if self.training_dataset is None:
@@ -104,6 +112,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self,
         dataset: AudioBatchDataset,
         persistent_workers: bool,
+        in_order: bool,
     ) -> DataLoader[Any]:
         return DataLoader(
             dataset,
@@ -113,5 +122,5 @@ class LambdaAudioDataModule(L.LightningDataModule):
             num_workers=self.config.num_workers,
             persistent_workers=persistent_workers,
             prefetch_factor=self.config.prefetch_factor,
-            in_order=False,
+            in_order=in_order,
         )

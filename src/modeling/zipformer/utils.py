@@ -34,7 +34,29 @@ class Fp32LayerNorm(nn.LayerNorm):
 
 
 class Fp32GroupNorm(nn.GroupNorm):
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        input: torch.Tensor,
+        padding_mask: torch.BoolTensor | None = None,
+    ) -> torch.Tensor:
+        if padding_mask is not None:
+            batch_size, channels, sequence_length = input.shape
+            grouped = input.float().view(
+                batch_size,
+                self.num_groups,
+                channels // self.num_groups,
+                sequence_length,
+            )
+            valid = (~padding_mask).float()[:, None, None, :]
+            count = valid.sum(dim=-1, keepdim=True) * grouped.shape[2]
+            mean = (grouped * valid).sum(dim=(2, 3), keepdim=True) / count
+            variance = ((grouped - mean).square() * valid).sum(dim=(2, 3), keepdim=True) / count
+            output = ((grouped - mean) * torch.rsqrt(variance + self.eps)).view_as(input)
+            if self.affine:
+                output = output * self.weight.float()[None, :, None]
+                output = output + self.bias.float()[None, :, None]
+            return output.type_as(input)
+
         output = F.group_norm(
             input.float(),
             self.num_groups,

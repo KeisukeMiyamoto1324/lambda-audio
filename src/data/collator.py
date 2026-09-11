@@ -49,6 +49,7 @@ class AudioTextCollator:
         )
         labels = text_batch["input_ids"].clone()
         labels.masked_fill_(text_batch["attention_mask"].eq(0), -100)
+        target_token_count = labels[:, 1:].ne(-100).sum().item()
 
         audio_valid_samples = sum(example["audio_array"].size for example in examples)
         audio_padded_samples = audio_batch["input_values"].numel()
@@ -59,6 +60,7 @@ class AudioTextCollator:
             "input_ids": text_batch["input_ids"],
             "attention_mask": text_batch["attention_mask"],
             "labels": labels,
+            "target_token_count": target_token_count,
             "audio_valid_samples": audio_valid_samples,
             "audio_padded_samples": audio_padded_samples,
         }

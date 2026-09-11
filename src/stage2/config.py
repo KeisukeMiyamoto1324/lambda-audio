@@ -18,7 +18,6 @@ class Stage2Config(BaseTrainingConfig):
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 1000
 
-    validation_batches: PositiveInt = 2_560
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
 
     num_workers: PositiveInt = 8

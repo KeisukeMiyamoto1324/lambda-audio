@@ -29,3 +29,20 @@ def test_adapter_ignores_padded_features() -> None:
         )
 
     torch.testing.assert_close(output[:, ~output_mask[0]], changed_output[:, ~changed_output_mask[0]])
+
+
+def test_adapter_mask_is_independent_of_batch_padding() -> None:
+    adapter = AudioAdapter(input_size=8, hidden_size=16).eval()
+    hidden_states = torch.randn(1, 4, 8)
+    padded_hidden_states = torch.nn.functional.pad(hidden_states, (0, 0, 0, 2))
+    padding_mask = torch.tensor([[False, False, False, False, True, True]])
+
+    with torch.inference_mode():
+        expected, expected_mask = adapter(
+            hidden_states,
+            torch.zeros(1, 4, dtype=torch.bool),
+        )
+        actual, actual_mask = adapter(padded_hidden_states, padding_mask)
+
+    assert (~actual_mask).sum() == (~expected_mask).sum()
+    torch.testing.assert_close(actual[:, ~actual_mask[0]], expected[:, ~expected_mask[0]])

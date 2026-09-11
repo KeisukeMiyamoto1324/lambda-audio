@@ -20,6 +20,7 @@ class BaseLambdaAudioLightningModule(
         super().__init__()
         self.model = model
         self.config = config
+        self.training_token_count = 0
 
     def training_step(
         self,
@@ -36,15 +37,34 @@ class BaseLambdaAudioLightningModule(
         if output.loss is None:
             raise RuntimeError("The model did not return training loss.")
 
+        self.training_token_count += batch["target_token_count"]
+        mean_loss = output.loss / batch["target_token_count"]
         self.log(
             "train_loss",
-            output.loss,
+            mean_loss,
             on_step=True,
             prog_bar=True,
             sync_dist=False,
-            batch_size=batch["input_ids"].shape[0],
+            batch_size=batch["target_token_count"],
         )
         return output.loss
+
+    def on_before_optimizer_step(self, optimizer: torch.optim.Optimizer) -> None:
+        # ---------------------------------------------------------
+        # Normalize accumulated and distributed gradients per target token.
+        # ---------------------------------------------------------
+        token_count = torch.tensor(
+            self.training_token_count,
+            device=self.device,
+            dtype=torch.float64,
+        )
+        token_count = self.trainer.strategy.reduce(token_count, reduce_op="sum")
+        gradient_scale = self.trainer.accumulate_grad_batches * self.trainer.world_size / token_count.item()
+        for group in optimizer.param_groups:
+            for parameter in group["params"]:
+                if parameter.grad is not None:
+                    parameter.grad.mul_(gradient_scale)
+        self.training_token_count = 0
 
     def on_train_batch_start(
         self,
@@ -100,13 +120,14 @@ class BaseLambdaAudioLightningModule(
         if output.loss is None:
             raise RuntimeError("The model did not return validation loss.")
 
+        mean_loss = output.loss / batch["target_token_count"]
         self.log(
             "validation_loss",
-            output.loss,
+            mean_loss,
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
-            batch_size=batch["input_ids"].shape[0],
+            batch_size=batch["target_token_count"],
         )
         return output.loss
 

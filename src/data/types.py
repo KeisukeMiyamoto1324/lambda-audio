@@ -16,5 +16,6 @@ class AudioTextBatch(TypedDict):
     input_ids: torch.LongTensor
     attention_mask: torch.Tensor
     labels: torch.LongTensor
+    target_token_count: int
     audio_valid_samples: int
     audio_padded_samples: int

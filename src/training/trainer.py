@@ -82,7 +82,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         log_every_n_steps=config.log_steps,
         val_check_interval=(config.evaluation_steps * config.gradient_accumulation_steps),
         check_val_every_n_epoch=None,
-        limit_val_batches=config.validation_batches,
+        limit_val_batches=1.0,
         num_sanity_val_steps=0,
         use_distributed_sampler=False,
         default_root_dir=config.output_dir,

@@ -48,6 +48,7 @@ def dummy_audio_text_batch() -> AudioTextBatch:
             "input_ids": torch.ones(1, 1, dtype=torch.long),
             "attention_mask": torch.ones(1, 1, dtype=torch.long),
             "labels": torch.ones(1, 1, dtype=torch.long),
+            "target_token_count": 1,
             "audio_valid_samples": 1,
             "audio_padded_samples": 1,
         },
@@ -143,6 +144,30 @@ def test_gradient_clipping_limits_total_norm() -> None:
 
     total_norm = torch.linalg.vector_norm(torch.stack([parameter.grad.norm() for parameter in model.parameters()]))
     assert total_norm.item() == pytest.approx(0.5)
+
+
+def test_accumulated_gradients_are_normalized_by_token_count() -> None:
+    config = Stage1Config(
+        output_dir=Path("outputs"),
+        gradient_accumulation_steps=4,
+    )
+    model = DummyTrainingModel()
+    module = Stage1LightningModule(model, config)  # type: ignore[arg-type]
+    module._trainer = SimpleNamespace(  # type: ignore[assignment]
+        accumulate_grad_batches=4,
+        world_size=2,
+        strategy=SimpleNamespace(reduce=lambda value, reduce_op: value * 2),
+    )
+    module.training_token_count = 10
+    optimizer = torch.optim.AdamW(model.parameters())
+    for parameter in model.parameters():
+        parameter.grad = torch.ones_like(parameter)
+
+    module.on_before_optimizer_step(optimizer)
+
+    for parameter in model.parameters():
+        torch.testing.assert_close(parameter.grad, torch.full_like(parameter, 0.4))
+    assert module.training_token_count == 0
 
 
 def test_create_trainer_saves_config_and_full_checkpoint(
