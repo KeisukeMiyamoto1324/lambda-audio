@@ -114,12 +114,19 @@ class ZipformerModel(ZipformerPreTrainedModel):
         features: torch.Tensor,
         padding_mask: torch.Tensor,
     ) -> torch.Tensor:
-        extra = padding_mask.size(1) % features.size(1)
-        if extra > 0:
-            padding_mask = padding_mask[:, :-extra]
-        padding_mask = padding_mask.view(padding_mask.size(0), features.size(1), -1)
-        padding_mask = padding_mask.all(-1)
-        return padding_mask
+        output_lengths = (~padding_mask).sum(dim=-1)
+        for _, kernel_size, stride in self.config.conv_feature_layers:
+            output_lengths = (
+                torch.div(
+                    output_lengths - kernel_size,
+                    stride,
+                    rounding_mode="floor",
+                )
+                + 1
+            )
+
+        positions = torch.arange(features.size(1), device=features.device)
+        return positions.unsqueeze(0) >= output_lengths.unsqueeze(1)
 
     def forward(
         self,
@@ -152,7 +159,11 @@ class ZipformerModel(ZipformerPreTrainedModel):
         # padding_mask: (B, T), bool
         # mask_indices: (B, T), bool
         x = x.transpose(0, 1)
-        x, _ = self.encoder(x, (~padding_mask).sum(dim=-1))
+        x, _ = self.encoder(
+            x,
+            (~padding_mask).sum(dim=-1),
+            src_key_padding_mask=padding_mask,
+        )
         x = x.transpose(0, 1)
 
         return Wav2Vec2BaseModelOutput(

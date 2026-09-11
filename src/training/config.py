@@ -12,7 +12,6 @@ class BaseTrainingConfig(ModelConfig):
     inference_samples_path: FilePath = Path("data/data.parquet")
     max_audio_seconds: PositiveFloat = 30.0
     max_new_tokens: PositiveInt = 256
-    max_text_length: PositiveInt = 256
     shuffle_buffer_size: PositiveInt = 1_000
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 8

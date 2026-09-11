@@ -31,7 +31,6 @@ class LambdaAudioDataModule(L.LightningDataModule):
             feature_extractor,
             tokenizer,
             config.sampling_rate,
-            config.max_text_length,
         )
         self.training_dataset: AudioBatchDataset | None = None
         self.validation_dataset: AudioBatchDataset | None = None

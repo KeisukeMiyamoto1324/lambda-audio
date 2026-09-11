@@ -27,6 +27,7 @@ class AudioAdapter(nn.Module):
         # Compress the audio sequence and change its hidden size.
         # ---------------------------------------------------------
         hidden_states = self.input_norm(hidden_states)
+        hidden_states = hidden_states.masked_fill(padding_mask.unsqueeze(-1), 0.0)
         hidden_states = self.conv(hidden_states.transpose(1, 2)).transpose(1, 2)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.projection(hidden_states)

@@ -9,12 +9,10 @@ class AudioTextCollator:
         feature_extractor: SequenceFeatureExtractor,
         tokenizer: PreTrainedTokenizerBase,
         sampling_rate: int,
-        max_text_length: int,
     ) -> None:
         self.feature_extractor = feature_extractor
         self.tokenizer = tokenizer
         self.sampling_rate = sampling_rate
-        self.max_text_length = max_text_length
 
         if tokenizer.bos_token_id is None or tokenizer.eos_token_id is None:
             raise ValueError("The tokenizer must define BOS and EOS tokens.")
@@ -42,8 +40,6 @@ class AudioTextCollator:
         tokenized = self.tokenizer(
             texts,
             add_special_tokens=False,
-            truncation=True,
-            max_length=self.max_text_length - 2,
         )
         sequences = [[self.tokenizer.bos_token_id, *token_ids, self.tokenizer.eos_token_id] for token_ids in tokenized["input_ids"]]
         text_batch = self.tokenizer.pad(

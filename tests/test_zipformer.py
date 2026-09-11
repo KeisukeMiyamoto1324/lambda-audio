@@ -1,6 +1,6 @@
 import torch
 
-from src.modeling.zipformer import ZipformerConfig, ZipformerForCTC
+from src.modeling.zipformer import ZipformerConfig, ZipformerForCTC, ZipformerModel
 from src.modeling.zipformer.zipformer import CompactRelPositionalEncoding
 
 
@@ -37,3 +37,56 @@ def test_ctc_model_accepts_missing_padding_mask() -> None:
 
     assert output.logits.shape == (1, 15, 12)
     assert torch.isfinite(output.logits).all()
+
+
+def test_padding_mask_uses_convolution_output_lengths() -> None:
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2), (8, 3, 2)),
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+    )
+    model = ZipformerModel(config)
+    features = torch.empty(2, 15, 8)
+    padding_mask = torch.arange(64).unsqueeze(0) >= torch.tensor([[64], [40]])
+
+    output_mask = model.forward_padding_mask(features, padding_mask)
+
+    assert (~output_mask).sum(dim=-1).tolist() == [15, 9]
+
+
+def test_zipformer_output_is_independent_of_padded_audio() -> None:
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2), (8, 3, 2)),
+        extractor_mode="layer_norm",
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+    )
+    model = ZipformerModel(config).eval()
+    padding_mask = torch.arange(64).unsqueeze(0) >= 40
+    input_values = torch.randn(1, 64)
+    changed_input_values = input_values.clone()
+    changed_input_values[:, 40:] = torch.randn(1, 24)
+
+    with torch.inference_mode():
+        output = model(input_values, padding_mask).last_hidden_state
+        changed_output = model(changed_input_values, padding_mask).last_hidden_state
+
+    torch.testing.assert_close(output[:, :9], changed_output[:, :9])

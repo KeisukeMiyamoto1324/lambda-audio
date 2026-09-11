@@ -27,7 +27,7 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
         sampling_rate=16_000,
         return_attention_mask=True,
     )
-    collator = AudioTextCollator(feature_extractor, tokenizer, 16_000, 8)
+    collator = AudioTextCollator(feature_extractor, tokenizer, 16_000)
 
     batch = collator(
         [
@@ -50,3 +50,38 @@ def test_collator_pads_audio_and_masks_text_labels() -> None:
     assert batch["labels"][1, -1].item() == -100
     assert batch["audio_valid_samples"] == 6
     assert batch["audio_padded_samples"] == 8
+
+
+def test_collator_keeps_full_transcription() -> None:
+    backend = Tokenizer(
+        WordLevel(
+            {"<pad>": 0, "<bos>": 1, "<eos>": 2, "<unk>": 3, "test": 4},
+            unk_token="<unk>",
+        )
+    )
+    backend.pre_tokenizer = Whitespace()
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=backend,
+        pad_token="<pad>",
+        bos_token="<bos>",
+        eos_token="<eos>",
+        unk_token="<unk>",
+    )
+    feature_extractor = Wav2Vec2FeatureExtractor(
+        sampling_rate=16_000,
+        return_attention_mask=True,
+    )
+    collator = AudioTextCollator(feature_extractor, tokenizer, 16_000)
+    transcription = " ".join(["test"] * 300)
+
+    batch = collator(
+        [
+            {
+                "audio_array": np.ones(4, dtype=np.float32),
+                "transcription": transcription,
+            }
+        ]
+    )
+
+    assert batch["input_ids"].shape == (1, 302)
+    assert batch["input_ids"][0, -1].item() == tokenizer.eos_token_id
