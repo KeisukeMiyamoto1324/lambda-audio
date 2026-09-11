@@ -16,7 +16,7 @@ class Stage2Config(BaseTrainingConfig):
     backbone_learning_rate: PositiveFloat = 2e-5
     early_stopping_min_delta: NonNegativeFloat = 0.01
 
-    train_max_batch_padded_audio_seconds: PositiveFloat = 900
+    train_max_batch_padded_audio_seconds: PositiveFloat = 850
 
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
 
