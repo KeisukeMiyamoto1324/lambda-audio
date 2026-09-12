@@ -3,6 +3,7 @@ cut-cross-entropy>=25.1.1,<26.0.0
 datasets[audio]>=4.0.0,<5.0.0
 einops>=0.8.0,<1.0.0
 filelock>=3.16.0,<4.0.0
+gradio>=6.27.0,<7.0.0
 huggingface-hub>=0.36.0,<2.0.0
 kernels>=0.16.0,<0.17.0
 lightning>=2.6.0,<3.0.0
