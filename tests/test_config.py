@@ -5,8 +5,15 @@ import pytest
 from pydantic import ValidationError
 
 from src.inference.config import InferenceConfig
+from src.modeling.config import ModelConfig
 from src.stage1.config import Stage1Config
 from src.stage2.config import Stage2Config
+
+
+def test_model_config_uses_lfm_2_5_350m_base_decoder() -> None:
+    config = ModelConfig()
+
+    assert config.decoder_model_id == "LiquidAI/LFM2.5-350M-Base"
 
 
 def test_training_config_validates_positive_values() -> None:

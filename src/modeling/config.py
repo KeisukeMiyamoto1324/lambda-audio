@@ -9,5 +9,5 @@ class ModelConfig(BaseModel):
     )
 
     encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
-    decoder_model_id: str = "LiquidAI/LFM2.5-230M-Base"
+    decoder_model_id: str = "LiquidAI/LFM2.5-350M-Base"
     sampling_rate: PositiveInt = 16_000
