@@ -9,7 +9,7 @@ class Stage1Config(BaseTrainingConfig):
     output_dir: Path = Path("outputs/stage1")
 
     gradient_accumulation_steps: PositiveInt = 2
-    max_steps: PositiveInt = 51200
+    max_steps: PositiveInt = 12800
     learning_rate: PositiveFloat = 5e-4
 
     train_max_batch_padded_audio_seconds: PositiveFloat = 1100
