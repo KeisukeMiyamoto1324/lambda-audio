@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 
 import gradio as gr
+import numpy as np
+import soundfile as sf
 from pydantic import FilePath, PositiveFloat, PositiveInt
 
 from src.environment import load_hf_token
@@ -25,16 +27,25 @@ def create_app(config: AppConfig) -> gr.Blocks:
     components.model.to(device)
     components.model.eval()
 
-    def transcribe_recording(audio_path: str) -> str:
+    def transcribe_recording(audio_path: str) -> tuple[str, str]:
+        # ---------------------------------------------------------
+        # Triple the amplitude and save it for playback and ASR.
+        # ---------------------------------------------------------
+        source_path = Path(audio_path)
+        amplified_path = source_path.with_name(f"{source_path.stem}_amplified.wav")
+        audio_data, sample_rate = sf.read(source_path, dtype="float32")
+        amplified_audio = np.clip(audio_data * 3.0, -1.0, 1.0)
+        sf.write(amplified_path, amplified_audio, sample_rate, subtype="PCM_16")
+
         result = transcribe(
             components.model,
             components.feature_extractor,
             components.tokenizer,
             config,
             device,
-            Path(audio_path).read_bytes(),
+            amplified_path.read_bytes(),
         )
-        return result.text
+        return str(amplified_path), result.text
 
     # ---------------------------------------------------------
     # Transcribe immediately after microphone recording stops.
@@ -51,7 +62,7 @@ def create_app(config: AppConfig) -> gr.Blocks:
         audio.stop_recording(
             fn=transcribe_recording,
             inputs=audio,
-            outputs=output,
+            outputs=[audio, output],
         )
     return app
 
