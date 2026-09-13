@@ -4,7 +4,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskProgressC
 from src.cer.config import CerConfig
 from src.cer.dataset import iterate_test_samples, load_test_samples
 from src.cer.metric import CerMetric
-from src.data.text import normalize_transcription
+from src.cer.text import normalize_cer_text, should_skip_text
 from src.inference.loader import select_device
 from src.inference.transcription import transcribe
 from src.modeling.checkpoint import load_model_checkpoint
@@ -17,7 +17,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     load_model_checkpoint(components.model, config.checkpoint_path)
     components.model.to(device)
     components.model.eval()
-    dataset = load_test_samples(
+    dataset, sample_count = load_test_samples(
         token,
         config.dataset_percentage,
         config.cache_dir,
@@ -30,6 +30,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
         TaskProgressColumn(),
         MofNCompleteColumn(),
         TextColumn("CER: {task.fields[cer]:.2%}"),
+        TextColumn("Skipped: {task.fields[skipped]}"),
         TimeRemainingColumn(),
     )
 
@@ -37,8 +38,14 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     # Accumulate corpus-level errors while showing live CER.
     # ---------------------------------------------------------
     with progress:
-        task_id = progress.add_task("Evaluating", total=len(dataset), cer=0.0)
+        task_id = progress.add_task("Evaluating", total=sample_count, cer=0.0, skipped=0)
+        skipped = 0
         for audio, reference in iterate_test_samples(dataset):
+            if should_skip_text(reference):
+                skipped += 1
+                progress.update(task_id, advance=1, skipped=skipped)
+                continue
+
             result = transcribe(
                 components.model,
                 components.feature_extractor,
@@ -48,8 +55,8 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
                 audio,
             )
             metric.update(
-                normalize_transcription(reference),
-                normalize_transcription(result.text),
+                normalize_cer_text(reference),
+                normalize_cer_text(result.text),
             )
             progress.update(task_id, advance=1, cer=metric.value)
 
