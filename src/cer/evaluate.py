@@ -17,12 +17,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     load_model_checkpoint(components.model, config.checkpoint_path)
     components.model.to(device)
     components.model.eval()
-    dataset, sample_count = load_test_samples(
-        token,
-        config.dataset_percentage,
-        config.cache_dir,
-        config.sampling_rate,
-    )
+    dataset = load_test_samples(config.cache_dir, config.sampling_rate)
     metric = CerMetric()
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -38,7 +33,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     # Accumulate corpus-level errors while showing live CER.
     # ---------------------------------------------------------
     with progress:
-        task_id = progress.add_task("Evaluating", total=sample_count, cer=0.0, skipped=0)
+        task_id = progress.add_task("Evaluating", total=len(dataset), cer=0.0, skipped=0)
         skipped = 0
         for audio, reference in iterate_test_samples(dataset):
             if should_skip_text(reference):
