@@ -54,7 +54,8 @@ def test_load_test_samples_uses_complete_japanese_fleurs_test_split(
 
     dataset = load_test_samples(tmp_path, 16_000)
 
-    assert arguments["args"] == ("google/fleurs", "ja_jp")
+    assert arguments["args"] == ("google/fleurs",)
+    assert arguments["data_files"] == {"test": "parquet-data/ja_jp/test-*.parquet"}
     assert arguments["split"] == "test"
     assert arguments["cache_dir"] == str(tmp_path)
     assert dataset.column_names == ["audio", "transcription"]

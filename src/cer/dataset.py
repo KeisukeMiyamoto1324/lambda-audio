@@ -5,7 +5,7 @@ from typing import Any, cast
 from datasets import Audio, Dataset, load_dataset
 
 DATASET_ID = "google/fleurs"
-DATASET_CONFIG = "ja_jp"
+TEST_DATA_FILES = {"test": "parquet-data/ja_jp/test-*.parquet"}
 
 
 def load_test_samples(
@@ -16,7 +16,7 @@ def load_test_samples(
         Dataset,
         load_dataset(
             DATASET_ID,
-            DATASET_CONFIG,
+            data_files=TEST_DATA_FILES,
             split="test",
             cache_dir=str(cache_dir),
         ),
