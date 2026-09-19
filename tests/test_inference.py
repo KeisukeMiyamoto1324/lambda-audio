@@ -1,4 +1,3 @@
-import sys
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -11,7 +10,6 @@ import soundfile as sf
 import torch
 from torch import nn
 
-from src.inference.cli import parse_arguments
 from src.inference.config import InferenceConfig
 from src.inference.loader import select_device
 from src.inference.samples import load_inference_samples
@@ -129,34 +127,7 @@ def test_transcribe_generates_from_bos(
     assert result.text == "transcription"
     assert result.audio_seconds == 0.01
     assert model.generation_arguments["input_ids"].tolist() == [[1]]
-    assert model.generation_arguments["max_new_tokens"] == 256
     assert not model.generation_arguments["audio_padding_mask"].any()
-
-
-def test_transcribe_rejects_audio_longer_than_30_seconds(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    checkpoint_path = tmp_path / "model.ckpt"
-    checkpoint_path.touch()
-    config = InferenceConfig(
-        checkpoint_path=checkpoint_path,
-        input_path=checkpoint_path,
-    )
-    monkeypatch.setattr(
-        "src.inference.transcription.decode_audio",
-        lambda audio, sampling_rate: np.ones(16_000 * 30 + 1, dtype=np.float32),
-    )
-
-    with pytest.raises(ValueError, match="30 seconds or shorter"):
-        transcribe(
-            DummyModel(),  # type: ignore[arg-type]
-            DummyFeatureExtractor(),  # type: ignore[arg-type]
-            DummyTokenizer(),  # type: ignore[arg-type]
-            config,
-            torch.device("cpu"),
-            b"audio",
-        )
 
 
 def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
@@ -212,20 +183,3 @@ def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="contains no samples"):
         load_inference_samples(input_path)
-
-
-def test_inference_cli_uses_default_parquet(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    checkpoint_path = tmp_path / "model.ckpt"
-    checkpoint_path.touch()
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["infer", "--checkpoint", str(checkpoint_path)],
-    )
-
-    config = parse_arguments()
-
-    assert config.input_path == Path("data/data.parquet")

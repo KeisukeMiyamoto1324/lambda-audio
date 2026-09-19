@@ -1,11 +1,9 @@
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 from datasets import Audio, Dataset
 
-from src.cer.cli import parse_arguments
 from src.cer.dataset import iterate_test_samples, load_test_samples
 from src.cer.metric import CerMetric
 from src.cer.text import normalize_cer_text, should_skip_text
@@ -61,14 +59,3 @@ def test_load_test_samples_uses_complete_japanese_fleurs_test_split(
     assert dataset.column_names == ["audio", "transcription"]
     assert isinstance(dataset.features["audio"], Audio)
     assert list(iterate_test_samples(dataset)) == [(b"audio", "音声")]
-
-
-def test_cer_cli_uses_default_cache_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    checkpoint_path = tmp_path / "model.ckpt"
-    checkpoint_path.touch()
-    monkeypatch.setattr(sys, "argv", ["cer", str(checkpoint_path)])
-
-    config = parse_arguments()
-
-    assert config.checkpoint_path == checkpoint_path
-    assert config.cache_dir == Path("data/cache")

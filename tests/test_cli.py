@@ -7,16 +7,6 @@ from src.stage1.cli import parse_arguments as parse_stage1_arguments
 from src.stage2.cli import parse_arguments as parse_stage2_arguments
 
 
-def test_stage1_cli_uses_config_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["stage1"])
-
-    config = parse_stage1_arguments()
-
-    assert config.output_dir == Path("outputs/stage1")
-    assert config.max_steps == 51_200
-    assert config.gradient_accumulation_steps == 1
-
-
 def test_stage2_cli_accepts_training_batch_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

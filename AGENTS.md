@@ -27,6 +27,7 @@
 
 ## Testing
 - Use pytest for testing your code. Write test code under tests/ directory.
+- Do not write tests that only verify constant values.
 
 ## Code Quality
 

@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint
 from torch import nn
 
 from src.data.types import AudioTextBatch
@@ -61,11 +61,9 @@ def test_stage1_optimizer_uses_one_learning_rate() -> None:
     optimizer_configuration = module.configure_optimizers()
     optimizer = optimizer_configuration["optimizer"]
     learning_rates = {group["initial_lr"] for group in optimizer.param_groups}
-    scheduler = optimizer_configuration["lr_scheduler"]["scheduler"]
 
     assert learning_rates == {config.learning_rate}
     assert optimizer.defaults["fused"] is True
-    assert scheduler.lr_lambdas[0](config.max_steps) == pytest.approx(0.2)
 
 
 def test_stage2_optimizer_uses_separate_learning_rates(tmp_path: Path) -> None:
@@ -187,11 +185,9 @@ def test_create_trainer_saves_config_and_full_checkpoint(
 
     saved_config = json.loads((tmp_path / "training_config.json").read_text(encoding="utf-8"))
     checkpoint = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, ModelCheckpoint))
-    early_stopping = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, EarlyStopping))
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
     assert checkpoint.save_weights_only is False
-    assert abs(early_stopping.min_delta) == 0.01
     assert any(isinstance(callback, ValidationInferenceMonitor) for callback in trainer_arguments["callbacks"])
     progress_bar = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, TrainingProgressBar))
     assert progress_bar.refresh_rate == config.log_steps
