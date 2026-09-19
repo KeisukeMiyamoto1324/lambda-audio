@@ -47,3 +47,4 @@ Keep changes automatically made by Ruff, including changes outside the immediate
 ## Other
 - Please respond in Japanese.
 - ALWAYS make your answer SHORT and CONCISE. 
+- Always use HF_TOKEN in .env when you access Hugging Face.
