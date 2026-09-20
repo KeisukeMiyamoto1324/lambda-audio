@@ -13,7 +13,7 @@ class Stage1Config(BaseTrainingConfig):
     learning_rate: PositiveFloat = 5e-4
     min_learning_rate_ratio: float = Field(default=0.5, ge=0.0, le=1.0)
 
-    train_max_batch_padded_audio_seconds: PositiveFloat = 2800
+    train_max_batch_padded_audio_seconds: PositiveFloat = 1100
 
     validation_max_batch_padded_audio_seconds: PositiveFloat = 700
 
