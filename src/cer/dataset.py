@@ -21,7 +21,7 @@ def load_test_samples(
             cache_dir=str(cache_dir),
         ),
     )
-    dataset = dataset.select_columns(["audio", "transcription"])
+    dataset = dataset.select_columns(["id", "audio", "transcription"])
     dataset = dataset.cast_column(
         "audio",
         Audio(sampling_rate=sampling_rate, decode=False),
@@ -29,7 +29,7 @@ def load_test_samples(
     return dataset
 
 
-def iterate_test_samples(dataset: Dataset) -> Iterator[tuple[bytes, str]]:
+def iterate_test_samples(dataset: Dataset) -> Iterator[tuple[int, bytes, str]]:
     for row in dataset:
         audio = cast(dict[str, Any], row["audio"])
-        yield cast(bytes, audio["bytes"]), cast(str, row["transcription"])
+        yield cast(int, row["id"]), cast(bytes, audio["bytes"]), cast(str, row["transcription"])

@@ -1,3 +1,5 @@
+import csv
+
 import torch
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskProgressColumn, TextColumn, TimeRemainingColumn
 
@@ -19,6 +21,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     components.model.eval()
     dataset = load_test_samples(config.cache_dir, config.sampling_rate)
     metric = CerMetric()
+    config.output_path.parent.mkdir(parents=True, exist_ok=True)
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -32,10 +35,12 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
     # ---------------------------------------------------------
     # Accumulate corpus-level errors while showing live CER.
     # ---------------------------------------------------------
-    with progress:
+    with config.output_path.open("w", newline="", encoding="utf-8") as output, progress:
+        writer = csv.writer(output)
+        writer.writerow(["id", "reference", "prediction", "cer"])
         task_id = progress.add_task("Evaluating", total=len(dataset), cer=0.0, skipped=0)
         skipped = 0
-        for audio, reference in iterate_test_samples(dataset):
+        for sample_id, audio, reference in iterate_test_samples(dataset):
             if should_skip_text(reference):
                 skipped += 1
                 progress.update(task_id, advance=1, skipped=skipped)
@@ -49,10 +54,12 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
                 device,
                 audio,
             )
-            metric.update(
-                normalize_cer_text(reference),
-                normalize_cer_text(result.text),
-            )
+            sample_metric = CerMetric()
+            normalized_reference = normalize_cer_text(reference)
+            normalized_prediction = normalize_cer_text(result.text)
+            sample_metric.update(normalized_reference, normalized_prediction)
+            metric.update(normalized_reference, normalized_prediction)
+            writer.writerow([sample_id, reference, result.text, sample_metric.value])
             progress.update(task_id, advance=1, cer=metric.value)
 
     if device.type == "mps":

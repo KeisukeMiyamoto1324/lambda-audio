@@ -1,10 +1,15 @@
+import csv
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import torch
 from datasets import Audio, Dataset
 
+from src.cer.config import CerConfig
 from src.cer.dataset import iterate_test_samples, load_test_samples
+from src.cer.evaluate import evaluate_cer
 from src.cer.metric import CerMetric
 from src.cer.text import normalize_cer_text, should_skip_text
 
@@ -36,6 +41,7 @@ def test_load_test_samples_uses_complete_japanese_fleurs_test_split(
 ) -> None:
     source = Dataset.from_dict(
         {
+            "id": [42],
             "audio": [{"bytes": b"audio", "path": "audio.flac"}],
             "transcription": ["音声"],
             "unused": [1],
@@ -56,6 +62,27 @@ def test_load_test_samples_uses_complete_japanese_fleurs_test_split(
     assert arguments["data_files"] == {"test": "parquet-data/ja_jp/test-*.parquet"}
     assert arguments["split"] == "test"
     assert arguments["cache_dir"] == str(tmp_path)
-    assert dataset.column_names == ["audio", "transcription"]
+    assert dataset.column_names == ["id", "audio", "transcription"]
     assert isinstance(dataset.features["audio"], Audio)
-    assert list(iterate_test_samples(dataset)) == [(b"audio", "音声")]
+    assert list(iterate_test_samples(dataset)) == [(42, b"audio", "音声")]
+
+
+def test_evaluate_cer_writes_sample_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    checkpoint = tmp_path / "model.ckpt"
+    checkpoint.touch()
+    output = tmp_path / "results" / "cer.csv"
+    config = CerConfig(checkpoint_path=checkpoint, output_path=output)
+    model = SimpleNamespace(to=lambda device: None, eval=lambda: None)
+    monkeypatch.setattr("src.cer.evaluate.select_device", lambda: torch.device("cpu"))
+    monkeypatch.setattr("src.cer.evaluate.load_model_components", lambda config, token: SimpleNamespace(model=model, feature_extractor=None, tokenizer=None))
+    monkeypatch.setattr("src.cer.evaluate.load_model_checkpoint", lambda model, checkpoint: None)
+    monkeypatch.setattr("src.cer.evaluate.load_test_samples", lambda cache_dir, sampling_rate: [None, None])
+    monkeypatch.setattr("src.cer.evaluate.iterate_test_samples", lambda dataset: iter([(7, b"audio", "「日本語。」"), (8, b"audio", "12345678")]))
+    monkeypatch.setattr("src.cer.evaluate.transcribe", lambda *args: SimpleNamespace(text="日本", audio_seconds=1.0))
+
+    metric = evaluate_cer(config, "token")
+
+    with output.open(newline="", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    assert rows == [{"id": "7", "reference": "「日本語。」", "prediction": "日本", "cer": str(1 / 3)}]
+    assert metric.value == 1 / 3
