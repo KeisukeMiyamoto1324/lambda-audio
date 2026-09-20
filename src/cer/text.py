@@ -7,11 +7,11 @@ JAPANESE_MARKS = "々〆〇"
 
 def normalize_cer_text(text: str) -> str:
     normalized = normalize_transcription(text)
-    return "".join(character for character in normalized if not category(character).startswith("P"))
+    return "".join(character for character in normalized if not character.isspace() and not category(character).startswith("P"))
 
 
 def should_skip_text(text: str) -> bool:
-    characters = [character for character in normalize_cer_text(text) if not character.isspace()]
+    characters = normalize_cer_text(text)
     if not characters:
         return True
 
