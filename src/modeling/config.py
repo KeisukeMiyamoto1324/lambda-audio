@@ -8,6 +8,6 @@ class ModelConfig(BaseModel):
         extra="forbid",
     )
 
-    encoder_model_id: str = "reazon-research/japanese-zipformer-base-k2"
+    encoder_model_id: str = "KeisukeMiyamoto/zipformer-cpt"
     decoder_model_id: str = "KeisukeMiyamoto/lfm2.5-230m-cpt"
     sampling_rate: PositiveInt = 16_000
