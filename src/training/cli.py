@@ -3,11 +3,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from src.stage1.config import Stage1Config
+from src.training.config import TrainingConfig
 
 
-def parse_arguments() -> Stage1Config:
-    defaults = Stage1Config()
+def parse_arguments() -> TrainingConfig:
+    defaults = TrainingConfig()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=defaults.output_dir)
     parser.add_argument(
@@ -64,11 +64,21 @@ def parse_arguments() -> Stage1Config:
         default=defaults.early_stopping_min_delta,
     )
     parser.add_argument(
-        "--learning-rate",
+        "--unfreeze-step",
+        type=int,
+        default=defaults.unfreeze_step,
+    )
+    parser.add_argument(
+        "--adapter-learning-rate",
         type=float,
-        default=defaults.learning_rate,
+        default=defaults.adapter_learning_rate,
+    )
+    parser.add_argument(
+        "--backbone-learning-rate",
+        type=float,
+        default=defaults.backbone_learning_rate,
     )
     try:
-        return Stage1Config.model_validate(vars(parser.parse_args()))
+        return TrainingConfig.model_validate(vars(parser.parse_args()))
     except ValidationError as error:
         parser.error(str(error))

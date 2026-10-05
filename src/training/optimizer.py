@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Any
 
 import torch
@@ -6,20 +5,16 @@ from torch.optim import AdamW
 from transformers import get_cosine_with_min_lr_schedule_with_warmup
 
 from src.modeling.lambda_audio import LambdaAudioModel
-from src.training.config import BaseTrainingConfig
+from src.training.config import TrainingConfig
 
 
 def create_optimizer_configuration(
     model: LambdaAudioModel,
-    config: BaseTrainingConfig,
-    learning_rate: Callable[[str], float],
+    config: TrainingConfig,
 ) -> dict[str, Any]:
     parameter_groups: dict[tuple[float, float], list[torch.nn.Parameter]] = {}
     for name, parameter in model.named_parameters():
-        if not parameter.requires_grad:
-            continue
-
-        rate = learning_rate(name)
+        rate = config.adapter_learning_rate if name.startswith("adapter.") or ".cross_attention." in name else config.backbone_learning_rate
         weight_decay = config.weight_decay if parameter.ndim >= 2 else 0.0
         parameter_groups.setdefault((rate, weight_decay), []).append(parameter)
 

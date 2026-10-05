@@ -1,12 +1,13 @@
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field, FilePath, NonNegativeFloat, PositiveFloat, PositiveInt
+from pydantic import Field, FilePath, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
 
 from src.modeling.config import ModelConfig
 
 
-class BaseTrainingConfig(ModelConfig):
-    output_dir: Path
+class TrainingConfig(ModelConfig):
+    output_dir: Path = Path("outputs/training")
     resume_checkpoint: FilePath | None = None
     dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus")
     inference_samples_path: FilePath = Path("data/data.parquet")
@@ -15,11 +16,14 @@ class BaseTrainingConfig(ModelConfig):
     shuffle_buffer_size: PositiveInt = 1_000
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 8
-    prefetch_factor: PositiveInt = 2
-    train_max_batch_padded_audio_seconds: PositiveFloat = 1_400.0
-    validation_max_batch_padded_audio_seconds: PositiveFloat = 120.0
-    gradient_accumulation_steps: PositiveInt = 8
-    max_steps: PositiveInt = 10_000
+    prefetch_factor: PositiveInt = 4
+    train_max_batch_padded_audio_seconds: PositiveFloat = 800.0
+    validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
+    gradient_accumulation_steps: PositiveInt = 3
+    max_steps: PositiveInt = 64_000
+    unfreeze_step: NonNegativeInt = 12_800
+    adapter_learning_rate: PositiveFloat = 5e-5
+    backbone_learning_rate: PositiveFloat = 5e-5
     warmup_steps: PositiveInt = 2000
     min_learning_rate_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
     weight_decay: NonNegativeFloat = 0.01
@@ -30,3 +34,9 @@ class BaseTrainingConfig(ModelConfig):
     early_stopping_patience: PositiveInt = 5
     early_stopping_min_delta: NonNegativeFloat = 0.01
     seed: int = Field(default=42, ge=0)
+
+    @model_validator(mode="after")
+    def validate_unfreeze_step(self) -> Self:
+        if self.unfreeze_step >= self.max_steps:
+            raise ValueError("unfreeze_step must be less than max_steps.")
+        return self

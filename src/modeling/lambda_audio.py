@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Self
 
 import torch
 from torch import nn
@@ -18,6 +18,7 @@ class LambdaAudioModel(nn.Module):
         encoder_hidden_size: int = 768,
     ) -> None:
         super().__init__()
+        self.backbones_trainable = True
         self.encoder = encoder
         self.decoder = decoder
         self.adapter = AudioAdapter(encoder_hidden_size, decoder.config.hidden_size)
@@ -91,20 +92,22 @@ class LambdaAudioModel(nn.Module):
 
     def set_backbones_trainable(self, trainable: bool) -> None:
         # ---------------------------------------------------------
-        # Freeze pretrained weights and their stochastic layers.
+        # Keep audio conditioning trainable while freezing pretrained weights.
         # ---------------------------------------------------------
-        self.encoder.requires_grad_(trainable)
-        self.decoder.requires_grad_(trainable)
+        self.backbones_trainable = trainable
+        self.requires_grad_(trainable)
         self.adapter.requires_grad_(True)
-
-        if trainable:
-            self.train()
-            return
-
-        self.encoder.eval()
-        self.decoder.eval()
-        self.adapter.train()
         for module in self.decoder.modules():
             if isinstance(module, GatedCrossAttention):
                 module.requires_grad_(True)
-                module.train()
+        self.train(self.training)
+
+    def train(self, mode: bool = True) -> Self:
+        super().train(mode)
+        if mode and not self.backbones_trainable:
+            self.encoder.eval()
+            self.decoder.eval()
+            for module in self.decoder.modules():
+                if isinstance(module, GatedCrossAttention):
+                    module.train()
+        return self

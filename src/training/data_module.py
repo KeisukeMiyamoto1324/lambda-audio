@@ -13,7 +13,7 @@ from src.data.lambda_audio_dataset import (
     load_lambda_audio_dataset,
     prepare_validation_dataset,
 )
-from src.training.config import BaseTrainingConfig
+from src.training.config import TrainingConfig
 
 
 class LambdaAudioDataModule(L.LightningDataModule):
@@ -21,7 +21,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self,
         feature_extractor: SequenceFeatureExtractor,
         tokenizer: PreTrainedTokenizerBase,
-        config: BaseTrainingConfig,
+        config: TrainingConfig,
         token: str,
     ) -> None:
         super().__init__()

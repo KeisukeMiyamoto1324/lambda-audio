@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import Any
 
 import lightning as L
 import torch
@@ -6,21 +6,26 @@ import torch
 from src.data.types import AudioTextBatch
 from src.modeling.lambda_audio import LambdaAudioModel
 from src.modeling.zipformer.scaling import ScheduledFloat
-from src.training.config import BaseTrainingConfig
+from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
+from src.training.optimizer import create_optimizer_configuration
 
-TrainingConfigT = TypeVar("TrainingConfigT", bound=BaseTrainingConfig)
 
-
-class BaseLambdaAudioLightningModule(
-    L.LightningModule,
-    Generic[TrainingConfigT],
-):
-    def __init__(self, model: LambdaAudioModel, config: TrainingConfigT) -> None:
+class LambdaAudioLightningModule(L.LightningModule):
+    def __init__(self, model: LambdaAudioModel, config: TrainingConfig) -> None:
         super().__init__()
         self.model = model
         self.config = config
         self.training_token_count = 0
+
+    def configure_optimizers(self) -> dict[str, Any]:
+        return create_optimizer_configuration(self.model, self.config)
+
+    def on_train_start(self) -> None:
+        # ---------------------------------------------------------
+        # Freeze only after DDP registers all weights and restores the step.
+        # ---------------------------------------------------------
+        self.model.set_backbones_trainable(self.global_step >= self.config.unfreeze_step)
 
     def training_step(
         self,
@@ -72,8 +77,11 @@ class BaseLambdaAudioLightningModule(
         batch_idx: int,
     ) -> None:
         # ---------------------------------------------------------
-        # Advance the numerical schedules used inside Zipformer.
+        # Unfreeze at an optimizer boundary and advance encoder schedules.
         # ---------------------------------------------------------
+        if not self.model.backbones_trainable and self.global_step >= self.config.unfreeze_step:
+            self.model.set_backbones_trainable(True)
+
         for name, module in self.model.encoder.named_modules():
             if isinstance(module, ScheduledFloat):
                 module.batch_count = self.global_step

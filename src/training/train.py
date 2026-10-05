@@ -1,9 +1,9 @@
 from src.environment import load_hf_token
 from src.modeling.lfm2_decoder import enable_causal_convolution_kernels
 from src.modeling.loading import load_model_components
-from src.stage1.cli import parse_arguments
-from src.stage1.training import Stage1LightningModule
+from src.training.cli import parse_arguments
 from src.training.data_module import LambdaAudioDataModule
+from src.training.lightning import LambdaAudioLightningModule
 from src.training.trainer import configure_training_environment, create_trainer
 
 
@@ -14,10 +14,9 @@ def main() -> None:
     enable_causal_convolution_kernels()
     components = load_model_components(config, token)
     model = components.model
-    model.set_backbones_trainable(False)
     model.decoder.config.use_cache = False
 
-    lightning_model = Stage1LightningModule(model, config)
+    lightning_model = LambdaAudioLightningModule(model, config)
     data_module = LambdaAudioDataModule(
         components.feature_extractor,
         components.tokenizer,

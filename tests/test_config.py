@@ -5,42 +5,36 @@ import pytest
 from pydantic import ValidationError
 
 from src.inference.config import InferenceConfig
-from src.stage1.config import Stage1Config
-from src.stage2.config import Stage2Config
+from src.training.config import TrainingConfig
 
 
 def test_training_config_validates_positive_values() -> None:
     with pytest.raises(ValidationError):
-        Stage1Config(num_workers=0)
+        TrainingConfig(num_workers=0)
 
     with pytest.raises(ValidationError):
-        Stage1Config(min_learning_rate_ratio=1.1)
+        TrainingConfig(min_learning_rate_ratio=1.1)
 
 
 def test_training_config_is_frozen() -> None:
-    config = Stage1Config()
+    config = TrainingConfig()
 
     with pytest.raises(ValidationError):
         config.max_steps = 1  # type: ignore[misc]
 
 
-def test_stage2_config_validates_checkpoint_path(tmp_path: Path) -> None:
+@pytest.mark.parametrize("unfreeze_step", [-1, 10, 11])
+def test_training_config_rejects_invalid_unfreeze_step(unfreeze_step: int) -> None:
     with pytest.raises(ValidationError):
-        Stage2Config(initialization_checkpoint=tmp_path / "missing.ckpt")
+        TrainingConfig(max_steps=10, unfreeze_step=unfreeze_step)
 
 
-def test_stage2_resume_does_not_require_initialization_checkpoint(
-    tmp_path: Path,
-) -> None:
-    resume_checkpoint = tmp_path / "last.ckpt"
-    resume_checkpoint.touch()
-
-    config = Stage2Config(
-        initialization_checkpoint=tmp_path / "missing.ckpt",
-        resume_checkpoint=resume_checkpoint,
-    )
-
-    assert config.resume_checkpoint == resume_checkpoint
+def test_resume_validates_checkpoint_path(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError):
+        TrainingConfig(resume_checkpoint=tmp_path / "missing.ckpt")
+    checkpoint = tmp_path / "last.ckpt"
+    checkpoint.touch()
+    assert TrainingConfig(resume_checkpoint=checkpoint).resume_checkpoint == checkpoint
 
 
 def test_inference_config_validates_paths(tmp_path: Path) -> None:

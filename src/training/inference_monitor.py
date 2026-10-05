@@ -6,9 +6,9 @@ from rich.table import Table
 
 from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
-from src.training.config import BaseTrainingConfig
+from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
-from src.training.lightning import BaseLambdaAudioLightningModule
+from src.training.lightning import LambdaAudioLightningModule
 from src.training.performance import TrainingProgressBar
 from src.training.text_diff import create_text_diff
 
@@ -16,7 +16,7 @@ from src.training.text_diff import create_text_diff
 class ValidationInferenceMonitor(L.Callback):
     def __init__(
         self,
-        config: BaseTrainingConfig,
+        config: TrainingConfig,
         progress_bar: TrainingProgressBar,
     ) -> None:
         self.config = config
@@ -28,8 +28,8 @@ class ValidationInferenceMonitor(L.Callback):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
     ) -> None:
-        if not isinstance(pl_module, BaseLambdaAudioLightningModule):
-            raise TypeError("BaseLambdaAudioLightningModule is required.")
+        if not isinstance(pl_module, LambdaAudioLightningModule):
+            raise TypeError("LambdaAudioLightningModule is required.")
 
         if trainer.is_global_zero:
             self._run_inference(trainer, pl_module)
@@ -38,7 +38,7 @@ class ValidationInferenceMonitor(L.Callback):
     def _run_inference(
         self,
         trainer: L.Trainer,
-        pl_module: BaseLambdaAudioLightningModule[BaseTrainingConfig],
+        pl_module: LambdaAudioLightningModule,
     ) -> None:
         data_module = trainer.datamodule
         if not isinstance(data_module, LambdaAudioDataModule):

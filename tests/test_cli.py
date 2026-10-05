@@ -3,43 +3,37 @@ from pathlib import Path
 
 import pytest
 
-from src.stage1.cli import parse_arguments as parse_stage1_arguments
-from src.stage2.cli import parse_arguments as parse_stage2_arguments
+from src.training.cli import parse_arguments
 
 
-def test_stage2_cli_accepts_training_batch_limit(
+def test_training_cli_accepts_training_batch_limit(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
-    checkpoint_path = tmp_path / "model.ckpt"
-    checkpoint_path.touch()
     monkeypatch.setattr(
         sys,
         "argv",
         [
-            "stage2",
-            "--initialization-checkpoint",
-            str(checkpoint_path),
+            "training",
             "--train-max-batch-padded-audio-seconds",
             "800",
         ],
     )
 
-    config = parse_stage2_arguments()
+    config = parse_arguments()
 
     assert config.train_max_batch_padded_audio_seconds == 800
 
 
-def test_stage1_cli_reports_pydantic_error(
+def test_training_cli_reports_pydantic_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(sys, "argv", ["stage1", "--num-workers", "0"])
+    monkeypatch.setattr(sys, "argv", ["training", "--num-workers", "0"])
 
     with pytest.raises(SystemExit):
-        parse_stage1_arguments()
+        parse_arguments()
 
 
-def test_stage1_cli_accepts_resume_checkpoint(
+def test_training_cli_accepts_resume_checkpoint(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -48,26 +42,16 @@ def test_stage1_cli_accepts_resume_checkpoint(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["stage1", "--resume-checkpoint", str(checkpoint_path)],
+        ["training", "--resume-checkpoint", str(checkpoint_path)],
     )
 
-    config = parse_stage1_arguments()
+    config = parse_arguments()
 
     assert config.resume_checkpoint == checkpoint_path
 
 
-def test_stage2_cli_accepts_resume_checkpoint(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    checkpoint_path = tmp_path / "last.ckpt"
-    checkpoint_path.touch()
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["stage2", "--resume-checkpoint", str(checkpoint_path)],
-    )
-
-    config = parse_stage2_arguments()
-
-    assert config.resume_checkpoint == checkpoint_path
+def test_cli_accepts_unfreeze_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["training", "--unfreeze-step", "0", "--max-steps", "10"])
+    config = parse_arguments()
+    assert config.unfreeze_step == 0
+    assert config.max_steps == 10

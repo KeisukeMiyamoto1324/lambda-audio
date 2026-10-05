@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 from src.modeling.zipformer import ZipformerConfig, ZipformerForCTC, ZipformerModel
+from src.modeling.zipformer.scaling import softmax
 from src.modeling.zipformer.zipformer import CompactRelPositionalEncoding
 
 
@@ -154,3 +156,46 @@ def test_group_norm_ignores_batch_padding() -> None:
         actual = model.feature_extractor(padded_input_values, padding_mask)
 
     torch.testing.assert_close(actual[:, :, : expected.shape[-1]], expected)
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32])
+def test_softmax_backward_is_finite_and_matches_float32(dtype: torch.dtype) -> None:
+    values = torch.tensor([[1000.0, 1000.0, -1000.0], [0.0, 0.5, -0.5]], dtype=dtype, requires_grad=True)
+    gradient = torch.tensor([[10000.0, -10000.0, 0.0], [10000.0, 5000.0, -10000.0]], dtype=dtype)
+    reference = values.detach().float().requires_grad_()
+    output = softmax(values, dim=-1)
+    output.backward(gradient)
+    reference.softmax(dim=-1).backward(gradient.float())
+    assert torch.isfinite(output).all()
+    assert values.grad is not None
+    assert reference.grad is not None
+    assert torch.isfinite(values.grad).all()
+    torch.testing.assert_close(values.grad.float(), reference.grad, rtol=0.015, atol=2.0)
+
+
+def test_trainable_zipformer_backward_is_finite() -> None:
+    torch.manual_seed(42)
+    config = ZipformerConfig(
+        conv_feature_layers=((8, 3, 2),),
+        extractor_mode="layer_norm",
+        encoder_dim=(8,),
+        downsampling_factor=(1,),
+        num_encoder_layers=(1,),
+        encoder_unmasked_dim=(8,),
+        query_head_dim=2,
+        pos_head_dim=2,
+        value_head_dim=2,
+        pos_dim=4,
+        num_heads=(2,),
+        feedforward_dim=(16,),
+        cnn_module_kernel=(3,),
+    )
+    model = ZipformerModel(config).train()
+    output = model(torch.randn(2, 64), torch.zeros(2, 64, dtype=torch.bool)).last_hidden_state
+    loss = output.square().mean()
+    loss.backward()
+    gradients = {name: parameter.grad for name, parameter in model.named_parameters() if parameter.grad is not None}
+    assert torch.isfinite(loss)
+    assert any(name.startswith("feature_extractor.") for name in gradients)
+    assert any(name.startswith("encoder.") for name in gradients)
+    assert all(torch.isfinite(gradient).all() for gradient in gradients.values())

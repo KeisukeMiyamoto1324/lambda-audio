@@ -2,21 +2,22 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from huggingface_hub import snapshot_download
+from huggingface_hub import HfApi
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOTENV_PATH = PROJECT_ROOT / ".env"
-OUTPUT_DIR = PROJECT_ROOT / "outputs/stage2"
+OUTPUT_DIR = PROJECT_ROOT / "outputs/training"
 
 
 def main() -> None:
     load_dotenv(dotenv_path=DOTENV_PATH, override=True)
-    snapshot_download(
-        repo_id=os.environ["HF_STAGE2_REPO"],
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    api.upload_folder(
+        repo_id=os.environ["HF_MODEL_REPO"],
+        folder_path=OUTPUT_DIR,
         repo_type="model",
-        local_dir=OUTPUT_DIR,
-        token=os.environ["HF_TOKEN"],
         allow_patterns=["model.ckpt", "logs/**/metrics.csv"],
+        commit_message="Upload training artifacts",
     )
 
 

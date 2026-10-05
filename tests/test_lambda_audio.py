@@ -100,7 +100,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
     assert loss_arguments["impl"] == "cce"
 
     # ---------------------------------------------------------
-    # Check generation and the first training stage settings.
+    # Check generation with pretrained weights frozen.
     # ---------------------------------------------------------
     model.set_backbones_trainable(False)
     generated_ids = model.generate(

@@ -4,12 +4,20 @@ import lightning as L
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.strategies import DDPStrategy
 from lightning.pytorch.utilities.warnings import PossibleUserWarning
 
 from src.environment import configure_cuda_allocator
-from src.training.config import BaseTrainingConfig
+from src.training.config import TrainingConfig
 from src.training.inference_monitor import ValidationInferenceMonitor
 from src.training.performance import TrainingPerformanceMonitor, TrainingProgressBar
+
+
+class TrainingEarlyStopping(EarlyStopping):
+    def on_validation_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
+        if trainer.global_step <= pl_module.config.unfreeze_step:
+            return
+        super().on_validation_end(trainer, pl_module)
 
 
 def configure_training_environment(seed: int) -> None:
@@ -36,7 +44,7 @@ def configure_training_environment(seed: int) -> None:
     L.seed_everything(seed, workers=True)
 
 
-def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
+def create_trainer(config: TrainingConfig) -> L.Trainer:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     (config.output_dir / "training_config.json").write_text(
         f"{config.model_dump_json(indent=2)}\n",
@@ -54,10 +62,11 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
         save_on_train_epoch_end=False,
         enable_version_counter=False,
     )
-    early_stopping = EarlyStopping(
+    early_stopping = TrainingEarlyStopping(
         monitor="validation_loss",
         mode="min",
         patience=config.early_stopping_patience,
+        check_on_train_epoch_end=False,
         min_delta=config.early_stopping_min_delta,
     )
     progress_bar = TrainingProgressBar(refresh_rate=config.log_steps)
@@ -71,7 +80,7 @@ def create_trainer(config: BaseTrainingConfig) -> L.Trainer:
     return L.Trainer(
         accelerator="gpu",
         devices="auto",
-        strategy="auto",
+        strategy=DDPStrategy(find_unused_parameters=True) if torch.cuda.device_count() > 1 else "auto",
         precision="bf16-mixed",
         max_epochs=-1,
         max_steps=config.max_steps,
