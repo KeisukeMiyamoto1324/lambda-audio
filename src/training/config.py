@@ -25,7 +25,7 @@ class TrainingConfig(ModelConfig):
     # Data loading, batching, and gradient accumulation.
     # ---------------------------------------------------------
     bucket_buffer_size: PositiveInt = 512
-    num_workers: PositiveInt = 8
+    num_workers: PositiveInt = 12
     prefetch_factor: PositiveInt = 4
     train_max_batch_padded_audio_seconds: PositiveFloat = 800.0
     validation_max_batch_padded_audio_seconds: PositiveFloat = 750.0
