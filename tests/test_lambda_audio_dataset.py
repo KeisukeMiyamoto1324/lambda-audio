@@ -6,6 +6,7 @@ from typing import Any, cast
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 import soundfile as sf
 from datasets import Dataset, IterableDataset
 from pytest import MonkeyPatch
@@ -14,7 +15,7 @@ from src.data.lambda_audio_dataset import (
     DATASET_ID,
     LambdaAudioDataset,
     TrainLambdaAudioDataset,
-    list_train_shard_files,
+    list_shard_files,
     list_validation_cache_files,
     load_lambda_audio_dataset,
     prepare_validation_dataset,
@@ -85,8 +86,8 @@ def test_load_training_dataset_uses_local_shards(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "src.data.lambda_audio_dataset.list_train_shard_files",
-        lambda token: ["train/part-000000.parquet"],
+        "src.data.lambda_audio_dataset.list_shard_files",
+        lambda token, split: ["train/part-000000.parquet"],
     )
 
     dataset = load_lambda_audio_dataset(
@@ -106,8 +107,10 @@ def test_load_training_dataset_uses_local_shards(
     assert dataset.world_size == 4
 
 
+@pytest.mark.parametrize("consume_all", [False, True])
 def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
     monkeypatch: MonkeyPatch,
+    consume_all: bool,
 ) -> None:
     audio_file = BytesIO()
     sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
@@ -125,7 +128,7 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
         assert repo_type == "dataset"
         assert token == "token"
         path = local_dir / filename
-        path.parent.mkdir(parents=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         table = pa.Table.from_pylist(
             [
                 {
@@ -138,7 +141,7 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
                 },
                 {
                     "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
-                    "text": " 音声 ",
+                    "text": " 続き ",
                 },
             ]
         )
@@ -152,7 +155,7 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
     )
     dataset = TrainLambdaAudioDataset(
         "token",
-        ["train/part-000000.parquet"],
+        ["train/part-000000.parquet", "train/part-000001.parquet"],
         16_000,
         42,
         0,
@@ -161,6 +164,9 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
 
     iterator = iter(dataset)
     example = next(iterator)
+    if consume_all:
+        remaining = list(iterator)
+        assert [item["transcription"] for item in remaining] == ["続き", "音声", "続き"]
     iterator.close()
 
     assert example["transcription"] == "音声"
@@ -169,7 +175,8 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
         np.array([0.25, -0.5], dtype=np.float32),
         atol=1e-4,
     )
-    assert all(not path.exists() for path in downloaded_paths)
+    assert len(downloaded_paths) == 2
+    assert all(not path.parent.parent.exists() for path in downloaded_paths)
 
 
 def test_validation_dataset_uses_cached_ten_percent(
@@ -275,9 +282,72 @@ def test_training_shards_select_only_train_parquet_files(
         lambda token: FakeApi(),
     )
 
-    files = list_train_shard_files("token")
+    files = list_shard_files("token", "train")
 
     assert files == [
         "train/part-000000.parquet",
         "train/part-000001.parquet",
     ]
+
+
+@pytest.mark.parametrize("sampling_rate, channels", [(8_000, 1), (16_000, 2)])
+def test_dataset_skips_unsupported_audio_format(sampling_rate: int, channels: int) -> None:
+    audio_file = BytesIO()
+    sf.write(audio_file, np.zeros((32, channels)), sampling_rate, format="FLAC")
+    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, "text": "音声"}])
+    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
+
+    assert list(dataset) == []
+
+
+@pytest.mark.parametrize("fail_download", [False, True])
+def test_training_dataset_cleans_up_after_shard_failure(monkeypatch: MonkeyPatch, fail_download: bool) -> None:
+    directories: list[Path] = []
+
+    def download_stub(self: TrainLambdaAudioDataset, shard_file: str, directory: Path) -> Path:
+        directories.append(directory)
+        if fail_download:
+            raise OSError("Download failed")
+        path = directory / "invalid.parquet"
+        path.write_bytes(b"invalid parquet")
+        return path
+
+    monkeypatch.setattr(TrainLambdaAudioDataset, "_download_shard", download_stub)
+    dataset = TrainLambdaAudioDataset("token", ["train/part.parquet"], 16_000, 42, 0, 1)
+    with pytest.raises((OSError, pa.ArrowInvalid)):
+        list(dataset)
+
+    assert len(directories) == 1
+    assert not directories[0].exists()
+
+
+def test_training_workers_partition_shards_and_change_order_each_epoch(monkeypatch: MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    from src.data.types import TranscribedAudioExample
+
+    def download_stub(self: TrainLambdaAudioDataset, shard_file: str, directory: Path) -> Path:
+        return directory / shard_file
+
+    def read_stub(self: TrainLambdaAudioDataset, shard_path: Path) -> Iterator[TranscribedAudioExample]:
+        yield {"audio_array": np.zeros(1, dtype=np.float32), "transcription": shard_path.name}
+
+    monkeypatch.setattr(TrainLambdaAudioDataset, "_download_shard", download_stub)
+    monkeypatch.setattr(TrainLambdaAudioDataset, "_read_shard", read_stub)
+    shards = [f"part-{index}.parquet" for index in range(11)]
+    orders: list[list[str]] = []
+    for epoch in (0, 0, 1):
+        observed: list[str] = []
+        for rank in range(2):
+            dataset = TrainLambdaAudioDataset("token", shards, 16_000, 42, rank, 2)
+            dataset.set_epoch(epoch)
+            for worker_id in range(2):
+                worker = SimpleNamespace(id=worker_id, num_workers=2)
+                monkeypatch.setattr("src.data.lambda_audio_dataset.get_worker_info", lambda: worker)
+                observed.extend(example["transcription"] for example in dataset)
+        assert sorted(observed) == sorted(shards)
+        orders.append(observed)
+
+    assert orders[0] == orders[1]
+    assert orders[0] != orders[2]
+    assert shards == [f"part-{index}.parquet" for index in range(11)]
