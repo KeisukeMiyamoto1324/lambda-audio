@@ -11,7 +11,7 @@ def main() -> None:
     config = parse_arguments()
     if config.output_dir.exists():
         raise FileExistsError(f"Training output directory already exists: {config.output_dir}")
-    
+
     configure_training_environment(config.seed)
     token = load_hf_token()
     enable_causal_convolution_kernels()
