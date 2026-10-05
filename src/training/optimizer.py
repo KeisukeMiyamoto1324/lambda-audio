@@ -12,6 +12,9 @@ def create_optimizer_configuration(
     model: LambdaAudioModel,
     config: TrainingConfig,
 ) -> dict[str, Any]:
+    # ---------------------------------------------------------
+    # Group parameters by learning rate and weight decay policy.
+    # ---------------------------------------------------------
     parameter_groups: dict[tuple[float, float], list[torch.nn.Parameter]] = {}
     for name, parameter in model.named_parameters():
         rate = config.adapter_learning_rate if name.startswith("adapter.") or ".cross_attention." in name else config.backbone_learning_rate
@@ -26,6 +29,10 @@ def create_optimizer_configuration(
         }
         for (rate, weight_decay), parameters in parameter_groups.items()
     ]
+    
+    # ---------------------------------------------------------
+    # Create AdamW and its warmup cosine learning-rate schedule.
+    # ---------------------------------------------------------
     optimizer = AdamW(groups, betas=(0.9, 0.95), fused=True)
     scheduler = get_cosine_with_min_lr_schedule_with_warmup(
         optimizer,

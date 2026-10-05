@@ -15,12 +15,18 @@ from src.training.performance import TrainingPerformanceMonitor, TrainingProgres
 
 class TrainingEarlyStopping(EarlyStopping):
     def on_validation_end(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
+        # ---------------------------------------------------------
+        # Delay early stopping until backbone weights are unfrozen.
+        # ---------------------------------------------------------
         if trainer.global_step <= pl_module.config.unfreeze_step:
             return
         super().on_validation_end(trainer, pl_module)
 
 
 def configure_training_environment(seed: int) -> None:
+    # ---------------------------------------------------------
+    # Check accelerator support and configure reproducible execution.
+    # ---------------------------------------------------------
     configure_cuda_allocator()
     if not torch.cuda.is_available():
         raise RuntimeError("Training requires an NVIDIA CUDA GPU.")
@@ -45,11 +51,18 @@ def configure_training_environment(seed: int) -> None:
 
 
 def create_trainer(config: TrainingConfig) -> L.Trainer:
+    # ---------------------------------------------------------
+    # Create the output folder and save the resolved configuration.
+    # ---------------------------------------------------------
     config.output_dir.mkdir(parents=True, exist_ok=False)
     (config.output_dir / "training_config.json").write_text(
         f"{config.model_dump_json(indent=2)}\n",
         encoding="utf-8",
     )
+    
+    # ---------------------------------------------------------
+    # Configure checkpointing, stopping, progress, and monitoring.
+    # ---------------------------------------------------------
     checkpoint = ModelCheckpoint(
         dirpath=config.output_dir,
         filename="model",
@@ -77,6 +90,10 @@ def create_trainer(config: TrainingConfig) -> L.Trainer:
         progress_bar,
         ValidationInferenceMonitor(config, progress_bar),
     ]
+    
+    # ---------------------------------------------------------
+    # Assemble the trainer with distributed, precision, and logging options.
+    # ---------------------------------------------------------
     return L.Trainer(
         accelerator="gpu",
         devices="auto",

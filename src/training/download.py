@@ -10,6 +10,9 @@ OUTPUT_DIR = PROJECT_ROOT / "outputs/training"
 
 
 def main() -> None:
+    # ---------------------------------------------------------
+    # Load credentials and fetch the selected training artifacts.
+    # ---------------------------------------------------------
     load_dotenv(dotenv_path=DOTENV_PATH, override=True)
     snapshot_download(
         repo_id=os.environ["HF_MODEL_REPO"],

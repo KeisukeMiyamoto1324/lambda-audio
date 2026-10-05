@@ -7,6 +7,9 @@ from src.training.config import TrainingConfig
 
 
 def parse_arguments() -> TrainingConfig:
+    # ---------------------------------------------------------
+    # Build the command-line options from the configuration defaults.
+    # ---------------------------------------------------------
     defaults = TrainingConfig()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=defaults.output_dir)
@@ -15,6 +18,10 @@ def parse_arguments() -> TrainingConfig:
         type=Path,
         default=defaults.resume_checkpoint,
     )
+    
+    # ---------------------------------------------------------
+    # Validate parsed values through the shared training configuration.
+    # ---------------------------------------------------------
     try:
         return TrainingConfig.model_validate(vars(parser.parse_args()))
     except ValidationError as error:

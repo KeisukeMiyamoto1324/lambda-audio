@@ -25,6 +25,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         token: str,
     ) -> None:
         super().__init__()
+        # ---------------------------------------------------------
+        # Keep shared preprocessing and dataset state for each stage.
+        # ---------------------------------------------------------
         self.config = config
         self.token = token
         self.collator = AudioTextCollator(
@@ -36,12 +39,18 @@ class LambdaAudioDataModule(L.LightningDataModule):
         self.validation_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
+        # ---------------------------------------------------------
+        # Prepare the shared validation data before worker setup.
+        # ---------------------------------------------------------
         prepare_validation_dataset(self.token, self.config.dataset_cache_dir)
 
     def setup(self, stage: str | None = None) -> None:
         if stage not in ("fit", None):
             return
 
+        # ---------------------------------------------------------
+        # Load rank-specific sources and wrap them in padded batches.
+        # ---------------------------------------------------------
         training_source = load_lambda_audio_dataset(
             self.token,
             "train",
@@ -72,6 +81,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
+        # ---------------------------------------------------------
+        # Configure shuffled training batches with persistent workers.
+        # ---------------------------------------------------------
         if self.training_dataset is None:
             raise RuntimeError("Training dataset is not initialized.")
         return self._data_loader(
@@ -81,6 +93,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
+        # ---------------------------------------------------------
+        # Configure ordered validation batches without persistent workers.
+        # ---------------------------------------------------------
         if self.validation_dataset is None:
             raise RuntimeError("Validation dataset is not initialized.")
         return self._data_loader(
@@ -99,6 +114,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         source: EpochTranscribedAudioDataset,
         max_padded_audio_seconds: float,
     ) -> AudioBatchDataset:
+        # ---------------------------------------------------------
+        # Convert the audio duration budget to a sample-count budget.
+        # ---------------------------------------------------------
         return AudioBatchDataset(
             source,
             max_batch_padded_audio_samples=int(max_padded_audio_seconds * self.config.sampling_rate),
@@ -112,6 +130,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
         persistent_workers: bool,
         in_order: bool,
     ) -> DataLoader[Any]:
+        # ---------------------------------------------------------
+        # Apply shared loader settings to the selected dataset.
+        # ---------------------------------------------------------
         return DataLoader(
             dataset,
             batch_size=None,

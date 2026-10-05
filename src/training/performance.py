@@ -16,22 +16,34 @@ class TrainingProgressBar(RichProgressBar):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
     ) -> dict[str, int | str | float | dict[str, float]]:
+        # ---------------------------------------------------------
+        # Remove the version field from the displayed progress metrics.
+        # ---------------------------------------------------------
         metrics = super().get_metrics(trainer, pl_module)
         metrics.pop("v_num", None)
         return metrics
 
     def print_table(self, table: Table) -> None:
+        # ---------------------------------------------------------
+        # Print callback tables through the active progress console.
+        # ---------------------------------------------------------
         if self.progress is None:
             raise RuntimeError("The training progress display is not initialized.")
         self.progress.console.print(table)
 
 
 def audio_batch_sizes(batch: AudioTextBatch) -> tuple[int, int]:
+    # ---------------------------------------------------------
+    # Return valid and padded audio sample totals for one batch.
+    # ---------------------------------------------------------
     return batch["audio_valid_samples"], batch["audio_padded_samples"]
 
 
 class TrainingPerformanceMonitor(L.Callback):
     def __init__(self, sampling_rate: int, log_steps: int) -> None:
+        # ---------------------------------------------------------
+        # Track audio volume and timing values for each metric window.
+        # ---------------------------------------------------------
         self.sampling_rate = sampling_rate
         self.log_steps = log_steps
         self.gpu_events: list[tuple[torch.cuda.Event, torch.cuda.Event]] = []
@@ -50,6 +62,9 @@ class TrainingPerformanceMonitor(L.Callback):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
     ) -> None:
+        # ---------------------------------------------------------
+        # Start the first timing window when training begins.
+        # ---------------------------------------------------------
         now = time.perf_counter()
         self.window_start_time = now
         self.previous_batch_end_time = now
@@ -61,6 +76,9 @@ class TrainingPerformanceMonitor(L.Callback):
         batch: AudioTextBatch,
         batch_idx: int,
     ) -> None:
+        # ---------------------------------------------------------
+        # Record data wait time, batch sizes, and GPU start time.
+        # ---------------------------------------------------------
         now = time.perf_counter()
         data_time = now - self.previous_batch_end_time
         self.window_data_time += data_time
@@ -82,6 +100,9 @@ class TrainingPerformanceMonitor(L.Callback):
         batch: AudioTextBatch,
         batch_idx: int,
     ) -> None:
+        # ---------------------------------------------------------
+        # Collect GPU timings and log metrics when the window is full.
+        # ---------------------------------------------------------
         if self.start_event is None:
             raise RuntimeError("The GPU start event is unavailable.")
         end_event = torch.cuda.Event(enable_timing=True)

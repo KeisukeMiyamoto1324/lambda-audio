@@ -8,6 +8,9 @@ from src.training.trainer import configure_training_environment, create_trainer
 
 
 def main() -> None:
+    # ---------------------------------------------------------
+    # Read settings and initialize the environment and model.
+    # ---------------------------------------------------------
     config = parse_arguments()
     if config.output_dir.exists():
         raise FileExistsError(f"Training output directory already exists: {config.output_dir}")
@@ -19,6 +22,9 @@ def main() -> None:
     model = components.model
     model.decoder.config.use_cache = False
 
+    # ---------------------------------------------------------
+    # Connect the model and data module to the Lightning trainer.
+    # ---------------------------------------------------------
     lightning_model = LambdaAudioLightningModule(model, config)
     data_module = LambdaAudioDataModule(
         components.feature_extractor,

@@ -19,6 +19,9 @@ class ValidationInferenceMonitor(L.Callback):
         config: TrainingConfig,
         progress_bar: TrainingProgressBar,
     ) -> None:
+        # ---------------------------------------------------------
+        # Store inference settings and the append-only history location.
+        # ---------------------------------------------------------
         self.config = config
         self.progress_bar = progress_bar
         self.history_path = config.output_dir / "inference_history.csv"
@@ -28,6 +31,9 @@ class ValidationInferenceMonitor(L.Callback):
         trainer: L.Trainer,
         pl_module: L.LightningModule,
     ) -> None:
+        # ---------------------------------------------------------
+        # Run inference on the main rank and synchronize all ranks.
+        # ---------------------------------------------------------
         if not isinstance(pl_module, LambdaAudioLightningModule):
             raise TypeError("LambdaAudioLightningModule is required.")
 
@@ -44,6 +50,9 @@ class ValidationInferenceMonitor(L.Callback):
         if not isinstance(data_module, LambdaAudioDataModule):
             raise TypeError("LambdaAudioDataModule is required.")
 
+        # ---------------------------------------------------------
+        # Transcribe samples and display aligned reference differences.
+        # ---------------------------------------------------------
         samples = load_inference_samples(self.config.inference_samples_path)
         table = Table(title=f"Validation Inference — Step {trainer.global_step}")
         table.add_column("Audio", no_wrap=True)
@@ -87,7 +96,7 @@ class ValidationInferenceMonitor(L.Callback):
         model.decoder.config.use_cache = False
 
         # ---------------------------------------------------------
-        # Append one row per sample so predictions remain comparable by step.
+        # Append one row per sample to compare predictions across steps.
         # ---------------------------------------------------------
         write_header = not self.history_path.exists()
         fieldnames = list(records[0])

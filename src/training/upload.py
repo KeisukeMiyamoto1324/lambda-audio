@@ -10,6 +10,9 @@ OUTPUT_DIR = PROJECT_ROOT / "outputs/training"
 
 
 def main() -> None:
+    # ---------------------------------------------------------
+    # Load credentials and upload the selected training artifacts.
+    # ---------------------------------------------------------
     load_dotenv(dotenv_path=DOTENV_PATH, override=True)
     api = HfApi(token=os.environ["HF_TOKEN"])
     api.upload_folder(

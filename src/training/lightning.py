@@ -32,6 +32,9 @@ class LambdaAudioLightningModule(L.LightningModule):
         batch: AudioTextBatch,
         batch_idx: int,
     ) -> torch.Tensor:
+        # ---------------------------------------------------------
+        # Compute training loss and track the number of target tokens.
+        # ---------------------------------------------------------
         output = self.model(
             input_values=batch["input_values"],
             audio_padding_mask=batch["audio_padding_mask"],
@@ -118,6 +121,9 @@ class LambdaAudioLightningModule(L.LightningModule):
         batch: AudioTextBatch,
         batch_idx: int,
     ) -> torch.Tensor:
+        # ---------------------------------------------------------
+        # Compute and log validation loss normalized by target tokens.
+        # ---------------------------------------------------------
         output = self.model(
             input_values=batch["input_values"],
             audio_padding_mask=batch["audio_padding_mask"],
@@ -140,6 +146,9 @@ class LambdaAudioLightningModule(L.LightningModule):
         return output.loss
 
     def on_train_epoch_start(self) -> None:
+        # ---------------------------------------------------------
+        # Pass the current epoch to the training data sampler.
+        # ---------------------------------------------------------
         data_module = self.trainer.datamodule
         if not isinstance(data_module, LambdaAudioDataModule):
             raise TypeError("LambdaAudioDataModule is required.")

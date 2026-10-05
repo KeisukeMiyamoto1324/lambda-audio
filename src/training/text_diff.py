@@ -7,6 +7,9 @@ PREDICTION_DIFFERENCE_STYLE = "bold yellow"
 
 
 def create_text_diff(reference: str, prediction: str) -> tuple[Text, Text]:
+    # ---------------------------------------------------------
+    # Match text spans and highlight every non-equal segment.
+    # ---------------------------------------------------------
     reference_text = Text()
     prediction_text = Text()
     matcher = SequenceMatcher(None, reference, prediction, autojunk=False)
