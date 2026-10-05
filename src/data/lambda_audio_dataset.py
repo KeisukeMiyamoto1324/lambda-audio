@@ -56,7 +56,6 @@ class TrainLambdaAudioDataset:
         self,
         token: str,
         shard_files: list[str],
-        shuffle_buffer_size: int,
         sampling_rate: int,
         seed: int,
         global_rank: int,
@@ -64,7 +63,6 @@ class TrainLambdaAudioDataset:
     ) -> None:
         self.token = token
         self.shard_files = shard_files
-        self.shuffle_buffer_size = shuffle_buffer_size
         self.sampling_rate = sampling_rate
         self.seed = seed
         self.global_rank = global_rank
@@ -84,8 +82,7 @@ class TrainLambdaAudioDataset:
 
         with TemporaryDirectory(prefix="lambda-audio-train-") as directory:
             with closing(self._iterate_shards(assigned_shards, Path(directory))) as examples:
-                with closing(self._shuffle_examples(examples, generator)) as shuffled_examples:
-                    yield from shuffled_examples
+                yield from examples
 
     def _iterate_shards(
         self,
@@ -136,23 +133,6 @@ class TrainLambdaAudioDataset:
                     if example is not None:
                         yield example
 
-    def _shuffle_examples(
-        self,
-        examples: Iterator[TranscribedAudioExample],
-        generator: random.Random,
-    ) -> Iterator[TranscribedAudioExample]:
-        buffer: list[TranscribedAudioExample] = []
-        for example in examples:
-            if len(buffer) < self.shuffle_buffer_size:
-                buffer.append(example)
-                continue
-            index = generator.randrange(len(buffer))
-            yield buffer[index]
-            buffer[index] = example
-
-        generator.shuffle(buffer)
-        yield from buffer
-
     def _download_shard(self, shard_file: str, directory: Path) -> Path:
         with disable_progress_bars():
             path = hf_hub_download(
@@ -173,7 +153,6 @@ def load_lambda_audio_dataset(
     token: str,
     split: DatasetSplit,
     cache_dir: Path,
-    shuffle_buffer_size: int,
     sampling_rate: int,
     seed: int,
     global_rank: int,
@@ -184,7 +163,6 @@ def load_lambda_audio_dataset(
         return TrainLambdaAudioDataset(
             token,
             list_train_shard_files(token),
-            shuffle_buffer_size,
             sampling_rate,
             seed,
             global_rank,

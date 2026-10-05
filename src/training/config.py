@@ -24,7 +24,6 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     # Data loading, batching, and gradient accumulation.
     # ---------------------------------------------------------
-    shuffle_buffer_size: PositiveInt = 1_000
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 8
     prefetch_factor: PositiveInt = 4

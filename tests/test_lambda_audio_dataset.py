@@ -27,7 +27,6 @@ class FakeDataset:
         self.selected_columns: list[str] = []
         self.cast_sampling_rate: int | None = None
         self.decode_audio: bool | None = None
-        self.shuffle_arguments: tuple[int, int] | None = None
         self.epoch: int | None = None
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
@@ -41,10 +40,6 @@ class FakeDataset:
         assert column == "audio"
         self.cast_sampling_rate = cast(int, feature.sampling_rate)
         self.decode_audio = cast(bool, feature.decode)
-        return self
-
-    def shuffle(self, buffer_size: int, seed: int) -> "FakeDataset":
-        self.shuffle_arguments = (buffer_size, seed)
         return self
 
     def set_epoch(self, epoch: int) -> None:
@@ -98,7 +93,6 @@ def test_load_training_dataset_uses_local_shards(
         "token",
         "train",
         tmp_path,
-        1_000,
         16_000,
         42,
         1,
@@ -108,7 +102,6 @@ def test_load_training_dataset_uses_local_shards(
 
     assert isinstance(dataset, TrainLambdaAudioDataset)
     assert dataset.shard_files == ["train/part-000000.parquet"]
-    assert dataset.shuffle_buffer_size == 1_000
     assert dataset.global_rank == 1
     assert dataset.world_size == 4
 
@@ -160,7 +153,6 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
     dataset = TrainLambdaAudioDataset(
         "token",
         ["train/part-000000.parquet"],
-        1,
         16_000,
         42,
         0,
@@ -213,7 +205,6 @@ def test_validation_dataset_uses_cached_ten_percent(
         "token",
         "validation",
         tmp_path,
-        1_000,
         16_000,
         42,
         0,
@@ -242,7 +233,6 @@ def test_validation_dataset_uses_cached_ten_percent(
         },
     ]
     assert iterable_shards == 8
-    assert source.shuffle_arguments is None
 
 
 def test_validation_cache_selects_fixed_ten_percent_of_validation_shards(
