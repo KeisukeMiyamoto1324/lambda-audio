@@ -22,7 +22,7 @@ from torch.utils.data import get_worker_info
 from src.data.text import normalize_transcription
 from src.data.types import TranscribedAudioExample
 
-DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-1"
+DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus"
 VALIDATION_CACHE_RATIO = 0.1
 VALIDATION_SELECTION_SEED = 42
 PARQUET_BATCH_SIZE = 128
