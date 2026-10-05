@@ -45,7 +45,7 @@ def configure_training_environment(seed: int) -> None:
 
 
 def create_trainer(config: TrainingConfig) -> L.Trainer:
-    config.output_dir.mkdir(parents=True, exist_ok=True)
+    config.output_dir.mkdir(parents=True, exist_ok=False)
     (config.output_dir / "training_config.json").write_text(
         f"{config.model_dump_json(indent=2)}\n",
         encoding="utf-8",

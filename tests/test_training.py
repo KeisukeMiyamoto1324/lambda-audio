@@ -13,6 +13,7 @@ from src.data.types import AudioTextBatch
 from src.modeling.cross_attention import GatedCrossAttention
 from src.modeling.lambda_audio import LambdaAudioModel
 from src.modeling.zipformer.scaling import ScheduledFloat
+from src.training import train as train_module
 from src.training import trainer as trainer_module
 from src.training.config import TrainingConfig
 from src.training.inference_monitor import ValidationInferenceMonitor
@@ -147,11 +148,11 @@ def test_create_trainer_saves_config_and_full_checkpoint(
         return SimpleNamespace()
 
     monkeypatch.setattr(trainer_module.L, "Trainer", create_dummy_trainer)
-    config = TrainingConfig(output_dir=tmp_path)
+    config = TrainingConfig(output_dir=tmp_path / "training")
 
     create_trainer(config)
 
-    saved_config = json.loads((tmp_path / "training_config.json").read_text(encoding="utf-8"))
+    saved_config = json.loads((config.output_dir / "training_config.json").read_text(encoding="utf-8"))
     checkpoint = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, ModelCheckpoint))
     assert saved_config == config.model_dump(mode="json")
     assert checkpoint.save_last is True
@@ -159,6 +160,39 @@ def test_create_trainer_saves_config_and_full_checkpoint(
     assert any(isinstance(callback, ValidationInferenceMonitor) for callback in trainer_arguments["callbacks"])
     progress_bar = next(callback for callback in trainer_arguments["callbacks"] if isinstance(callback, TrainingProgressBar))
     assert progress_bar.refresh_rate == config.log_steps
+
+
+@pytest.mark.parametrize("entrypoint", ["main", "create_trainer"])
+@pytest.mark.parametrize("existing_file", [False, True])
+def test_training_rejects_existing_output_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    entrypoint: str,
+    existing_file: bool,
+) -> None:
+    output_dir = tmp_path / "training"
+    if existing_file:
+        output_dir.write_text("existing output", encoding="utf-8")
+        saved_file = output_dir
+    else:
+        output_dir.mkdir()
+        saved_file = output_dir / "training_config.json"
+        saved_file.write_text("existing output", encoding="utf-8")
+    config = TrainingConfig(output_dir=output_dir)
+    monkeypatch.setattr(train_module, "parse_arguments", lambda: config)
+
+    def reject_environment_setup(seed: int) -> None:
+        pytest.fail("Training environment must not be initialized for an existing output path.")
+
+    monkeypatch.setattr(train_module, "configure_training_environment", reject_environment_setup)
+
+    with pytest.raises(FileExistsError):
+        if entrypoint == "main":
+            train_module.main()
+        else:
+            create_trainer(config)
+
+    assert saved_file.read_text(encoding="utf-8") == "existing output"
 
 
 class TinyTrainingModel(LambdaAudioModel):
