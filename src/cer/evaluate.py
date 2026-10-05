@@ -53,6 +53,7 @@ def evaluate_cer(config: CerConfig, token: str) -> CerMetric:
                 config,
                 device,
                 audio,
+                num_beams=config.beam_search,
             )
             sample_metric = CerMetric()
             normalized_reference = normalize_cer_text(reference)

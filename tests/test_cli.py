@@ -3,8 +3,37 @@ from pathlib import Path
 
 import pytest
 
+from src.cer.cli import parse_arguments as parse_cer_arguments
 from src.stage1.cli import parse_arguments as parse_stage1_arguments
 from src.stage2.cli import parse_arguments as parse_stage2_arguments
+
+
+@pytest.mark.parametrize("arguments, expected", [([], 5), (["--beam-search", "1"], 1), (["--beam-search", "3"], 3)])
+def test_cer_cli_accepts_beam_search(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    arguments: list[str],
+    expected: int,
+) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    monkeypatch.setattr(sys, "argv", ["cer", str(checkpoint_path), *arguments])
+
+    assert parse_cer_arguments().beam_search == expected
+
+
+@pytest.mark.parametrize("num_beams", ["0", "-1"])
+def test_cer_cli_rejects_nonpositive_beam_search(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    num_beams: str,
+) -> None:
+    checkpoint_path = tmp_path / "model.ckpt"
+    checkpoint_path.touch()
+    monkeypatch.setattr(sys, "argv", ["cer", str(checkpoint_path), "--beam-search", num_beams])
+
+    with pytest.raises(SystemExit):
+        parse_cer_arguments()
 
 
 def test_stage2_cli_accepts_training_batch_limit(

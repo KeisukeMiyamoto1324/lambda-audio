@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 import torch
 from pytest import MonkeyPatch
 from torch import nn
@@ -31,15 +32,16 @@ class DummyEncoder(nn.Module):
         return padding_mask
 
 
-def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
+@pytest.mark.parametrize("num_beams", [1, 5])
+def test_lambda_audio_forward(monkeypatch: MonkeyPatch, num_beams: int) -> None:
     config = Lfm2Config(
         vocab_size=32,
         hidden_size=16,
         intermediate_size=32,
-        num_hidden_layers=1,
+        num_hidden_layers=2,
         num_attention_heads=4,
         num_key_value_heads=2,
-        layer_types=["full_attention"],
+        layer_types=["full_attention", "conv"],
         pad_token_id=0,
     )
     decoder = AudioLfm2ForCausalLM(config)
@@ -109,6 +111,7 @@ def test_lambda_audio_forward(monkeypatch: MonkeyPatch) -> None:
         input_ids=torch.tensor([[1]]),
         attention_mask=torch.ones(1, 1, dtype=torch.long),
         max_new_tokens=2,
+        num_beams=num_beams,
     )
     generation_projection_calls = projection_calls - 1
     trainable_names = [name for name, parameter in model.named_parameters() if parameter.requires_grad]

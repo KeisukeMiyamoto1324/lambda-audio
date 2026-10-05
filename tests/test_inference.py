@@ -99,9 +99,11 @@ def test_load_checkpoint_weights_removes_lightning_prefix(tmp_path: Path) -> Non
         torch.testing.assert_close(source_parameter, target_parameter)
 
 
+@pytest.mark.parametrize("num_beams", [1, 5])
 def test_transcribe_generates_from_bos(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    num_beams: int,
 ) -> None:
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()
@@ -122,12 +124,14 @@ def test_transcribe_generates_from_bos(
         config,
         torch.device("cpu"),
         b"audio",
+        num_beams=num_beams,
     )
 
     assert result.text == "transcription"
     assert result.audio_seconds == 0.01
     assert model.generation_arguments["input_ids"].tolist() == [[1]]
     assert not model.generation_arguments["audio_padding_mask"].any()
+    assert model.generation_arguments["num_beams"] == num_beams
 
 
 def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:

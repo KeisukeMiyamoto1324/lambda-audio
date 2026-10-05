@@ -82,7 +82,7 @@ def test_evaluate_cer_writes_sample_results(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setattr("src.cer.evaluate.load_model_checkpoint", lambda model, checkpoint: None)
     monkeypatch.setattr("src.cer.evaluate.load_test_samples", lambda cache_dir, sampling_rate: [None, None])
     monkeypatch.setattr("src.cer.evaluate.iterate_test_samples", lambda dataset: iter([(7, b"audio", "「日 本語。」"), (8, b"audio", "12345678")]))
-    monkeypatch.setattr("src.cer.evaluate.transcribe", lambda *args: SimpleNamespace(text="日 本", audio_seconds=1.0))
+    monkeypatch.setattr("src.cer.evaluate.transcribe", lambda *args, **kwargs: SimpleNamespace(text="日 本", audio_seconds=1.0))
 
     metric = evaluate_cer(config, "token")
 

@@ -31,6 +31,8 @@ def transcribe(
     config: TranscriptionConfig,
     device: torch.device,
     audio: bytes,
+    *,
+    num_beams: int = 1,
 ) -> TranscriptionResult:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
@@ -64,6 +66,7 @@ def transcribe(
             attention_mask=attention_mask,
             max_new_tokens=config.max_new_tokens,
             do_sample=False,
+            num_beams=num_beams,
             eos_token_id=tokenizer.eos_token_id,
         )
 
