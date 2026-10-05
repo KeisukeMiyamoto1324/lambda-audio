@@ -6,7 +6,7 @@ import pytest
 from src.training.cli import parse_arguments
 
 
-def test_training_cli_accepts_training_batch_limit(
+def test_training_cli_accepts_batch_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -14,14 +14,14 @@ def test_training_cli_accepts_training_batch_limit(
         "argv",
         [
             "training",
-            "--train-max-batch-padded-audio-seconds",
-            "800",
+            "--max-batch-padded-audio-seconds",
+            "600",
         ],
     )
 
     config = parse_arguments()
 
-    assert config.train_max_batch_padded_audio_seconds == 800
+    assert config.max_batch_padded_audio_seconds == 600
 
 
 def test_training_cli_reports_pydantic_error(

@@ -64,11 +64,11 @@ class LambdaAudioDataModule(L.LightningDataModule):
         )
         self.training_dataset = self._batch_dataset(
             training_source,
-            self.config.train_max_batch_padded_audio_seconds,
+            self.config.max_batch_padded_audio_seconds,
         )
         self.validation_dataset = self._batch_dataset(
             validation_source,
-            self.config.validation_max_batch_padded_audio_seconds,
+            self.config.max_batch_padded_audio_seconds,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:

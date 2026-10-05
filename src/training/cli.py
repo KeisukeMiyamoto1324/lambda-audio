@@ -32,14 +32,9 @@ def parse_arguments() -> TrainingConfig:
         default=defaults.prefetch_factor,
     )
     parser.add_argument(
-        "--train-max-batch-padded-audio-seconds",
+        "--max-batch-padded-audio-seconds",
         type=float,
-        default=defaults.train_max_batch_padded_audio_seconds,
-    )
-    parser.add_argument(
-        "--validation-max-batch-padded-audio-seconds",
-        type=float,
-        default=defaults.validation_max_batch_padded_audio_seconds,
+        default=defaults.max_batch_padded_audio_seconds,
     )
     parser.add_argument(
         "--gradient-accumulation-steps",
