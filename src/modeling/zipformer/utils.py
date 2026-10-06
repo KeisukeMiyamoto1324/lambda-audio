@@ -34,11 +34,18 @@ class Fp32LayerNorm(nn.LayerNorm):
 
 
 class Fp32GroupNorm(nn.GroupNorm):
+    use_triton: bool = False
+
     def forward(
         self,
         input: torch.Tensor,
         padding_mask: torch.BoolTensor | None = None,
     ) -> torch.Tensor:
+        if self.use_triton:
+            from src.modeling.kernels.group_norm import masked_group_norm
+
+            return masked_group_norm(input, padding_mask, self.weight, self.bias, self.num_groups, self.eps)
+
         if padding_mask is not None:
             batch_size, channels, sequence_length = input.shape
             grouped = input.float().view(

@@ -290,7 +290,12 @@ class SoftmaxFunction(torch.autograd.Function):
             return x_grad, None
 
 
-def softmax(x: Tensor, dim: int) -> Tensor:
+def softmax(x: Tensor, dim: int, use_triton: bool = False) -> Tensor:
+    if use_triton:
+        from src.modeling.kernels.softmax import softmax as triton_softmax
+
+        return triton_softmax(x, dim)
+
     if not x.requires_grad or torch.jit.is_scripting() or torch.jit.is_tracing():
         return x.softmax(dim=dim)
 
@@ -416,6 +421,8 @@ class BiasNorm(torch.nn.Module):
          backprop.
     """
 
+    use_triton: bool = False
+
     def __init__(
         self,
         num_channels: int,
@@ -455,6 +462,11 @@ class BiasNorm(torch.nn.Module):
             max=float(self.log_scale_max),
             training=self.training,
         )
+
+        if self.use_triton:
+            from src.modeling.kernels.bias_norm import bias_norm
+
+            return bias_norm(x, self.bias, log_scale, self.channel_dim, self.store_output_for_backprop)
 
         return BiasNormFunction.apply(x, self.bias, log_scale, self.channel_dim, self.store_output_for_backprop)
 
@@ -1463,6 +1475,8 @@ class ActivationDropoutAndLinear(torch.nn.Module):
              for their backprop (e.g. Balancer or Whiten).
     """
 
+    use_triton: bool = False
+
     def __init__(
         self,
         in_channels: int,
@@ -1490,6 +1504,11 @@ class ActivationDropoutAndLinear(torch.nn.Module):
         self.dropout_shared_dim = dropout_shared_dim
 
     def forward(self, x: Tensor) -> Tensor:
+        if self.use_triton:
+            from src.modeling.kernels.swoosh import swoosh
+
+            return torch.nn.functional.linear(swoosh(x, self.activation), self.weight, self.bias)
+
         if self.activation == "SwooshL":
             x = SwooshLForward(x)
         elif self.activation == "SwooshR":

@@ -59,7 +59,7 @@ def create_trainer(config: TrainingConfig) -> L.Trainer:
         f"{config.model_dump_json(indent=2)}\n",
         encoding="utf-8",
     )
-    
+
     # ---------------------------------------------------------
     # Configure checkpointing, stopping, progress, and monitoring.
     # ---------------------------------------------------------
@@ -90,7 +90,7 @@ def create_trainer(config: TrainingConfig) -> L.Trainer:
         progress_bar,
         ValidationInferenceMonitor(config, progress_bar),
     ]
-    
+
     # ---------------------------------------------------------
     # Assemble the trainer with distributed, precision, and logging options.
     # ---------------------------------------------------------

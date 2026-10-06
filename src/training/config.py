@@ -27,14 +27,14 @@ class TrainingConfig(ModelConfig):
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 12
     prefetch_factor: PositiveInt = 4
-    max_batch_padded_audio_seconds: PositiveFloat = 800.0
+    max_batch_padded_audio_seconds: PositiveFloat = 400
     gradient_accumulation_steps: PositiveInt = 3
 
     # ---------------------------------------------------------
     # Training duration and the step to unfreeze all weights.
     # ---------------------------------------------------------
     max_steps: PositiveInt = 64_000
-    unfreeze_step: NonNegativeInt = 4000
+    unfreeze_step: NonNegativeInt = 0
 
     # ---------------------------------------------------------
     # Learning rates, schedule, and gradient stability.

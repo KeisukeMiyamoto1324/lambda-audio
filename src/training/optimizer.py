@@ -29,7 +29,7 @@ def create_optimizer_configuration(
         }
         for (rate, weight_decay), parameters in parameter_groups.items()
     ]
-    
+
     # ---------------------------------------------------------
     # Create AdamW and its warmup cosine learning-rate schedule.
     # ---------------------------------------------------------

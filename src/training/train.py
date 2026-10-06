@@ -3,6 +3,7 @@ from src.modeling.lfm2_decoder import enable_causal_convolution_kernels
 from src.modeling.loading import load_model_components
 from src.training.cli import parse_arguments
 from src.training.data_module import LambdaAudioDataModule
+from src.training.kernels import enable_training_kernels
 from src.training.lightning import LambdaAudioLightningModule
 from src.training.trainer import configure_training_environment, create_trainer
 
@@ -20,6 +21,7 @@ def main() -> None:
     enable_causal_convolution_kernels()
     components = load_model_components(config, token)
     model = components.model
+    enable_training_kernels(model.encoder)
     model.decoder.config.use_cache = False
 
     # ---------------------------------------------------------

@@ -143,6 +143,8 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
                      any given call to forward(), in training time.
     """
 
+    use_triton: bool = False
+
     def __init__(
         self,
         embed_dim: int,
@@ -338,7 +340,7 @@ class RelPositionMultiheadAttentionWeights(nn.Module):
         # save a little of the memory used in backprop by, if we are in
         # automatic mixed precision mode (amp / autocast), by only storing the
         # half-precision output for backprop purposes.
-        attn_weights = softmax(attn_scores, dim=-1)
+        attn_weights = softmax(attn_scores, dim=-1, use_triton=self.use_triton)
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             pass

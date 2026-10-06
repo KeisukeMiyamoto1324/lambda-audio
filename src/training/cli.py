@@ -18,7 +18,7 @@ def parse_arguments() -> TrainingConfig:
         type=Path,
         default=defaults.resume_checkpoint,
     )
-    
+
     # ---------------------------------------------------------
     # Validate parsed values through the shared training configuration.
     # ---------------------------------------------------------
