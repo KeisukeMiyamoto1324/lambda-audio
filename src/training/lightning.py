@@ -61,17 +61,15 @@ class LambdaAudioLightningModule(L.LightningModule):
         # ---------------------------------------------------------
         # Normalize accumulated and distributed gradients per target token.
         # ---------------------------------------------------------
-        token_count = torch.tensor(
-            self.training_token_count,
-            device=self.device,
-            dtype=torch.float64,
-        )
-        token_count = self.trainer.strategy.reduce(token_count, reduce_op="sum")
-        gradient_scale = self.trainer.accumulate_grad_batches * self.trainer.world_size / token_count.item()
-        for group in optimizer.param_groups:
-            for parameter in group["params"]:
-                if parameter.grad is not None:
-                    parameter.grad.mul_(gradient_scale)
+        gradient_scale: float | torch.Tensor
+        if self.trainer.world_size == 1:
+            gradient_scale = self.trainer.accumulate_grad_batches / self.training_token_count
+        else:
+            token_count = torch.tensor(self.training_token_count, device=self.device, dtype=torch.float64)
+            token_count = self.trainer.strategy.reduce(token_count, reduce_op="sum")
+            gradient_scale = self.trainer.accumulate_grad_batches * self.trainer.world_size / token_count
+        gradients = [parameter.grad for group in optimizer.param_groups for parameter in group["params"] if parameter.grad is not None]
+        torch._foreach_mul_(gradients, gradient_scale)
         self.training_token_count = 0
 
     def on_train_batch_start(

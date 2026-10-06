@@ -828,6 +828,7 @@ class Balancer(torch.nn.Module):
         self.prob = prob
         # 5% of the time we will return and do nothing because memory usage is
         # too high.
+        self.use_triton = False
         self.mem_cutoff = CutoffEstimator(0.05)
 
         # actually self.num_channels is no longer needed except for an assertion.
@@ -883,6 +884,10 @@ class Balancer(torch.nn.Module):
 
             assert x.shape[self.channel_dim] == self.num_channels
 
+            if self.use_triton:
+                from src.modeling.kernels.balancer import balance
+
+                return balance(x, min_mean, max_mean, min_rms, max_rms, grad_scale, self.channel_dim)
             return BalancerFunction.apply(x, min_mean, max_mean, min_rms, max_rms, grad_scale, self.channel_dim)
         else:
             return _no_op(x)
@@ -1044,6 +1049,7 @@ class Whiten(nn.Module):
             prob = (prob, prob)
         (self.min_prob, self.max_prob) = prob
         assert 0 < self.min_prob <= self.max_prob <= 1
+        self.use_triton = False
         self.prob = self.max_prob
         self.name = None  # will be set in training loop
 
@@ -1065,6 +1071,15 @@ class Whiten(nn.Module):
         and nothing will happen in backprop.
         """
         grad_scale = float(self.grad_scale)
+        if self.use_triton:
+            from src.modeling.kernels.whitening import whiten
+
+            if not x.requires_grad or grad_scale == 0:
+                return _no_op(x)
+            draw = random.random()
+            if draw > self.max_prob:
+                return _no_op(x)
+            return whiten(x, self, draw)
         if not x.requires_grad or random.random() > self.prob or grad_scale == 0:
             return _no_op(x)
         else:

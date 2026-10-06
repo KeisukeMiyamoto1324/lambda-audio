@@ -113,7 +113,8 @@ def test_gradient_clipping_limits_total_norm() -> None:
     assert total_norm.item() == pytest.approx(0.5)
 
 
-def test_accumulated_gradients_are_normalized_by_token_count() -> None:
+@pytest.mark.parametrize("world_size", [1, 2])
+def test_accumulated_gradients_are_normalized_by_token_count(world_size: int) -> None:
     config = TrainingConfig(
         output_dir=Path("outputs"),
         gradient_accumulation_steps=4,
@@ -122,8 +123,8 @@ def test_accumulated_gradients_are_normalized_by_token_count() -> None:
     module = LambdaAudioLightningModule(model, config)  # type: ignore[arg-type]
     module._trainer = SimpleNamespace(  # type: ignore[assignment]
         accumulate_grad_batches=4,
-        world_size=2,
-        strategy=SimpleNamespace(reduce=lambda value, reduce_op: value * 2),
+        world_size=world_size,
+        strategy=SimpleNamespace(reduce=lambda value, reduce_op: value * world_size),
     )
     module.training_token_count = 10
     optimizer = torch.optim.AdamW(model.parameters())
