@@ -5,8 +5,8 @@ import triton
 import triton.language as tl
 
 
-@triton.jit
-def _statistics(X: tl.tensor, MASK: tl.tensor, PART: tl.tensor, T: tl.constexpr, C: tl.constexpr, CHUNKS: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["T", "CHUNKS"])
+def _statistics(X: tl.tensor, MASK: tl.tensor, PART: tl.tensor, T: tl.tensor, C: tl.constexpr, CHUNKS: tl.tensor, BLOCK: tl.constexpr) -> None:
     row = tl.program_id(0)
     chunk = tl.program_id(1)
     i = chunk * BLOCK + tl.arange(0, BLOCK)
@@ -22,8 +22,8 @@ def _statistics(X: tl.tensor, MASK: tl.tensor, PART: tl.tensor, T: tl.constexpr,
     tl.store(PART + base + 2, count)
 
 
-@triton.jit
-def _merge(PART: tl.tensor, STATS: tl.tensor, CHUNKS: tl.constexpr, EPS: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["CHUNKS"])
+def _merge(PART: tl.tensor, STATS: tl.tensor, CHUNKS: tl.tensor, EPS: tl.constexpr, BLOCK: tl.constexpr) -> None:
     row = tl.program_id(0)
     i = tl.arange(0, BLOCK)
     base = (row * CHUNKS + i) * 3
@@ -39,8 +39,8 @@ def _merge(PART: tl.tensor, STATS: tl.tensor, CHUNKS: tl.constexpr, EPS: tl.cons
     tl.store(STATS + row * 3 + 2, count)
 
 
-@triton.jit
-def _forward(X: tl.tensor, W: tl.tensor, B: tl.tensor, STATS: tl.tensor, Y: tl.tensor, T: tl.constexpr, C: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["T"])
+def _forward(X: tl.tensor, W: tl.tensor, B: tl.tensor, STATS: tl.tensor, Y: tl.tensor, T: tl.tensor, C: tl.constexpr, BLOCK: tl.constexpr) -> None:
     row = tl.program_id(0)
     i = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + row * T + i, i < T, 0).to(tl.float32)
@@ -52,8 +52,8 @@ def _forward(X: tl.tensor, W: tl.tensor, B: tl.tensor, STATS: tl.tensor, Y: tl.t
     tl.store(Y + row * T + i, y, i < T)
 
 
-@triton.jit
-def _backward_statistics(X: tl.tensor, G: tl.tensor, STATS: tl.tensor, PART: tl.tensor, T: tl.constexpr, CHUNKS: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["T", "CHUNKS"])
+def _backward_statistics(X: tl.tensor, G: tl.tensor, STATS: tl.tensor, PART: tl.tensor, T: tl.tensor, CHUNKS: tl.tensor, BLOCK: tl.constexpr) -> None:
     row = tl.program_id(0)
     chunk = tl.program_id(1)
     i = chunk * BLOCK + tl.arange(0, BLOCK)
@@ -67,9 +67,9 @@ def _backward_statistics(X: tl.tensor, G: tl.tensor, STATS: tl.tensor, PART: tl.
     tl.store(PART + base + CHUNKS, tl.sum(g * normalized, 0))
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["T"])
 def _backward(
-    X: tl.tensor, MASK: tl.tensor, G: tl.tensor, W: tl.tensor, STATS: tl.tensor, SUMS: tl.tensor, DX: tl.tensor, T: tl.constexpr, C: tl.constexpr, BLOCK: tl.constexpr
+    X: tl.tensor, MASK: tl.tensor, G: tl.tensor, W: tl.tensor, STATS: tl.tensor, SUMS: tl.tensor, DX: tl.tensor, T: tl.tensor, C: tl.constexpr, BLOCK: tl.constexpr
 ) -> None:
     row = tl.program_id(0)
     i = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)

@@ -154,3 +154,35 @@ def test_encoder_integration_preserves_checkpoints_and_gradients(frozen: bool) -
         if expected.grad is not None:
             assert torch.isfinite(result.grad).all(), name
             torch.testing.assert_close(result.grad, expected.grad, atol=0.002, rtol=0.04, msg=name)
+
+
+@pytest.mark.parametrize("operator", ["swoosh", "softmax", "group_norm"])
+def test_variable_lengths_reuse_compiled_kernels(operator: str) -> None:
+    import importlib
+
+    module = importlib.import_module(f"src.modeling.kernels.{operator}")
+    names = {
+        "swoosh": ("_forward", "_backward"),
+        "softmax": ("_backward",),
+        "group_norm": ("_statistics", "_merge", "_forward", "_backward_statistics", "_backward"),
+    }[operator]
+    device = torch.cuda.current_device()
+    cache_sizes: list[list[int]] = []
+    for batch, length in ((2, 2051), (3, 2112), (1, 3001), (2, 4096)):
+        if operator == "group_norm":
+            length += 2050
+        x = torch.randn(batch, 4, length, device="cuda", requires_grad=True)
+        if operator == "swoosh":
+            y = swoosh(x, "SwooshL")
+        elif operator == "softmax":
+            y = fused_softmax(x, -1)
+        else:
+            weight = torch.ones(4, device="cuda", requires_grad=True)
+            bias = torch.zeros(4, device="cuda", requires_grad=True)
+            mask = torch.arange(length, device="cuda")[None, :].expand(batch, -1) >= length - 7
+            y = masked_group_norm(x, mask, weight, bias, 4, 1e-5)
+        y.backward(torch.randn_like(y))
+        assert torch.isfinite(y).all()
+        assert x.grad is not None and torch.isfinite(x.grad).all()
+        cache_sizes.append([len(getattr(module, name).device_caches[device][0]) for name in names])
+    assert all(sizes == cache_sizes[0] for sizes in cache_sizes[1:])

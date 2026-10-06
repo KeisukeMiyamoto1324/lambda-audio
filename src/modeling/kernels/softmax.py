@@ -5,8 +5,8 @@ import triton
 import triton.language as tl
 
 
-@triton.jit
-def _backward(Y: tl.tensor, G: tl.tensor, DX: tl.tensor, N: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["N"])
+def _backward(Y: tl.tensor, G: tl.tensor, DX: tl.tensor, N: tl.tensor, BLOCK: tl.constexpr) -> None:
     row = tl.program_id(0)
     col = tl.arange(0, BLOCK)
     y = tl.load(Y + row * N + col, col < N, 0).to(tl.float32)

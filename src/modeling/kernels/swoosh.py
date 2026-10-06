@@ -5,8 +5,8 @@ import triton
 import triton.language as tl
 
 
-@triton.jit
-def _forward(X: tl.tensor, Y: tl.tensor, N: tl.constexpr, OFFSET: tl.constexpr, CONSTANT: tl.constexpr, FP32_MATH: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["N"])
+def _forward(X: tl.tensor, Y: tl.tensor, N: tl.tensor, OFFSET: tl.constexpr, CONSTANT: tl.constexpr, FP32_MATH: tl.constexpr, BLOCK: tl.constexpr) -> None:
     i = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + i, i < N, 0)
     # ---------------------------------------------------------
@@ -28,8 +28,8 @@ def _forward(X: tl.tensor, Y: tl.tensor, N: tl.constexpr, OFFSET: tl.constexpr, 
     tl.store(Y + i, y, i < N)
 
 
-@triton.jit
-def _backward(X: tl.tensor, G: tl.tensor, DX: tl.tensor, N: tl.constexpr, OFFSET: tl.constexpr, FP32_MATH: tl.constexpr, BLOCK: tl.constexpr) -> None:
+@triton.jit(do_not_specialize=["N"])
+def _backward(X: tl.tensor, G: tl.tensor, DX: tl.tensor, N: tl.tensor, OFFSET: tl.constexpr, FP32_MATH: tl.constexpr, BLOCK: tl.constexpr) -> None:
     i = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + i, i < N, 0)
     g = tl.load(G + i, i < N, 0)
