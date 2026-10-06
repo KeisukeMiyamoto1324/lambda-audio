@@ -27,7 +27,7 @@ class TrainingConfig(ModelConfig):
     bucket_buffer_size: PositiveInt = 512
     num_workers: PositiveInt = 12
     prefetch_factor: PositiveInt = 4
-    max_batch_padded_audio_seconds: PositiveFloat = 400
+    max_batch_padded_audio_seconds: PositiveFloat = 500
     gradient_accumulation_steps: PositiveInt = 3
 
     # ---------------------------------------------------------
