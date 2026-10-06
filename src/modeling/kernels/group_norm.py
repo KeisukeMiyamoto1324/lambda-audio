@@ -7,7 +7,10 @@ import triton.language as tl
 
 @triton.jit(do_not_specialize=["T", "CHUNKS"])
 def _statistics(X: tl.tensor, MASK: tl.tensor, PART: tl.tensor, T: tl.tensor, C: tl.constexpr, CHUNKS: tl.tensor, BLOCK: tl.constexpr) -> None:
-    row = tl.program_id(0)
+    # ---------------------------------------------------------
+    # Widen before multiplication: training batches can exceed 2**31 elements.
+    # ---------------------------------------------------------
+    row = tl.program_id(0).to(tl.int64)
     chunk = tl.program_id(1)
     i = chunk * BLOCK + tl.arange(0, BLOCK)
     valid = (i < T) & ~tl.load(MASK + (row // C) * T + i, i < T, 1)
@@ -24,7 +27,7 @@ def _statistics(X: tl.tensor, MASK: tl.tensor, PART: tl.tensor, T: tl.tensor, C:
 
 @triton.jit(do_not_specialize=["CHUNKS"])
 def _merge(PART: tl.tensor, STATS: tl.tensor, CHUNKS: tl.tensor, EPS: tl.constexpr, BLOCK: tl.constexpr) -> None:
-    row = tl.program_id(0)
+    row = tl.program_id(0).to(tl.int64)
     i = tl.arange(0, BLOCK)
     base = (row * CHUNKS + i) * 3
     means = tl.load(PART + base, i < CHUNKS, 0)
@@ -41,7 +44,7 @@ def _merge(PART: tl.tensor, STATS: tl.tensor, CHUNKS: tl.tensor, EPS: tl.constex
 
 @triton.jit(do_not_specialize=["T"])
 def _forward(X: tl.tensor, W: tl.tensor, B: tl.tensor, STATS: tl.tensor, Y: tl.tensor, T: tl.tensor, C: tl.constexpr, BLOCK: tl.constexpr) -> None:
-    row = tl.program_id(0)
+    row = tl.program_id(0).to(tl.int64)
     i = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + row * T + i, i < T, 0).to(tl.float32)
     mean = tl.load(STATS + row * 3)
@@ -54,7 +57,7 @@ def _forward(X: tl.tensor, W: tl.tensor, B: tl.tensor, STATS: tl.tensor, Y: tl.t
 
 @triton.jit(do_not_specialize=["T", "CHUNKS"])
 def _backward_statistics(X: tl.tensor, G: tl.tensor, STATS: tl.tensor, PART: tl.tensor, T: tl.tensor, CHUNKS: tl.tensor, BLOCK: tl.constexpr) -> None:
-    row = tl.program_id(0)
+    row = tl.program_id(0).to(tl.int64)
     chunk = tl.program_id(1)
     i = chunk * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + row * T + i, i < T, 0).to(tl.float32)
@@ -71,7 +74,7 @@ def _backward_statistics(X: tl.tensor, G: tl.tensor, STATS: tl.tensor, PART: tl.
 def _backward(
     X: tl.tensor, MASK: tl.tensor, G: tl.tensor, W: tl.tensor, STATS: tl.tensor, SUMS: tl.tensor, DX: tl.tensor, T: tl.tensor, C: tl.constexpr, BLOCK: tl.constexpr
 ) -> None:
-    row = tl.program_id(0)
+    row = tl.program_id(0).to(tl.int64)
     i = tl.program_id(1) * BLOCK + tl.arange(0, BLOCK)
     x = tl.load(X + row * T + i, i < T, 0).to(tl.float32)
     g = tl.load(G + row * T + i, i < T, 0).to(tl.float32)

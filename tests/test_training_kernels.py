@@ -107,6 +107,37 @@ def test_group_norm_without_padding_and_frozen_parameters() -> None:
     torch.testing.assert_close(actual, expected, atol=3e-6, rtol=0.05)
 
 
+def test_group_norm_large_batch_outputs_and_gradients() -> None:
+    if torch.cuda.mem_get_info()[0] < 32 * 1024**3:
+        pytest.skip("The int32 overflow regression requires 32 GiB of free CUDA memory")
+
+    # ---------------------------------------------------------
+    # Match the first convolution for 53 thirty-second recordings.
+    # Repeated samples allow a small independent PyTorch reference.
+    # ---------------------------------------------------------
+    batch, channels, length = 53, 512, 95_999
+    reference = Fp32GroupNorm(channels, channels).cuda()
+    reference.weight.data.copy_(torch.linspace(0.5, 1.5, channels, device="cuda"))
+    reference.bias.data.copy_(torch.linspace(-0.5, 0.5, channels, device="cuda"))
+    actual = copy.deepcopy(reference)
+    actual.use_triton = True
+    waveform = ((torch.arange(length, device="cuda") % 127).float() / 64 - 1).to(torch.bfloat16)
+    x = waveform.expand(1, channels, length).contiguous().requires_grad_()
+    z = waveform.expand(batch, channels, length).contiguous().requires_grad_()
+    mask = (torch.arange(length, device="cuda") >= length * 3 // 4)[None, :]
+    expected = reference(x, mask)
+    output = actual(z, mask.expand(batch, -1))
+    expected.sum().backward()
+    output.sum().backward()
+
+    assert x.grad is not None and z.grad is not None
+    for index in (0, 43, batch - 1):
+        torch.testing.assert_close(output[index : index + 1], expected, atol=0.016, rtol=0.008)
+        torch.testing.assert_close(z.grad[index : index + 1], x.grad, atol=0.016, rtol=0.008)
+    torch.testing.assert_close(actual.weight.grad, reference.weight.grad * batch, atol=0.1, rtol=0.002)
+    torch.testing.assert_close(actual.bias.grad, reference.bias.grad * batch, atol=0.1, rtol=0.002)
+
+
 @pytest.mark.parametrize("frozen", [False, True])
 def test_encoder_integration_preserves_checkpoints_and_gradients(frozen: bool) -> None:
     import random
