@@ -1,5 +1,4 @@
 import copy
-from collections.abc import Callable
 
 import pytest
 import torch
@@ -8,7 +7,7 @@ from src.modeling.kernels.bias_norm import bias_norm
 from src.modeling.kernels.group_norm import masked_group_norm
 from src.modeling.kernels.softmax import softmax as fused_softmax
 from src.modeling.kernels.swoosh import swoosh
-from src.modeling.zipformer.scaling import BiasNormFunction, SwooshLForward, SwooshRForward, softmax
+from src.modeling.zipformer.scaling import BiasNormFunction, softmax
 from src.modeling.zipformer.utils import Fp32GroupNorm
 
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA kernels require a GPU")
@@ -77,12 +76,17 @@ def test_softmax_outputs_and_gradients(dtype: torch.dtype, length: int) -> None:
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
 @pytest.mark.parametrize("autocast", [False, True])
-@pytest.mark.parametrize("activation,reference", [("SwooshL", SwooshLForward), ("SwooshR", SwooshRForward)])
-def test_swoosh_outputs_and_gradients(dtype: torch.dtype, autocast: bool, activation: str, reference: Callable[[torch.Tensor], torch.Tensor]) -> None:
+@pytest.mark.parametrize("activation,offset,constant", [("SwooshL", 4.0, 0.035), ("SwooshR", 1.0, 0.313261687)])
+def test_swoosh_outputs_and_gradients(dtype: torch.dtype, autocast: bool, activation: str, offset: float, constant: float) -> None:
     x = torch.linspace(-20, 20, 4003, device="cuda", dtype=dtype).reshape(1, -1).expand(3, -1).detach().requires_grad_()
     z = x.detach().clone().requires_grad_()
     with torch.autocast("cuda", dtype=torch.bfloat16, enabled=autocast):
-        expected = reference(x)
+        # ---------------------------------------------------------
+        # Use an independent FP64 logaddexp reference for stable softplus.
+        # Keep the same input/output rounding as the mixed-precision kernel.
+        # ---------------------------------------------------------
+        shifted = (x - offset).double()
+        expected = torch.logaddexp(torch.zeros_like(shifted), shifted).to(dtype) - 0.08 * x - constant
         actual = swoosh(z, activation)
     grad = torch.randn_like(actual)
     expected.backward(grad)
@@ -186,3 +190,23 @@ def test_variable_lengths_reuse_compiled_kernels(operator: str) -> None:
         assert x.grad is not None and torch.isfinite(x.grad).all()
         cache_sizes.append([len(getattr(module, name).device_caches[device][0]) for name in names])
     assert all(sizes == cache_sizes[0] for sizes in cache_sizes[1:])
+
+
+@pytest.mark.parametrize("activation,offset,constant", [("SwooshL", 4.0, 0.035), ("SwooshR", 1.0, 0.313261687)])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+@pytest.mark.parametrize("autocast", [False, True])
+def test_swoosh_extreme_inputs_have_stable_gradients(activation: str, offset: float, constant: float, dtype: torch.dtype, autocast: bool) -> None:
+    x = torch.tensor([-1000, -100, -30, 19.5, 20, 20.5, 80, 88, 89, 100, 1000], device="cuda", dtype=dtype)
+    x = (x + offset).requires_grad_()
+    grad = torch.tensor([1, -1, 0, 0.125, -0.5, 1, -2, 0, 1e-20, 1, -1], device="cuda", dtype=dtype)
+    with torch.autocast("cuda", dtype=torch.bfloat16, enabled=autocast):
+        y = swoosh(x, activation)
+    y.backward(grad)
+    shifted = (x.detach() - offset).float()
+    expected_y = torch.logaddexp(torch.zeros_like(shifted, dtype=torch.float64), shifted.double()).to(dtype) - (0.08 * x.detach()).to(dtype)
+    expected_y = (expected_y - constant).to(dtype)
+    expected_grad = ((grad.float() * shifted.sigmoid()).to(dtype) + (-0.08 * grad.float()).to(dtype)).to(dtype)
+    assert torch.isfinite(y).all()
+    assert x.grad is not None and torch.isfinite(x.grad).all()
+    torch.testing.assert_close(y, expected_y, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(x.grad, expected_grad, atol=1e-7, rtol=1e-5)
