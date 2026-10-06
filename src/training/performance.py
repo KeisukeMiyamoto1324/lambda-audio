@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 import lightning as L
 import torch
@@ -11,6 +12,8 @@ DATA_STALL_SECONDS = 1.0
 
 
 class TrainingProgressBar(RichProgressBar):
+    train_loss: float | None = None
+
     def get_metrics(
         self,
         trainer: L.Trainer,
@@ -21,7 +24,18 @@ class TrainingProgressBar(RichProgressBar):
         # ---------------------------------------------------------
         metrics = super().get_metrics(trainer, pl_module)
         metrics.pop("v_num", None)
+        if self.train_loss is not None:
+            metrics["train_loss"] = self.train_loss
         return metrics
+
+    def on_train_batch_end(self, trainer: L.Trainer, pl_module: L.LightningModule, outputs: Any, batch: Any, batch_idx: int) -> None:
+        # ---------------------------------------------------------
+        # Read the displayed loss only at optimizer logging boundaries.
+        # ---------------------------------------------------------
+        interval = self.refresh_rate * trainer.accumulate_grad_batches
+        if interval > 0 and (batch_idx + 1) % interval == 0:
+            self.train_loss = float(trainer.callback_metrics["train_loss"].item())
+        super().on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx)
 
     def print_table(self, table: Table) -> None:
         # ---------------------------------------------------------

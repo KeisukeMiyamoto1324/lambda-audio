@@ -51,7 +51,7 @@ class LambdaAudioLightningModule(L.LightningModule):
             "train_loss",
             mean_loss,
             on_step=True,
-            prog_bar=True,
+            prog_bar=False,
             sync_dist=False,
             batch_size=batch["target_token_count"],
         )

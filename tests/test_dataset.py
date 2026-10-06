@@ -98,3 +98,31 @@ def test_audio_batch_dataset_rejects_oversized_audio() -> None:
 
     with pytest.raises(ValueError, match="exceeds the padded audio limit"):
         list(dataset)
+
+
+@pytest.mark.parametrize("buffer_size", [1, 3, 7])
+def test_audio_batches_carry_remainder_without_losing_examples(buffer_size: int) -> None:
+    source = ExampleDataset([(str(i), 3) for i in range(23)])
+    dataset = AudioBatchDataset(source, max_batch_padded_audio_samples=12, bucket_buffer_size=buffer_size, seed=42)
+    batches = list(dataset)
+    assert sorted(len(batch) for batch in batches) == [3, 4, 4, 4, 4, 4]
+    assert sorted(int(x["transcription"]) for batch in batches for x in batch) == list(range(23))
+    assert all(len(batch) * max(len(x["audio_array"]) for x in batch) <= 12 for batch in batches)
+
+
+def test_audio_batches_eventually_emit_longest_remainder() -> None:
+    examples = [("long", 11), *[(str(i), 2) for i in range(31)]]
+    dataset = AudioBatchDataset(ExampleDataset(examples), max_batch_padded_audio_samples=12, bucket_buffer_size=3, seed=42)
+    batches = list(dataset)
+    emitted = [x["transcription"] for batch in batches for x in batch]
+    assert sorted(emitted) == sorted(name for name, _ in examples)
+    assert all(len(batch) * max(len(x["audio_array"]) for x in batch) <= 12 for batch in batches)
+
+
+def test_audio_batches_do_not_defer_long_examples_until_epoch_end() -> None:
+    from itertools import islice
+
+    examples = [("long", 11), *[(str(i), 2) for i in range(1000)]]
+    dataset = AudioBatchDataset(ExampleDataset(examples), max_batch_padded_audio_samples=12, bucket_buffer_size=3, seed=42)
+    first_batches = list(islice(dataset, 3))
+    assert any(x["transcription"] == "long" for batch in first_batches for x in batch)

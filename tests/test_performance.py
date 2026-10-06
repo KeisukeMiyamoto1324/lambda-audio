@@ -35,3 +35,19 @@ def test_audio_batch_sizes_counts_valid_and_padded_samples() -> None:
 
     assert valid_samples == 6
     assert padded_samples == 8
+
+
+def test_progress_loss_is_read_only_at_logging_boundary() -> None:
+    from unittest.mock import Mock, patch
+
+    loss = Mock()
+    loss.item.return_value = 2.5
+    trainer = cast(L.Trainer, SimpleNamespace(accumulate_grad_batches=3, callback_metrics={"train_loss": loss}, loggers=[], progress_bar_metrics={}))
+    module = cast(L.LightningModule, object())
+    bar = TrainingProgressBar(refresh_rate=10)
+    with patch("lightning.pytorch.callbacks.RichProgressBar.on_train_batch_end"):
+        for index in range(60):
+            bar.on_train_batch_end(trainer, module, None, None, index)
+            bar.get_metrics(trainer, module)
+    assert loss.item.call_count == 2
+    assert bar.get_metrics(trainer, module)["train_loss"] == 2.5

@@ -49,14 +49,27 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
             self.bucket_buffer_size,
         )
 
+        carried_ids: set[int] = set()
         while window:
-            batches = self._create_batches(window, generator)
-            next_window: list[TranscribedAudioExample] = []
+            batches, remainder = self._create_batches(window, generator, flush=source_exhausted)
+            # ---------------------------------------------------------
+            # Limit carry-over to one window so long examples cannot starve.
+            # ---------------------------------------------------------
+            if any(id(example) in carried_ids for example in remainder):
+                batches.append(remainder)
+                remainder = []
+                generator.shuffle(batches)
+            if not batches:
+                source_exhausted = self._fill_window(window, source, len(window) + self.bucket_buffer_size)
+                continue
+            next_window = remainder
+            carried_ids = {id(example) for example in remainder}
+            carried_count = len(remainder)
             for batch_index, batch in enumerate(batches, start=1):
                 yield batch
                 if source_exhausted:
                     continue
-                refill_target = batch_index * self.bucket_buffer_size // len(batches)
+                refill_target = carried_count + batch_index * self.bucket_buffer_size // len(batches)
                 source_exhausted = self._fill_window(
                     next_window,
                     source,
@@ -68,7 +81,9 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
         self,
         window: list[TranscribedAudioExample],
         generator: random.Random,
-    ) -> list[list[TranscribedAudioExample]]:
+        *,
+        flush: bool,
+    ) -> tuple[list[list[TranscribedAudioExample]], list[TranscribedAudioExample]]:
         window.sort(key=lambda example: len(example["audio_array"]))
         batches: list[list[TranscribedAudioExample]] = []
         batch: list[TranscribedAudioExample] = []
@@ -90,11 +105,12 @@ class AudioBatchDataset(TorchIterableDataset[list[TranscribedAudioExample]]):
 
             batch.append(example)
 
-        if batch:
+        if batch and (flush or len(batch) * len(batch[-1]["audio_array"]) == self.max_batch_padded_audio_samples):
             batches.append(batch)
+            batch = []
 
         generator.shuffle(batches)
-        return batches
+        return batches, batch
 
     @staticmethod
     def _fill_window(
