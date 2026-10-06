@@ -33,8 +33,8 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     # Training duration and the step to unfreeze all weights.
     # ---------------------------------------------------------
-    max_steps: PositiveInt = 64_000
-    unfreeze_step: NonNegativeInt = 0
+    max_steps: PositiveInt = 64000
+    unfreeze_step: NonNegativeInt = 4000
 
     # ---------------------------------------------------------
     # Learning rates, schedule, and gradient stability.
