@@ -27,10 +27,10 @@ def load_inference_samples(input_path: Path) -> list[InferenceSample]:
 
     table = pq.read_table(input_path, columns=["audio", "text"])
     samples: list[InferenceSample] = []
-    for row in table.to_pylist():
+    for index, row in enumerate(table.to_pylist(), start=1):
         samples.append(
             InferenceSample(
-                audio_name=row["audio"]["path"],
+                audio_name=f"{input_path.name}:{index}",
                 audio=row["audio"]["bytes"],
                 reference=row["text"],
             )

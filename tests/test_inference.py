@@ -130,14 +130,22 @@ def test_transcribe_generates_from_bos(
     assert not model.generation_arguments["audio_padding_mask"].any()
 
 
-def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
+@pytest.mark.parametrize("audio_paths", [("a.flac", "b.flac"), (None, None), ("a.flac", None)])
+def test_load_inference_samples_reads_parquet(
+    tmp_path: Path,
+    audio_paths: tuple[str | None, str | None],
+) -> None:
     input_path = tmp_path / "data.parquet"
+    audio_type = pa.struct([("bytes", pa.binary()), ("path", pa.string())])
     table = pa.table(
         {
-            "audio": [
-                {"bytes": b"audio-a", "path": "a.flac"},
-                {"bytes": b"audio-b", "path": "b.flac"},
-            ],
+            "audio": pa.array(
+                [
+                    {"bytes": b"audio-a", "path": audio_paths[0]},
+                    {"bytes": b"audio-b", "path": audio_paths[1]},
+                ],
+                type=audio_type,
+            ),
             "text": ["一", "二"],
         }
     )
@@ -145,7 +153,7 @@ def test_load_inference_samples_reads_parquet(tmp_path: Path) -> None:
 
     samples = load_inference_samples(input_path)
 
-    assert [sample.audio_name for sample in samples] == ["a.flac", "b.flac"]
+    assert [sample.audio_name for sample in samples] == ["data.parquet:1", "data.parquet:2"]
     assert [sample.audio for sample in samples] == [b"audio-a", b"audio-b"]
     assert [sample.reference for sample in samples] == ["一", "二"]
 
