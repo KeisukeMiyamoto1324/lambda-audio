@@ -148,11 +148,11 @@ def test_model_loaders_pass_explicit_hf_token(
 
 
 def test_parakeet_downloads_with_token_and_selects_batched_tdt(config: BenchmarkConfig, monkeypatch: pytest.MonkeyPatch) -> None:
-    import sys
+    import os
 
     from omegaconf import OmegaConf
 
-    from src.benchmark.models import parakeet
+    from src.benchmark.models import parakeet, parakeet_environment
 
     model = torch.nn.Linear(1, 1)
     model.cfg = SimpleNamespace(decoding=OmegaConf.create({"strategy": "beam", "model_type": "tdt"}))
@@ -174,9 +174,20 @@ def test_parakeet_downloads_with_token_and_selects_batched_tdt(config: Benchmark
         return model
 
     monkeypatch.setattr(parakeet, "hf_hub_download", download)
-    monkeypatch.setitem(sys.modules, "nemo.collections.asr.models", SimpleNamespace(EncDecHybridRNNTCTCBPEModel=SimpleNamespace(restore_from=restore)))
+    monkeypatch.setenv("MPLCONFIGDIR", "/unwritable-cache")
+    logging_calls: list[int] = []
+    monkeypatch.setattr(parakeet, "nemo_logging", SimpleNamespace(ERROR=40, set_verbosity=logging_calls.append))
+    monkeypatch.setattr(parakeet, "EncDecHybridRNNTCTCBPEModel", SimpleNamespace(restore_from=restore))
+    parakeet_environment.configure_environment()
     engine = parakeet.load_model(config, torch.device("cpu"), "explicit-token")
     assert engine.model is model  # type: ignore[attr-defined]
     assert not model.training
     assert decoding_calls[0].strategy == "greedy_batch"
     assert decoding_calls[0].model_type == "tdt"
+    assert decoding_calls[0].greedy.use_cuda_graph_decoder is False
+    assert logging_calls == [40]
+    cache_path = Path(os.environ["MPLCONFIGDIR"])
+    assert cache_path.is_dir()
+    probe = cache_path / "write-test"
+    probe.write_text("writable")
+    probe.unlink()
