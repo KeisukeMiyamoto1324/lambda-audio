@@ -15,8 +15,8 @@ from rich.progress import Progress
 from rich.table import Table
 from torch import nn
 
-from src.inference import infer as infer_module
-from src.inference.config import InferenceConfig
+from src.benchmark import runner as infer_module
+from src.benchmark.config import BenchmarkConfig
 from src.modeling.checkpoint import load_model_checkpoint
 from src.shared import inference_display as display_module
 from src.shared.device import select_device
@@ -125,7 +125,7 @@ def test_transcribe_generates_from_bos(
 ) -> None:
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()
-    config = InferenceConfig(
+    config = BenchmarkConfig(
         checkpoint_path=checkpoint_path,
         input_path=checkpoint_path,
     )
@@ -159,7 +159,7 @@ def test_iter_transcriptions_batches_variable_length_audio_in_order(
 ) -> None:
     checkpoint = tmp_path / "model.ckpt"
     checkpoint.touch()
-    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint)
+    config = BenchmarkConfig(checkpoint_path=checkpoint, input_path=checkpoint)
     model = DummyModel()
     samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="音声") for index in range(5)]
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
@@ -193,7 +193,7 @@ def test_transcribe_rejects_overlong_audio_before_generation(
 ) -> None:
     checkpoint = tmp_path / "model.ckpt"
     checkpoint.touch()
-    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint, max_audio_seconds=0.01)
+    config = BenchmarkConfig(checkpoint_path=checkpoint, input_path=checkpoint, max_audio_seconds=0.01)
     model = DummyModel()
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
@@ -216,7 +216,7 @@ def test_inference_progress_tracks_batched_results_and_cer(
 ) -> None:
     checkpoint = tmp_path / "model.ckpt"
     checkpoint.touch()
-    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint, batch_size=2)
+    config = BenchmarkConfig(checkpoint_path=checkpoint, input_path=checkpoint, batch_size=2)
     samples = [
         InferenceSample(audio_name="first", audio=b"a", reference="あいう"),
         InferenceSample(audio_name="second", audio=b"aa", reference="かきくけこ"),
@@ -232,8 +232,11 @@ def test_inference_progress_tracks_batched_results_and_cer(
     monkeypatch.setattr(infer_module, "parse_arguments", lambda: config)
     monkeypatch.setattr(infer_module, "load_hf_token", lambda: "token")
     monkeypatch.setattr(infer_module, "select_device", lambda: torch.device("cpu"))
-    monkeypatch.setattr(infer_module, "load_model_components", lambda config, token: components)
-    monkeypatch.setattr(infer_module, "load_model_checkpoint", lambda model, path: None)
+    monkeypatch.setitem(
+        infer_module.MODEL_LOADERS,
+        "lambda-audio",
+        lambda config, device, token: lambda audio: transcribe(model, components.feature_extractor, tokenizer, config, device, audio),
+    )
     monkeypatch.setattr(infer_module, "load_inference_samples", lambda path: samples)
     monkeypatch.setattr(display_module, "Console", lambda: console)
     monkeypatch.setattr(display_module, "Progress", lambda *columns: progress)

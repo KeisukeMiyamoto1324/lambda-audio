@@ -3,6 +3,8 @@ from time import perf_counter
 import torch
 from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
+from src.benchmark.config import BenchmarkConfig
+from src.benchmark.models.base import BenchmarkModel
 from src.shared.transcription import TranscriptionConfig, TranscriptionResult, decode_audio_batch
 
 
@@ -57,3 +59,12 @@ class WhisperTranscriber:
             TranscriptionResult(text=text.strip(), audio_seconds=array.size / self.config.sampling_rate, inference_seconds=inference_seconds)
             for text, array in zip(texts, arrays, strict=True)
         ]
+
+
+def load_model(config: BenchmarkConfig, device: torch.device, token: str) -> BenchmarkModel:
+    model_id = "openai/whisper-large-v3-turbo"
+    processor = WhisperProcessor.from_pretrained(model_id, token=token)
+    model = WhisperForConditionalGeneration.from_pretrained(model_id, token=token, dtype=torch.float32, attn_implementation="sdpa")
+    model.to(device)
+    model.eval()
+    return WhisperTranscriber(model, processor, config, device)

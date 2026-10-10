@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from src.inference.config import InferenceConfig
+from src.benchmark.config import BenchmarkConfig
 from src.training.config import TrainingConfig
 
 
@@ -41,7 +41,7 @@ def test_inference_config_validates_paths(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "model.ckpt"
     checkpoint_path.touch()
 
-    config = InferenceConfig(
+    config = BenchmarkConfig(
         checkpoint_path=checkpoint_path,
         input_path=checkpoint_path,
     )

@@ -11,11 +11,12 @@ from rich.console import Console
 from rich.progress import Progress
 from torch import nn
 
-from src.benchmark import whisper as benchmark_module
-from src.benchmark.config import WhisperBenchmarkConfig
+from src.benchmark import runner as runner_module
+from src.benchmark.config import BenchmarkConfig
+from src.benchmark.models import whisper as benchmark_module
+from src.benchmark.models.whisper import WhisperTranscriber
 from src.shared import inference_display as display_module
 from src.shared.samples import InferenceSample
-from src.shared.whisper import WhisperTranscriber
 
 
 class DummyWhisper(nn.Module):
@@ -54,7 +55,7 @@ def test_whisper_batches_audio_with_matching_generation_conditions(
 ) -> None:
     input_path = tmp_path / "input.wav"
     input_path.touch()
-    config = WhisperBenchmarkConfig(input_path=input_path, max_new_tokens=32)
+    config = BenchmarkConfig(model="whisper", input_path=input_path, max_new_tokens=32)
     model = DummyWhisper()
     transcriber = WhisperTranscriber(model, DummyWhisperProcessor(), config, torch.device("cpu"))  # type: ignore[arg-type]
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
@@ -84,7 +85,7 @@ def test_whisper_rejects_overlong_clips_without_truncation(
 ) -> None:
     input_path = tmp_path / "input.wav"
     input_path.touch()
-    config = WhisperBenchmarkConfig(input_path=input_path, max_audio_seconds=0.01)
+    config = BenchmarkConfig(model="whisper", input_path=input_path, max_audio_seconds=0.01)
     model = DummyWhisper()
     transcriber = WhisperTranscriber(model, DummyWhisperProcessor(), config, torch.device("cpu"))  # type: ignore[arg-type]
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
@@ -101,7 +102,7 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
 ) -> None:
     input_path = tmp_path / "input.wav"
     input_path.touch()
-    config = WhisperBenchmarkConfig(input_path=input_path, batch_size=2)
+    config = BenchmarkConfig(model="whisper", input_path=input_path, batch_size=2)
     model = DummyWhisper()
     processor = DummyWhisperProcessor()
     loading_arguments: list[dict[str, Any]] = []
@@ -119,17 +120,17 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
     output = StringIO()
     console = Console(file=output, width=100, color_system=None)
     progress = Progress(console=console, disable=True)
-    monkeypatch.setattr(benchmark_module, "parse_arguments", lambda: config)
-    monkeypatch.setattr(benchmark_module, "load_hf_token", lambda: "test-token")
-    monkeypatch.setattr(benchmark_module, "select_device", lambda: torch.device("cpu"))
+    monkeypatch.setattr(runner_module, "parse_arguments", lambda: config)
+    monkeypatch.setattr(runner_module, "load_hf_token", lambda: "test-token")
+    monkeypatch.setattr(runner_module, "select_device", lambda: torch.device("cpu"))
     monkeypatch.setattr(benchmark_module, "WhisperForConditionalGeneration", SimpleNamespace(from_pretrained=load_model))
     monkeypatch.setattr(benchmark_module, "WhisperProcessor", SimpleNamespace(from_pretrained=load_processor))
-    monkeypatch.setattr(benchmark_module, "load_inference_samples", lambda path: samples)
+    monkeypatch.setattr(runner_module, "load_inference_samples", lambda path: samples)
     monkeypatch.setattr(display_module, "Console", lambda: console)
     monkeypatch.setattr(display_module, "Progress", lambda *columns: progress)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
-    benchmark_module.main()
+    runner_module.main()
 
     assert [call["input_features"].shape[0] for call in model.calls] == [2, 1]
     assert all(arguments["token"] == "test-token" for arguments in loading_arguments)
@@ -137,7 +138,7 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
     assert not model.training
     assert progress.tasks[0].completed == 3
     assert progress.tasks[0].fields == {"cer": "0.00%", "skipped": 0}
-    assert "Whisper large-v3-turbo" in output.getvalue()
+    assert "whisper" in output.getvalue()
     assert "CER: 0.00%" in output.getvalue()
     assert "Elapsed time:" in output.getvalue()
 
@@ -146,4 +147,4 @@ def test_whisper_config_rejects_invalid_batch_size(tmp_path: Path) -> None:
     input_path = tmp_path / "input.wav"
     input_path.touch()
     with pytest.raises(ValidationError):
-        WhisperBenchmarkConfig(input_path=input_path, batch_size=0)
+        BenchmarkConfig(model="whisper", input_path=input_path, batch_size=0)
