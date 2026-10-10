@@ -1,4 +1,4 @@
-from time import perf_counter
+from rich.console import Console
 
 from src.environment import load_hf_token
 from src.inference.cli import parse_arguments
@@ -7,6 +7,7 @@ from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
 from src.modeling.checkpoint import load_model_checkpoint
 from src.modeling.loading import load_model_components
+from src.shared.inference_report import InferenceReport
 
 
 def main() -> None:
@@ -17,9 +18,9 @@ def main() -> None:
     components.model.to(device)
     components.model.eval()
     samples = load_inference_samples(config.input_path)
+    report = InferenceReport("Inference")
 
-    for index, sample in enumerate(samples, start=1):
-        inference_start = perf_counter()
+    for sample in samples:
         result = transcribe(
             components.model,
             components.feature_extractor,
@@ -28,12 +29,9 @@ def main() -> None:
             device,
             sample.audio,
         )
-        inference_seconds = perf_counter() - inference_start
-        print("-" * 72)
-        print(f"[{index}/{len(samples)}] {sample.audio_name}")
-        if sample.reference:
-            print(f"正解({result.audio_seconds:.2g}秒): {sample.reference}")
-        print(f"推論({inference_seconds:.2g}秒): {result.text}")
+        report.add_sample(sample.audio_name, sample.reference, result.text)
+
+    Console().print(report.build_table())
 
 
 if __name__ == "__main__":

@@ -2,15 +2,14 @@ import csv
 from time import perf_counter
 
 import lightning as L
-from rich.table import Table
 
 from src.inference.samples import load_inference_samples
 from src.inference.transcription import transcribe
+from src.shared.inference_report import InferenceReport
 from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
 from src.training.lightning import LambdaAudioLightningModule
 from src.training.performance import TrainingProgressBar
-from src.training.text_diff import create_text_diff
 
 
 class ValidationInferenceMonitor(L.Callback):
@@ -54,10 +53,7 @@ class ValidationInferenceMonitor(L.Callback):
         # Transcribe samples and display aligned reference differences.
         # ---------------------------------------------------------
         samples = load_inference_samples(self.config.inference_samples_path)
-        table = Table(title=f"Validation Inference — Step {trainer.global_step}")
-        table.add_column("Audio", no_wrap=True)
-        table.add_column("正解", overflow="fold")
-        table.add_column("推論", overflow="fold")
+        report = InferenceReport(f"Validation Inference — Step {trainer.global_step}")
         records: list[dict[str, str | int | float]] = []
 
         model = pl_module.model
@@ -74,15 +70,7 @@ class ValidationInferenceMonitor(L.Callback):
                 sample.audio,
             )
             inference_seconds = perf_counter() - inference_start
-            reference_text, prediction_text = create_text_diff(
-                sample.reference,
-                result.text,
-            )
-            table.add_row(
-                sample.audio_name,
-                reference_text,
-                prediction_text,
-            )
+            report.add_sample(sample.audio_name, sample.reference, result.text)
             records.append(
                 {
                     "step": trainer.global_step,
@@ -105,4 +93,4 @@ class ValidationInferenceMonitor(L.Callback):
             if write_header:
                 writer.writeheader()
             writer.writerows(records)
-        self.progress_bar.print_table(table)
+        self.progress_bar.print_table(report.build_table())

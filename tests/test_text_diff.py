@@ -1,4 +1,4 @@
-from src.training.text_diff import (
+from src.shared.text_diff import (
     PREDICTION_DIFFERENCE_STYLE,
     REFERENCE_DIFFERENCE_STYLE,
     create_text_diff,
