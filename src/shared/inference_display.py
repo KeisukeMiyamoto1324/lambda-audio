@@ -13,6 +13,7 @@ def display_inference(
     results: Iterable[tuple[InferenceSample, TranscriptionResult]],
     total_samples: int,
     title: str,
+    show_table: bool = True,
 ) -> None:
     report = InferenceReport(title)
     inference_start = perf_counter()
@@ -32,5 +33,9 @@ def display_inference(
 
     elapsed_seconds = perf_counter() - inference_start
     console = Console()
-    console.print(report.build_table())
+    if show_table:
+        table = report.build_table()
+        table.caption = None
+        console.print(table)
+    console.print(f"CER: {report.cer_text}")
     console.print(f"Elapsed time: {elapsed_seconds:.2f} seconds")

@@ -28,3 +28,11 @@ def test_cli_accepts_newly_registered_model(monkeypatch: pytest.MonkeyPatch, tmp
     assert config.model == "custom-model"
     assert config.input_path == input_path
     assert config.batch_size == 2
+
+
+@pytest.mark.parametrize(("arguments", "expected"), [([], True), (["--show-table"], True), (["--no-show-table"], False)])
+def test_cli_controls_result_table(arguments: list[str], expected: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "audio.wav"
+    path.touch()
+    monkeypatch.setattr("sys.argv", ["benchmark", "--model", "whisper", "--input", str(path), *arguments])
+    assert parse_arguments().show_table is expected

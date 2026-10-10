@@ -12,4 +12,4 @@ def main() -> None:
     samples = load_inference_samples(config.input_path)
     transcriber = MODEL_LOADERS[config.model](config, select_device(), load_hf_token())
     results = iter_batch_transcriptions(samples, config.batch_size, transcriber)
-    display_inference(results, len(samples), config.model)
+    display_inference(results, len(samples), config.model, show_table=config.show_table)

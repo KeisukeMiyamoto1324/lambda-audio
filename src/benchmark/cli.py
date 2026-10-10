@@ -15,6 +15,7 @@ def parse_arguments() -> BenchmarkConfig:
     parser.add_argument("--input", dest="input_path", type=Path, default=defaults.input_path)
     parser.add_argument("--batch-size", type=int, default=defaults.batch_size)
     parser.add_argument("--max-new-tokens", type=int, default=defaults.max_new_tokens)
+    parser.add_argument("--show-table", action=argparse.BooleanOptionalAction, default=defaults.show_table, help="Show the transcription results table (default: enabled).")
     try:
         return BenchmarkConfig.model_validate(vars(parser.parse_args()))
     except ValidationError as error:

@@ -13,6 +13,7 @@ class BenchmarkConfig(ModelConfig):
     batch_size: PositiveInt = 16
     max_new_tokens: PositiveInt = 256
     max_audio_seconds: float = 30.0
+    show_table: bool = True
 
     @model_validator(mode="after")
     def validate_checkpoint(self) -> Self:
