@@ -61,8 +61,7 @@ class WhisperTranscriber:
         ]
 
 
-def load_model(config: BenchmarkConfig, device: torch.device, token: str) -> BenchmarkModel:
-    model_id = "openai/whisper-large-v3-turbo"
+def load_model(config: BenchmarkConfig, device: torch.device, token: str, model_id: str = "openai/whisper-large-v3-turbo") -> BenchmarkModel:
     processor = WhisperProcessor.from_pretrained(model_id, token=token)
     model = WhisperForConditionalGeneration.from_pretrained(model_id, token=token, dtype=torch.float32, attn_implementation="sdpa")
     model.to(device)
