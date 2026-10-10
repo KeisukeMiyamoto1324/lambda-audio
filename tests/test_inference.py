@@ -1,5 +1,7 @@
-from io import BytesIO
+import csv
+from io import BytesIO, StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -8,30 +10,47 @@ import pyarrow.parquet as pq
 import pytest
 import soundfile as sf
 import torch
+from rich.console import Console
+from rich.progress import Progress
+from rich.table import Table
 from torch import nn
 
+from src.inference import infer as infer_module
 from src.inference.config import InferenceConfig
-from src.inference.loader import select_device
-from src.inference.samples import load_inference_samples
-from src.inference.transcription import decode_audio, transcribe
 from src.modeling.checkpoint import load_model_checkpoint
+from src.shared.device import select_device
+from src.shared.samples import InferenceSample, load_inference_samples
+from src.shared.transcription import decode_audio, iter_transcriptions, transcribe
+from src.training.config import TrainingConfig
+from src.training.data_module import LambdaAudioDataModule
+from src.training.inference_monitor import ValidationInferenceMonitor
+from src.training.lightning import LambdaAudioLightningModule
 
 
 class DummyModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.generation_arguments: dict[str, Any] = {}
+        self.batch_sizes: list[int] = []
 
     def generate(self, **kwargs: Any) -> torch.LongTensor:
         self.generation_arguments = kwargs
-        return torch.tensor([[1, 4, 2]])
+        batch_size = kwargs["input_ids"].shape[0]
+        self.batch_sizes.append(batch_size)
+        return torch.tensor([[1, 4, 2]]).repeat(batch_size, 1)
 
 
 class DummyFeatureExtractor:
-    def __call__(self, audio: np.ndarray, **kwargs: Any) -> dict[str, torch.Tensor]:
+    def __call__(self, audio: list[np.ndarray], **kwargs: Any) -> dict[str, torch.Tensor]:
+        assert kwargs["padding"] is True
+        input_values = torch.zeros(len(audio), max(array.size for array in audio))
+        attention_mask = torch.zeros_like(input_values, dtype=torch.long)
+        for index, array in enumerate(audio):
+            input_values[index, : array.size] = torch.from_numpy(array)
+            attention_mask[index, : array.size] = 1
         return {
-            "input_values": torch.from_numpy(audio).unsqueeze(0),
-            "attention_mask": torch.ones(1, audio.size, dtype=torch.long),
+            "input_values": input_values,
+            "attention_mask": attention_mask,
         }
 
 
@@ -44,9 +63,9 @@ class DummyTokenizer:
         token_ids: torch.LongTensor,
         skip_special_tokens: bool,
     ) -> list[str]:
-        assert token_ids.tolist() == [[4, 2]]
+        assert all(tokens == [4, 2] for tokens in token_ids.tolist())
         assert skip_special_tokens
-        return [" transcription "]
+        return [" transcription "] * token_ids.shape[0]
 
 
 def test_decode_audio_reads_flac_with_unknown_total_sample_count() -> None:
@@ -111,7 +130,7 @@ def test_transcribe_generates_from_bos(
     )
     model = DummyModel()
     monkeypatch.setattr(
-        "src.inference.transcription.decode_audio",
+        "src.shared.transcription.decode_audio",
         lambda audio, sampling_rate: np.ones(160, dtype=np.float32),
     )
 
@@ -121,13 +140,143 @@ def test_transcribe_generates_from_bos(
         DummyTokenizer(),  # type: ignore[arg-type]
         config,
         torch.device("cpu"),
-        b"audio",
-    )
+        [b"audio"],
+    )[0]
 
     assert result.text == "transcription"
     assert result.audio_seconds == 0.01
     assert model.generation_arguments["input_ids"].tolist() == [[1]]
     assert not model.generation_arguments["audio_padding_mask"].any()
+    assert model.generation_arguments["use_cache"] is True
+
+
+@pytest.mark.parametrize("batch_size", [1, 2, 8])
+def test_iter_transcriptions_batches_variable_length_audio_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    batch_size: int,
+) -> None:
+    checkpoint = tmp_path / "model.ckpt"
+    checkpoint.touch()
+    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint)
+    model = DummyModel()
+    samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="音声") for index in range(5)]
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
+
+    results = list(
+        iter_transcriptions(
+            model,  # type: ignore[arg-type]
+            DummyFeatureExtractor(),  # type: ignore[arg-type]
+            DummyTokenizer(),  # type: ignore[arg-type]
+            config,
+            torch.device("cpu"),
+            samples,
+            batch_size,
+        )
+    )
+
+    assert [sample for sample, result in results] == samples
+    assert [result.audio_seconds for sample, result in results] == [(index + 1) / 16_000 for index in range(5)]
+    assert all(result.text == "transcription" for sample, result in results)
+    assert model.batch_sizes == [min(batch_size, 5 - index) for index in range(0, 5, batch_size)]
+    final_batch_size = model.batch_sizes[-1]
+    final_lengths = torch.arange(6 - final_batch_size, 6)
+    expected_padding_mask = torch.arange(5).unsqueeze(0) >= final_lengths.unsqueeze(1)
+    assert torch.equal(model.generation_arguments["audio_padding_mask"], expected_padding_mask)
+    assert model.generation_arguments["input_ids"].tolist() == [[1]] * final_batch_size
+
+
+def test_transcribe_rejects_overlong_audio_before_generation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "model.ckpt"
+    checkpoint.touch()
+    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint, max_audio_seconds=0.01)
+    model = DummyModel()
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="0.01 seconds"):
+        transcribe(
+            model,  # type: ignore[arg-type]
+            DummyFeatureExtractor(),  # type: ignore[arg-type]
+            DummyTokenizer(),  # type: ignore[arg-type]
+            config,
+            torch.device("cpu"),
+            [b"a", b"a" * 161],
+        )
+
+    assert model.batch_sizes == []
+
+
+def test_inference_progress_tracks_batched_results_and_cer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "model.ckpt"
+    checkpoint.touch()
+    config = InferenceConfig(checkpoint_path=checkpoint, input_path=checkpoint, batch_size=2)
+    samples = [
+        InferenceSample(audio_name="first", audio=b"a", reference="あいう"),
+        InferenceSample(audio_name="second", audio=b"aa", reference="かきくけこ"),
+        InferenceSample(audio_name="third", audio=b"aaa", reference=""),
+    ]
+    model = DummyModel()
+    tokenizer = DummyTokenizer()
+    monkeypatch.setattr(tokenizer, "batch_decode", lambda token_ids, skip_special_tokens: ["あいえ", "かきくけこ"] if len(token_ids) == 2 else ["任意"])
+    components = SimpleNamespace(model=model, feature_extractor=DummyFeatureExtractor(), tokenizer=tokenizer)
+    output = StringIO()
+    console = Console(file=output, width=100, color_system=None)
+    progress = Progress(console=console, disable=True)
+    monkeypatch.setattr(infer_module, "parse_arguments", lambda: config)
+    monkeypatch.setattr(infer_module, "load_hf_token", lambda: "token")
+    monkeypatch.setattr(infer_module, "select_device", lambda: torch.device("cpu"))
+    monkeypatch.setattr(infer_module, "load_model_components", lambda config, token: components)
+    monkeypatch.setattr(infer_module, "load_model_checkpoint", lambda model, path: None)
+    monkeypatch.setattr(infer_module, "load_inference_samples", lambda path: samples)
+    monkeypatch.setattr(infer_module, "Console", lambda: console)
+    monkeypatch.setattr(infer_module, "Progress", lambda *columns: progress)
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
+
+    infer_module.main()
+
+    assert model.batch_sizes == [2, 1]
+    assert progress.tasks[0].completed == progress.tasks[0].total == 3
+    assert progress.tasks[0].fields == {"cer": "12.50%", "skipped": 1}
+    assert "CER: 12.50%" in output.getvalue()
+    assert "Elapsed time:" in output.getvalue()
+
+
+def test_training_inference_batches_samples_and_preserves_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "samples.parquet"
+    input_path.touch()
+    config = TrainingConfig(output_dir=tmp_path, inference_samples_path=input_path, inference_batch_size=2)
+    model = DummyModel()
+    module = LambdaAudioLightningModule(model, config)  # type: ignore[arg-type]
+    data_module = LambdaAudioDataModule(DummyFeatureExtractor(), DummyTokenizer(), config, "token")  # type: ignore[arg-type]
+    samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="日本語") for index in range(3)]
+    tables: list[Table] = []
+    barriers: list[str] = []
+    trainer = SimpleNamespace(datamodule=data_module, global_step=42, is_global_zero=True, strategy=SimpleNamespace(barrier=barriers.append))
+    progress_bar = SimpleNamespace(print_table=tables.append)
+    monitor = ValidationInferenceMonitor(config, progress_bar)  # type: ignore[arg-type]
+    monkeypatch.setattr("src.training.inference_monitor.load_inference_samples", lambda path: samples)
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
+
+    monitor.on_validation_end(trainer, module)  # type: ignore[arg-type]
+
+    with monitor.history_path.open(encoding="utf-8", newline="") as file:
+        records = list(csv.DictReader(file))
+    assert model.batch_sizes == [2, 1]
+    assert [record["audio"] for record in records] == ["0", "1", "2"]
+    assert [record["step"] for record in records] == ["42"] * 3
+    assert records[0]["inference_seconds"] == records[1]["inference_seconds"]
+    assert tables[0].row_count == 3
+    assert "CER:" in str(tables[0].caption)
+    assert barriers == ["validation_inference"]
 
 
 @pytest.mark.parametrize("audio_paths", [("a.flac", "b.flac"), (None, None), ("a.flac", None)])

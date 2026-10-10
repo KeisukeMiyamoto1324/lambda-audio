@@ -44,11 +44,13 @@ def test_create_app_transcribes_when_recording_stops(
     monkeypatch.setattr("src.app.app.load_model_checkpoint", lambda loaded_model, path: None)
     monkeypatch.setattr(
         "src.app.app.transcribe",
-        lambda loaded_model, feature_extractor, tokenizer, config, device, audio: type(
-            "Result",
-            (),
-            {"text": "テスト"},
-        )(),
+        lambda loaded_model, feature_extractor, tokenizer, config, device, audio: [
+            type(
+                "Result",
+                (),
+                {"text": "テスト"},
+            )()
+        ],
     )
 
     app = create_app(AppConfig(checkpoint_path=checkpoint_path))

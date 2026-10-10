@@ -1,4 +1,7 @@
+from collections.abc import Iterable, Iterator
 from io import BytesIO
+from itertools import batched
+from time import perf_counter
 from typing import Protocol
 
 import av
@@ -9,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.modeling.lambda_audio import LambdaAudioModel
+from src.shared.samples import InferenceSample
 
 
 class TranscriptionConfig(Protocol):
@@ -22,6 +26,7 @@ class TranscriptionResult(BaseModel):
 
     text: str
     audio_seconds: NonNegativeFloat
+    inference_seconds: NonNegativeFloat
 
 
 def transcribe(
@@ -30,18 +35,22 @@ def transcribe(
     tokenizer: PreTrainedTokenizerBase,
     config: TranscriptionConfig,
     device: torch.device,
-    audio: bytes,
-) -> TranscriptionResult:
+    audio: list[bytes],
+) -> list[TranscriptionResult]:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
-    audio_array = decode_audio(audio, config.sampling_rate)
-    if audio_array.size > config.sampling_rate * config.max_audio_seconds:
+    if not audio:
+        raise ValueError("An inference batch must contain at least one audio clip.")
+    inference_start = perf_counter()
+    audio_arrays = [decode_audio(encoded, config.sampling_rate) for encoded in audio]
+    if any(array.size > config.sampling_rate * config.max_audio_seconds for array in audio_arrays):
         raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
 
     audio_batch = feature_extractor(
-        audio_array,
+        audio_arrays,
         sampling_rate=config.sampling_rate,
+        padding=True,
         return_attention_mask=True,
         return_tensors="pt",
     )
@@ -54,7 +63,7 @@ def transcribe(
     # ---------------------------------------------------------
     # Generate from BOS and decode only newly generated transcription tokens.
     # ---------------------------------------------------------
-    input_ids = torch.tensor([[tokenizer.bos_token_id]], device=device)
+    input_ids = torch.full((len(audio), 1), tokenizer.bos_token_id, dtype=torch.long, device=device)
     attention_mask = torch.ones_like(input_ids)
     with torch.inference_mode():
         generated_ids = model.generate(
@@ -65,17 +74,44 @@ def transcribe(
             max_new_tokens=config.max_new_tokens,
             do_sample=False,
             eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id,
+            use_cache=True,
         )
 
     transcription_ids = generated_ids[:, input_ids.shape[1] :]
-    text = tokenizer.batch_decode(
+    texts = tokenizer.batch_decode(
         transcription_ids,
         skip_special_tokens=True,
-    )[0].strip()
-    return TranscriptionResult(
-        text=text,
-        audio_seconds=audio_array.size / config.sampling_rate,
     )
+    # ---------------------------------------------------------
+    # Allocate batch latency equally across samples for history records.
+    # ---------------------------------------------------------
+    inference_seconds = (perf_counter() - inference_start) / len(audio)
+    return [
+        TranscriptionResult(
+            text=text.strip(),
+            audio_seconds=array.size / config.sampling_rate,
+            inference_seconds=inference_seconds,
+        )
+        for text, array in zip(texts, audio_arrays, strict=True)
+    ]
+
+
+def iter_transcriptions(
+    model: LambdaAudioModel,
+    feature_extractor: SequenceFeatureExtractor,
+    tokenizer: PreTrainedTokenizerBase,
+    config: TranscriptionConfig,
+    device: torch.device,
+    samples: Iterable[InferenceSample],
+    batch_size: int,
+) -> Iterator[tuple[InferenceSample, TranscriptionResult]]:
+    # ---------------------------------------------------------
+    # Generate each batch together while preserving sample order.
+    # ---------------------------------------------------------
+    for batch in batched(samples, batch_size):
+        results = transcribe(model, feature_extractor, tokenizer, config, device, [sample.audio for sample in batch])
+        yield from zip(batch, results, strict=True)
 
 
 def decode_audio(audio: bytes, sampling_rate: int) -> NDArray[np.float32]:

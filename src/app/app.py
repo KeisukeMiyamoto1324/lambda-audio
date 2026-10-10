@@ -5,11 +5,11 @@ import gradio as gr
 from pydantic import FilePath, PositiveFloat, PositiveInt
 
 from src.environment import load_hf_token
-from src.inference.loader import select_device
-from src.inference.transcription import transcribe
 from src.modeling.checkpoint import load_model_checkpoint
 from src.modeling.config import ModelConfig
 from src.modeling.loading import load_model_components
+from src.shared.device import select_device
+from src.shared.transcription import transcribe
 
 
 class AppConfig(ModelConfig):
@@ -32,8 +32,8 @@ def create_app(config: AppConfig) -> gr.Blocks:
             components.tokenizer,
             config,
             device,
-            Path(audio_path).read_bytes(),
-        )
+            [Path(audio_path).read_bytes()],
+        )[0]
         return result.text
 
     # ---------------------------------------------------------

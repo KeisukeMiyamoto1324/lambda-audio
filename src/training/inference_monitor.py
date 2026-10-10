@@ -1,11 +1,10 @@
 import csv
-from time import perf_counter
 
 import lightning as L
 
-from src.inference.samples import load_inference_samples
-from src.inference.transcription import transcribe
 from src.shared.inference_report import InferenceReport
+from src.shared.samples import load_inference_samples
+from src.shared.transcription import iter_transcriptions
 from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
 from src.training.lightning import LambdaAudioLightningModule
@@ -58,18 +57,15 @@ class ValidationInferenceMonitor(L.Callback):
 
         model = pl_module.model
         model.eval()
-        model.decoder.config.use_cache = True
-        for sample in samples:
-            inference_start = perf_counter()
-            result = transcribe(
-                model,
-                data_module.collator.feature_extractor,
-                data_module.collator.tokenizer,
-                self.config,
-                pl_module.device,
-                sample.audio,
-            )
-            inference_seconds = perf_counter() - inference_start
+        for sample, result in iter_transcriptions(
+            model,
+            data_module.collator.feature_extractor,
+            data_module.collator.tokenizer,
+            self.config,
+            pl_module.device,
+            samples,
+            self.config.inference_batch_size,
+        ):
             report.add_sample(sample.audio_name, sample.reference, result.text)
             records.append(
                 {
@@ -78,10 +74,9 @@ class ValidationInferenceMonitor(L.Callback):
                     "reference": sample.reference,
                     "prediction": result.text,
                     "audio_seconds": result.audio_seconds,
-                    "inference_seconds": inference_seconds,
+                    "inference_seconds": result.inference_seconds,
                 }
             )
-        model.decoder.config.use_cache = False
 
         # ---------------------------------------------------------
         # Append one row per sample to compare predictions across steps.

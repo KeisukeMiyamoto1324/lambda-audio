@@ -18,6 +18,7 @@ def parse_arguments() -> InferenceConfig:
         help="Path to a WAV or Parquet file.",
     )
     parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=defaults.batch_size)
     try:
         return InferenceConfig.model_validate(vars(parser.parse_args()))
     except ValidationError as error:
