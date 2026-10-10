@@ -25,6 +25,7 @@ def test_table_visibility_preserves_metrics_and_progress(show_table: bool, monke
     assert ("example.wav" in rendered) is show_table
     assert ("正解" in rendered) is show_table
     assert rendered.count("CER: 33.33%") == 1
+    assert rendered.index("Model name: Test") < rendered.index("CER: 33.33%") < rendered.index("Elapsed time:")
     assert "Elapsed time:" in rendered
     assert progress.tasks[0].completed == 1
     assert progress.tasks[0].fields["cer"] == "33.33%"

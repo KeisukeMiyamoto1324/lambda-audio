@@ -1,3 +1,5 @@
+from transformers.utils import logging as transformers_logging
+
 from src.benchmark.cli import parse_arguments
 from src.benchmark.registry import MODEL_LOADERS
 from src.environment import load_hf_token
@@ -9,6 +11,7 @@ from src.shared.transcription import iter_batch_transcriptions
 
 def main() -> None:
     config = parse_arguments()
+    transformers_logging.set_verbosity_error()
     samples = load_inference_samples(config.input_path)
     transcriber = MODEL_LOADERS[config.model](config, select_device(), load_hf_token())
     results = iter_batch_transcriptions(samples, config.batch_size, transcriber)

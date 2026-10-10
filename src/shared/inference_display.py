@@ -37,5 +37,6 @@ def display_inference(
         table = report.build_table()
         table.caption = None
         console.print(table)
+    console.print(f"Model name: {title}")
     console.print(f"CER: {report.cer_text}")
     console.print(f"Elapsed time: {elapsed_seconds:.2f} seconds")

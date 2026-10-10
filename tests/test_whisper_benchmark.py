@@ -106,6 +106,8 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
     model = DummyWhisper()
     processor = DummyWhisperProcessor()
     loading_arguments: list[dict[str, Any]] = []
+    logging_calls: list[bool] = []
+    monkeypatch.setattr(runner_module.transformers_logging, "set_verbosity_error", lambda: logging_calls.append(True))
 
     def load_model(model_id: str, **kwargs: Any) -> DummyWhisper:
         loading_arguments.append(kwargs)
@@ -132,6 +134,7 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
 
     runner_module.main()
 
+    assert logging_calls == [True]
     assert [call["input_features"].shape[0] for call in model.calls] == [2, 1]
     assert all(arguments["token"] == "test-token" for arguments in loading_arguments)
     assert loading_arguments[1]["dtype"] == torch.float32
