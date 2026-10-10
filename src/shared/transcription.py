@@ -1,4 +1,5 @@
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
+from functools import partial
 from io import BytesIO
 from itertools import batched
 from time import perf_counter
@@ -40,12 +41,8 @@ def transcribe(
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
     # ---------------------------------------------------------
-    if not audio:
-        raise ValueError("An inference batch must contain at least one audio clip.")
     inference_start = perf_counter()
-    audio_arrays = [decode_audio(encoded, config.sampling_rate) for encoded in audio]
-    if any(array.size > config.sampling_rate * config.max_audio_seconds for array in audio_arrays):
-        raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
+    audio_arrays = decode_audio_batch(audio, config)
 
     audio_batch = feature_extractor(
         audio_arrays,
@@ -109,9 +106,27 @@ def iter_transcriptions(
     # ---------------------------------------------------------
     # Generate each batch together while preserving sample order.
     # ---------------------------------------------------------
+    transcribe_batch = partial(transcribe, model, feature_extractor, tokenizer, config, device)
+    yield from iter_batch_transcriptions(samples, batch_size, transcribe_batch)
+
+
+def iter_batch_transcriptions(
+    samples: Iterable[InferenceSample],
+    batch_size: int,
+    transcribe_batch: Callable[[list[bytes]], list[TranscriptionResult]],
+) -> Iterator[tuple[InferenceSample, TranscriptionResult]]:
     for batch in batched(samples, batch_size):
-        results = transcribe(model, feature_extractor, tokenizer, config, device, [sample.audio for sample in batch])
+        results = transcribe_batch([sample.audio for sample in batch])
         yield from zip(batch, results, strict=True)
+
+
+def decode_audio_batch(audio: list[bytes], config: TranscriptionConfig) -> list[NDArray[np.float32]]:
+    if not audio:
+        raise ValueError("An inference batch must contain at least one audio clip.")
+    arrays = [decode_audio(encoded, config.sampling_rate) for encoded in audio]
+    if any(array.size > config.sampling_rate * config.max_audio_seconds for array in arrays):
+        raise ValueError(f"The audio file must be {config.max_audio_seconds:g} seconds or shorter.")
+    return arrays
 
 
 def decode_audio(audio: bytes, sampling_rate: int) -> NDArray[np.float32]:

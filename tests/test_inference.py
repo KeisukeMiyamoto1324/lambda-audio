@@ -18,6 +18,7 @@ from torch import nn
 from src.inference import infer as infer_module
 from src.inference.config import InferenceConfig
 from src.modeling.checkpoint import load_model_checkpoint
+from src.shared import inference_display as display_module
 from src.shared.device import select_device
 from src.shared.samples import InferenceSample, load_inference_samples
 from src.shared.transcription import decode_audio, iter_transcriptions, transcribe
@@ -234,8 +235,8 @@ def test_inference_progress_tracks_batched_results_and_cer(
     monkeypatch.setattr(infer_module, "load_model_components", lambda config, token: components)
     monkeypatch.setattr(infer_module, "load_model_checkpoint", lambda model, path: None)
     monkeypatch.setattr(infer_module, "load_inference_samples", lambda path: samples)
-    monkeypatch.setattr(infer_module, "Console", lambda: console)
-    monkeypatch.setattr(infer_module, "Progress", lambda *columns: progress)
+    monkeypatch.setattr(display_module, "Console", lambda: console)
+    monkeypatch.setattr(display_module, "Progress", lambda *columns: progress)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
     infer_module.main()
