@@ -4,7 +4,6 @@ venv/
 setup.sh
 data/prepared/
 outputs/datasets/reazon-speech-v2-shards/
-**.png
 **.sqlite3
 **.sqlite3.lock
 **.csv
@@ -13,4 +12,3 @@ outputs/
 **.wav
 **.lock
 **.arrow
-**.svg
