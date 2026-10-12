@@ -79,3 +79,23 @@ Apple M1 Max / 64 GB、MLX 0.32.3。指定の650件全件、fp16 checkpoint、�
 前回のbatch size 1のメモリ診断114.06秒に対して、今回は118.37秒でした。batch size 16の前回最終再測定118.63秒に対して、今回は117.37秒でした。いずれも単発測定であり、実行時の変動や診断処理の差を含みます。キャッシュ無効化によって常に高速化するとは判断していません。詳細は `outputs/diagnostics/mlx-no-cache-batch1.json` と `outputs/diagnostics/mlx-no-cache-batch16.json` に保存しています。
 
 変更後のRuffチェック・整形とMLX範囲の型チェックは通過しました。pytestは既存のTriton依存2ファイルを除いて204件通過。通常のpytestの収集エラー2件と、全体のpyrightのTriton importエラー13件は既存のものです。`src/` の変更はなく、評価データと保存済み4bit checkpointのSHA-256も一致しています。
+
+## Whisper large-v3-turbo MLX 4bit
+
+| 実行時刻 | 実験 | Batch size | CER | Elapsed time | 前回からの変更（300字以内） | 改善コミット |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-12T06:04:15-05:00 | whisper-large-v3-turbo-q4-b1 | 1 | 5.54% | 740.98 seconds | 比較モデルをMLX Whisper large-v3-turboの4bit・group 64へ変更。同じ650件・元順序・既存CER/Elapsed計測を使用。日本語greedy、最大256token、timestamp・再試行・無音スキップなし。メモリ再利用キャッシュ上限0。 | — |
+
+650/650件完了、Skipped 0。モデルは `mlx-community/whisper-large-v3-turbo-q4`、revisionは `660c343bbf4e52ac257f0b7d952e5388e6f93bef`、MLXは0.32.3、mlx-whisperは0.4.3です。重みは4bit・group 64、演算dtypeはfloat16です。`mlx/benchmark.py` からモデルを登録し、既存の `src.benchmark.runner` を使用しました。`src/` と評価データに変更はありません。モデル読み込みは既存仕様どおりElapsed timeに含みません。
+
+```bash
+python -m mlx.benchmark \
+  --model whisper-mlx \
+  --input data/fleurs_ja_test.parquet \
+  --batch-size 1 \
+  --no-show-table
+```
+
+MLXのメモリ再利用キャッシュは観測した各時点で0 bytes、使用中メモリのピークは1.330 GBでした。詳細は `outputs/diagnostics/mlx-whisper-turbo-q4-batch1.json` に保存しています。
+
+Ruffチェック・整形と追加ファイルの型チェックは通過しました。pytestは既存のTriton依存2ファイルを除いて208件通過しました。通常のpytestの収集エラー2件と、全体のpyrightのTriton importエラー13件は既存のものです。
