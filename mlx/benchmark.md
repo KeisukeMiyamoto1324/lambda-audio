@@ -28,5 +28,31 @@ Apple M1 Max / 64 GB、MLX 0.32.3。指定の650件全件、fp16 checkpoint、�
 | 2026-10-12T04:21:54-05:00 | q6-compiled-b16 | 16 | 6.08% | 118.52 seconds | 並べ替え・encoder分割を完全撤去。元のデータ順・batch 16のまま。6bit量子化と固定形状compile、統合Metalカーネルのみ。 | `3a04088` |
 | 2026-10-12T04:27:02-05:00 | 不採用：q6-encoder-fused-b16 | 16 | 6.08% | 118.31 seconds | BiasNormをSIMD Metalカーネル化し、SwooshL・bypass・masked GLUを演算融合。データ順・batch・引数は不変。6bit量子化を維持。 | — |
 | 2026-10-12T04:29:37-05:00 | 不採用：q6-encoder-fused-b1 | 1 | 6.08% | 131.14 seconds | batch size 16と同じBiasNorm専用カーネル・SwooshL/bypass/masked GLU融合。順序・引数は変更なし。 | — |
-| 2026-10-12T04:32:55-05:00 | q4-compiled-b16 | 16 | 6.12% | 116.49 seconds | 遅くなったBiasNorm・活性化融合を撤去し3a04088の演算へ復元。decoder線形層の量子化だけ6bitから4bitへ変更。順序・引数は不変。 | — |
-| 2026-10-12T04:35:10-05:00 | q4-compiled-b1 | 1 | 6.12% | 106.79 seconds | 同じ4bit量子化版。その他のモデル実装、データ順、CLI引数は変更なし。 | — |
+| 2026-10-12T04:32:55-05:00 | q4-compiled-b16 | 16 | 6.12% | 116.49 seconds | 遅くなったBiasNorm・活性化融合を撤去し3a04088の演算へ復元。decoder線形層の量子化だけ6bitから4bitへ変更。順序・引数は不変。 | `dcf99f9` |
+| 2026-10-12T04:35:10-05:00 | q4-compiled-b1 | 1 | 6.12% | 106.79 seconds | 同じ4bit量子化版。その他のモデル実装、データ順、CLI引数は変更なし。 | `dcf99f9` |
+| 2026-10-12T04:37:57-05:00 | 不採用：q8-compiled-b16 | 16 | 6.03% | 119.47 seconds | decoder線形層の量子化だけ4bitから8bitへ変更。group 64、演算、データ順、CLI引数は不変。 | — |
+| 2026-10-12T04:40:27-05:00 | 不採用：q8-compiled-b1 | 1 | 6.03% | 124.33 seconds | 同じ8bit量子化版。その他のモデル実装、データ順、CLI引数は変更なし。 | — |
+| 2026-10-12T04:44:29-05:00 | final-b16 | 16 | 6.12% | 118.63 seconds | 採用版dcf99f9（4bit）を再測定。8bit実験から4bitへ復元した以外の実装変更なし。指定650件・元順序・全引数固定。 | `dcf99f9` |
+| 2026-10-12T04:46:54-05:00 | final-b1 | 1 | 6.12% | 109.52 seconds | 採用版dcf99f9（4bit）の再測定。実装変更なし。指定650件・元順序・全引数固定。 | `dcf99f9` |
+
+## 最終結果
+
+採用実装は `dcf99f98085db98c2e891dceafa7deff35220def`。統合Metalカーネル、decoder固定形状ブロックのcompile、decoder線形層の4bit量子化を使用します。量子化は読み込み時のメモリ上だけで行い、元checkpointは変更していません。encoder、埋め込み、cross-attentionの直接保持する射影重みはfp16です。
+
+| Batch size | 変更前 | 最終再測定 | 時間短縮率 | 高速化倍率 | CER（変更前 → 最終） |
+| --- | --- | --- | --- | --- | --- |
+| 16 | 171.80秒 | 118.63秒 | 30.95% | 1.45倍 | 6.05% → 6.12% |
+| 1 | 313.22秒 | 109.52秒 | 65.03% | 2.86倍 | 6.06% → 6.12% |
+
+最終再測定はいずれも650/650件、Skipped 0、CER 7%未満です。同じ実装の初回測定値も表に残し、上表には最後の再測定値を使用しています。データ順、batch構成、生成上限、EOS停止条件、CLI引数は維持しています。追加のBiasNorm・活性化融合はbatch size 1で悪化したため撤去し、8bit量子化は両条件で4bitより遅かったため採用していません。
+
+## 最終検証
+
+`ruff check . --fix` と `ruff format .` は通過し、自動修正はありませんでした。Macで実行可能なpytestは199件通過しました。通常の `pytest` は既存のTriton未導入により2ファイルの収集で失敗するため、`tests/test_gradient_kernels.py` と `tests/test_training_kernels.py` を除外して検証しています。通常の `pyright` にも未変更の `src/modeling/kernels` 内のTriton importエラー13件が残っています。`mlx/model`、`mlx/inference`、`mlx/kernel`、`tests/test_mlx.py`、`tests/test_mlx_kernels.py` の型チェックはエラー0件です。
+
+作業前後のSHA-256比較で、`src/` の全78ファイルと評価データの一致を確認しました。
+
+| 対象 | SHA-256 |
+| --- | --- |
+| `data/fleurs_ja_test.parquet` | `1cab4feab0e681bddfbb11f7ea5164e9d8f45be08628d488fc19559dc8b52aa6` |
+| `outputs/models/lambda-audio-v6/model-fp16.safetensors` | `ee1f2b7f538875a0befd80eb024e5cbc4fed208444fe6212260b0150ea4b5b04` |
