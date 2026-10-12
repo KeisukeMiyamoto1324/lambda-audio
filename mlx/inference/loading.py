@@ -25,6 +25,11 @@ def load_model_components(config: ModelConfig, checkpoint_path: Path, token: str
     if not mx.metal.is_available():
         raise RuntimeError("MLX LambdaAudio requires an Apple Silicon Mac with Metal.")
     # ---------------------------------------------------------
+    # Release reusable Metal buffers instead of retaining them between calls.
+    # ---------------------------------------------------------
+    mx.set_cache_limit(0)
+    mx.clear_cache()
+    # ---------------------------------------------------------
     # Fetch configurations and preprocessing only, not backbone weights.
     # Use the explicitly provided HF_TOKEN for every Hub request.
     # ---------------------------------------------------------
