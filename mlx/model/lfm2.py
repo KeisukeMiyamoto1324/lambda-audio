@@ -48,10 +48,14 @@ class ShortConv(nn.Module):
         self.in_proj = nn.Linear(dimension, 3 * dimension, bias=config.conv_bias)
         self.conv = nn.Conv1d(dimension, dimension, self.kernel, groups=dimension, bias=config.conv_bias)
         self.out_proj = nn.Linear(dimension, dimension, bias=config.conv_bias)
+        self._forward = mx.compile(self._project)
 
     def __call__(self, x: mx.array, cache: mx.array | None) -> tuple[mx.array, mx.array]:
         if cache is None:
             cache = mx.zeros((x.shape[0], self.kernel - 1, x.shape[-1]), dtype=x.dtype)
+        return self._forward(x, cache)
+
+    def _project(self, x: mx.array, cache: mx.array) -> tuple[mx.array, mx.array]:
         output, new_cache = short_conv(self.in_proj(x), cache, self.conv.weight, self.conv.get("bias"))
         return self.out_proj(output), new_cache
 
@@ -68,8 +72,12 @@ class FeedForward(nn.Module):
         self.w1 = nn.Linear(config.hidden_size, hidden, bias=False)
         self.w2 = nn.Linear(hidden, config.hidden_size, bias=False)
         self.w3 = nn.Linear(config.hidden_size, hidden, bias=False)
+        self._forward = mx.compile(self._project)
 
     def __call__(self, x: mx.array) -> mx.array:
+        return self._forward(x)
+
+    def _project(self, x: mx.array) -> mx.array:
         return self.w2(nn.silu(self.w1(x)) * self.w3(x))
 
 

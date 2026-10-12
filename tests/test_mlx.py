@@ -101,6 +101,19 @@ def test_mlx_decoder_cache_matches_full_sequence(models: tuple[TorchLambdaAudioM
     np.testing.assert_allclose(np.array(mx.concatenate(outputs, axis=1)), np.array(expected), rtol=2e-4, atol=2e-5)
 
 
+def test_mlx_compiled_decoder_handles_variable_audio_and_batches(models: tuple[TorchLambdaAudioModel, LambdaAudioModel]) -> None:
+    _, model = models
+    for batch, length in [(1, 5), (3, 8), (1, 11)]:
+        features = mx.random.normal((batch, length, 16))
+        mask = mx.broadcast_to(mx.arange(length) >= length - 1, (batch, length))
+        audio = model.decoder.project_audio_key_values(features)
+        tokens = mx.random.randint(0, 32, shape=(batch, 5))
+        expected = model.decoder(tokens, audio, mask)
+        cache: list[LayerCache] = [None] * 3
+        outputs = [model.decoder(tokens[:, index : index + 1], audio, mask, cache) for index in range(tokens.shape[1])]
+        np.testing.assert_allclose(np.array(mx.concatenate(outputs, axis=1)), np.array(expected), rtol=2e-4, atol=2e-5)
+
+
 def test_mlx_generate_matches_pytorch_greedy(models: tuple[TorchLambdaAudioModel, LambdaAudioModel]) -> None:
     reference, model = models
     values = torch.randn(2, 65)
