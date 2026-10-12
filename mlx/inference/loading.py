@@ -39,7 +39,7 @@ def load_model_components(config: ModelConfig, checkpoint_path: Path, token: str
     model = LambdaAudioModel(encoder_config, decoder_config)
     weights = model.sanitize(mx.load(str(checkpoint_path)))
     model.load_weights(list(weights.items()), strict=True)
-    nn.quantize(model.decoder, group_size=64, bits=6, class_predicate=_is_linear)
+    nn.quantize(model.decoder, group_size=64, bits=4, class_predicate=_is_linear)
     model.eval()
     mx.eval(model.parameters())
     return ModelComponents(model, feature_extractor, tokenizer)

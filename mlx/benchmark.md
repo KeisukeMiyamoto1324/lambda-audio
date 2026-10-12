@@ -24,5 +24,9 @@ Apple M1 Max / 64 GB、MLX 0.32.3。指定の650件全件、fp16 checkpoint、�
 | 2026-10-12T04:14:39-05:00 | 部分計測：decoder 4bit | 1 | 対象外（合成入力） | 0.004100 seconds/token | encoderを除き、音声長300・50tokenを3回実行した最短値。線形層の重み精度を比較。全件ベンチマークとは比較不可。 | — |
 | 2026-10-12T04:14:39-05:00 | 部分計測：decoder 4bit | 16 | 対象外（合成入力） | 0.013192 seconds/token | encoderを除き、音声長300・50tokenを3回実行した最短値。線形層の重み精度を比較。全件ベンチマークとは比較不可。 | — |
 | 2026-10-12T04:16:05-05:00 | 参考・撤去済：q6-compiled-chunk4-b16 | 16 | 6.09% | 117.47 seconds | encoderを長さ順4件に分割後に元順へ復元。decoderの固定形状ブロックをcompileし、線形層をgroup 64の6bitに量子化。元checkpointは変更なし。 | — |
-| 2026-10-12T04:18:58-05:00 | q6-compiled-b1 | 1 | 6.09% | 121.59 seconds | 6bit・固定形状compile版。batch size 1のため並べ替え・分割は実行されず、元の処理順を維持。 | — |
-| 2026-10-12T04:21:54-05:00 | q6-compiled-b16 | 16 | 6.08% | 118.52 seconds | 並べ替え・encoder分割を完全撤去。元のデータ順・batch 16のまま。6bit量子化と固定形状compile、統合Metalカーネルのみ。 | — |
+| 2026-10-12T04:18:58-05:00 | q6-compiled-b1 | 1 | 6.09% | 121.59 seconds | 6bit・固定形状compile版。batch size 1のため並べ替え・分割は実行されず、元の処理順を維持。 | `3a04088` |
+| 2026-10-12T04:21:54-05:00 | q6-compiled-b16 | 16 | 6.08% | 118.52 seconds | 並べ替え・encoder分割を完全撤去。元のデータ順・batch 16のまま。6bit量子化と固定形状compile、統合Metalカーネルのみ。 | `3a04088` |
+| 2026-10-12T04:27:02-05:00 | 不採用：q6-encoder-fused-b16 | 16 | 6.08% | 118.31 seconds | BiasNormをSIMD Metalカーネル化し、SwooshL・bypass・masked GLUを演算融合。データ順・batch・引数は不変。6bit量子化を維持。 | — |
+| 2026-10-12T04:29:37-05:00 | 不採用：q6-encoder-fused-b1 | 1 | 6.08% | 131.14 seconds | batch size 16と同じBiasNorm専用カーネル・SwooshL/bypass/masked GLU融合。順序・引数は変更なし。 | — |
+| 2026-10-12T04:32:55-05:00 | q4-compiled-b16 | 16 | 6.12% | 116.49 seconds | 遅くなったBiasNorm・活性化融合を撤去し3a04088の演算へ復元。decoder線形層の量子化だけ6bitから4bitへ変更。順序・引数は不変。 | — |
+| 2026-10-12T04:35:10-05:00 | q4-compiled-b1 | 1 | 6.12% | 106.79 seconds | 同じ4bit量子化版。その他のモデル実装、データ順、CLI引数は変更なし。 | — |
