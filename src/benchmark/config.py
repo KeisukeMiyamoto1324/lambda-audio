@@ -17,8 +17,10 @@ class BenchmarkConfig(ModelConfig):
 
     @model_validator(mode="after")
     def validate_checkpoint(self) -> Self:
-        if self.model == "lambda-audio" and self.checkpoint_path is None:
+        if self.model in {"lambda-audio", "lambda-audio-mlx"} and self.checkpoint_path is None:
             raise ValueError("LambdaAudio requires --checkpoint.")
+        if self.model == "lambda-audio-mlx" and self.checkpoint_path is not None and self.checkpoint_path.suffix != ".safetensors":
+            raise ValueError("MLX LambdaAudio requires a .safetensors checkpoint.")
         if not 0 < self.max_audio_seconds <= 30:
             raise ValueError("Audio duration must be between 0 and 30 seconds.")
         return self

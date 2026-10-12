@@ -6,7 +6,7 @@ line-length = 176
 select = ["E4", "E7", "E9", "F", "I", "W"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "mlx/model", "mlx/inference", "tests"]
 venvPath = "."
 venv = "venv"
 pythonVersion = "3.12"
