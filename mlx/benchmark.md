@@ -56,3 +56,13 @@ Apple M1 Max / 64 GB、MLX 0.32.3。指定の650件全件、fp16 checkpoint、�
 | --- | --- |
 | `data/fleurs_ja_test.parquet` | `1cab4feab0e681bddfbb11f7ea5164e9d8f45be08628d488fc19559dc8b52aa6` |
 | `outputs/models/lambda-audio-v6/model-fp16.safetensors` | `ee1f2b7f538875a0befd80eb024e5cbc4fed208444fe6212260b0150ea4b5b04` |
+
+## メモリ診断
+
+| 実行時刻 | 実験 | Batch size | CER | Elapsed time | 前回からの変更（300字以内） | 改善コミット |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-12T05:15:33-05:00 | memory-diagnostic-b1 | 1 | 6.12% | 114.06 seconds | 保存済みmodel-mlx-4bitを使用。実装・順序・生成設定は不変。Python監視APIで50件ごとにMLXの使用中・キャッシュ容量を観測。標準タイマー終了後だけキャッシュ解放を実施。 | — |
+
+650件完了時のMLX使用中メモリは0.499 GB、実行中の使用中メモリのピークは1.164 GB、再利用用キャッシュは35.346 GBでした（GBは10億bytes）。各音声の処理終了時の使用中メモリは約0.50 GBで安定しており、増加の主因はキャッシュです。標準の計時終了後、モデルを保持したまま `mx.clear_cache()` を実行すると、使用中メモリは0.499 GBのまま、キャッシュだけ0 bytesになりました。キャッシュ上限の既定値は別プロセスで65.284 GBと確認しました。推論実装の変更はありません。
+
+詳細なメモリ推移は `outputs/diagnostics/mlx-memory-batch1.json` に保存しています。診断中に外部から `vmmap -summary` でも観測したため、この実行は通常の速度比較とは分けて扱います。
