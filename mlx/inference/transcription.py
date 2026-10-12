@@ -30,9 +30,10 @@ def generate(model: LambdaAudioModel, input_values: mx.array, padding_mask: mx.a
         logits = model.decoder(tokens, audio_key_values, padding_mask, cache)
         next_tokens = mx.where(finished, eos_token_id, mx.argmax(logits[:, -1], axis=-1)).astype(mx.int32)
         finished = finished | (next_tokens == eos_token_id)
-        mx.eval(next_tokens, finished, cache)
+        all_finished = mx.all(finished)
+        mx.eval(next_tokens, all_finished, cache)
         generated.append(next_tokens)
-        if bool(mx.all(finished).item()):
+        if bool(all_finished.item()):
             break
         tokens = next_tokens[:, None]
     return mx.stack(generated, axis=1).tolist()

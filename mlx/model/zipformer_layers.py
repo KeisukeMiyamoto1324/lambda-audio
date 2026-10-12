@@ -3,6 +3,9 @@ import math
 import mlx.core as mx
 import mlx.nn as nn
 
+from mlx.kernel.attention import relative_softmax
+from mlx.kernel.convolution import depthwise_swoosh
+
 
 def positional_encoding(length: int, dimension: int, dtype: mx.Dtype) -> mx.array:
     # ---------------------------------------------------------
@@ -57,8 +60,7 @@ class Convolution(nn.Module):
     def __call__(self, x: mx.array, padding_mask: mx.array) -> mx.array:
         x, gate = mx.split(self.in_proj(x), 2, axis=-1)
         x = mx.where(padding_mask[..., None], 0, x * mx.sigmoid(gate))
-        x = self.depthwise_conv(x)
-        return self.out_proj((nn.softplus(x.astype(mx.float32) - 1) - 0.08 * x.astype(mx.float32) - 0.313261687).astype(x.dtype))
+        return self.out_proj(depthwise_swoosh(x, self.depthwise_conv.weight, self.depthwise_conv.bias))
 
 
 class AttentionWeights(nn.Module):
@@ -78,9 +80,7 @@ class AttentionWeights(nn.Module):
         pos_query = pos_query.reshape(batch, length, self.heads, self.pos_head_dim).transpose(0, 2, 1, 3)
         positions = self.linear_pos(positions).reshape(2 * length - 1, self.heads, self.pos_head_dim).transpose(1, 2, 0)
         relative_scores = pos_query @ positions
-        indices = length - 1 - mx.arange(length)[:, None] + mx.arange(length)[None, :]
-        scores = query @ key + mx.take_along_axis(relative_scores, indices[None, None], axis=-1)
-        return mx.softmax(mx.where(padding_mask[:, None, None, :], -1000, scores), axis=-1, precise=True)
+        return relative_softmax(query @ key, relative_scores, padding_mask)
 
 
 class SelfAttention(nn.Module):

@@ -2,6 +2,8 @@ import mlx.core as mx
 import mlx.nn as nn
 from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
+from mlx.kernel.convolution import short_conv
+
 LayerCache = tuple[mx.array, mx.array] | mx.array | None
 AudioKeyValues = list[tuple[mx.array, mx.array] | None]
 
@@ -48,13 +50,10 @@ class ShortConv(nn.Module):
         self.out_proj = nn.Linear(dimension, dimension, bias=config.conv_bias)
 
     def __call__(self, x: mx.array, cache: mx.array | None) -> tuple[mx.array, mx.array]:
-        gate, multiplier, values = mx.split(self.in_proj(x), 3, axis=-1)
-        values = gate * values
         if cache is None:
             cache = mx.zeros((x.shape[0], self.kernel - 1, x.shape[-1]), dtype=x.dtype)
-        values = mx.concatenate((cache, values), axis=1)
-        new_cache = values[:, values.shape[1] - self.kernel + 1 :]
-        return self.out_proj(multiplier * self.conv(values)), new_cache
+        output, new_cache = short_conv(self.in_proj(x), cache, self.conv.weight, self.conv.get("bias"))
+        return self.out_proj(output), new_cache
 
 
 class FeedForward(nn.Module):

@@ -1,6 +1,7 @@
 import mlx.core as mx
 import mlx.nn as nn
 
+from mlx.kernel.normalization import masked_group_norm
 from mlx.model.zipformer_layers import Bypass, Downsample, EncoderLayer, positional_encoding
 from src.modeling.zipformer.configuration_zipformer import ZipformerConfig
 
@@ -17,12 +18,7 @@ class FeatureConv(nn.Module):
         lengths = (lengths - self.conv.weight.shape[1]) // self.conv.stride + 1
         mask = mx.arange(x.shape[1])[None, :] >= lengths[:, None]
         if self.norm_type == "group_norm":
-            valid = (~mask)[..., None].astype(mx.float32)
-            values = x.astype(mx.float32)
-            count = mx.sum(valid, axis=1, keepdims=True)
-            mean = mx.sum(values * valid, axis=1, keepdims=True) / count
-            variance = mx.sum(mx.square(values - mean) * valid, axis=1, keepdims=True) / count
-            x = ((values - mean) * mx.rsqrt(variance + 1e-5) * self.norm.weight + self.norm.bias).astype(x.dtype)
+            x = masked_group_norm(x, lengths, self.norm.weight, self.norm.bias)
         if self.norm_type == "layer_norm":
             x = self.norm(x)
         return mx.where(mask[..., None], 0, nn.gelu(x)), lengths
