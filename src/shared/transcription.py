@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass
 from io import BytesIO
 from itertools import batched
 from time import perf_counter
@@ -30,6 +31,79 @@ class TranscriptionResult(BaseModel):
     inference_seconds: NonNegativeFloat
 
 
+@dataclass(frozen=True)
+class TranscriptionBatch:
+    inputs: dict[str, torch.Tensor]
+    audio_seconds: list[float]
+
+
+def prepare_transcription_batch(
+    feature_extractor: SequenceFeatureExtractor,
+    tokenizer: PreTrainedTokenizerBase,
+    config: TranscriptionConfig,
+    audio: list[bytes],
+    output_language: OutputLanguage | list[OutputLanguage] = "ja",
+) -> TranscriptionBatch:
+    # ---------------------------------------------------------
+    # Decode, normalize and pad audio once into reusable CPU tensors.
+    # ---------------------------------------------------------
+    audio_arrays = decode_audio_batch(audio, config)
+    audio_batch = feature_extractor(
+        audio_arrays,
+        sampling_rate=config.sampling_rate,
+        padding=True,
+        return_attention_mask=True,
+        return_tensors="pt",
+    )
+    if tokenizer.bos_token_id is None or tokenizer.eos_token_id is None:
+        raise ValueError("The tokenizer must define BOS and EOS tokens.")
+
+    languages = [output_language] * len(audio) if isinstance(output_language, str) else output_language
+    if len(languages) != len(audio):
+        raise ValueError("Each audio clip must have one output language.")
+    prompts = [[tokenizer.bos_token_id, language_token_id(tokenizer, language)] for language in languages]
+    input_ids = torch.tensor(prompts, dtype=torch.long)
+    return TranscriptionBatch(
+        inputs={
+            "input_values": audio_batch["input_values"],
+            "audio_padding_mask": audio_batch["attention_mask"].eq(0),
+            "input_ids": input_ids,
+            "attention_mask": torch.ones_like(input_ids),
+        },
+        audio_seconds=[array.size / config.sampling_rate for array in audio_arrays],
+    )
+
+
+def transcribe_prepared_batch(
+    model: LambdaAudioModel,
+    tokenizer: PreTrainedTokenizerBase,
+    config: TranscriptionConfig,
+    device: torch.device,
+    batch: TranscriptionBatch,
+) -> list[TranscriptionResult]:
+    # ---------------------------------------------------------
+    # Transfer cached inputs and generate using the current model weights.
+    # ---------------------------------------------------------
+    inference_start = perf_counter()
+    inputs = {name: tensor.to(device) for name, tensor in batch.inputs.items()}
+    with torch.inference_mode():
+        generated_ids = model.generate(
+            **inputs,
+            max_new_tokens=config.max_new_tokens,
+            do_sample=False,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id,
+            use_cache=True,
+        )
+
+    transcription_ids = generated_ids[:, inputs["input_ids"].shape[1] :]
+    texts = tokenizer.batch_decode(transcription_ids, skip_special_tokens=True)
+    inference_seconds = (perf_counter() - inference_start) / len(batch.audio_seconds)
+    return [
+        TranscriptionResult(text=text.strip(), audio_seconds=seconds, inference_seconds=inference_seconds) for text, seconds in zip(texts, batch.audio_seconds, strict=True)
+    ]
+
+
 def transcribe(
     model: LambdaAudioModel,
     feature_extractor: SequenceFeatureExtractor,
@@ -40,63 +114,13 @@ def transcribe(
     output_language: OutputLanguage | list[OutputLanguage] = "ja",
 ) -> list[TranscriptionResult]:
     # ---------------------------------------------------------
-    # Load mono audio at the encoder sampling rate and validate its length.
+    # Include preprocessing time for one-off transcription requests.
     # ---------------------------------------------------------
     inference_start = perf_counter()
-    audio_arrays = decode_audio_batch(audio, config)
-
-    audio_batch = feature_extractor(
-        audio_arrays,
-        sampling_rate=config.sampling_rate,
-        padding=True,
-        return_attention_mask=True,
-        return_tensors="pt",
-    )
-    input_values = audio_batch["input_values"].to(device)
-    audio_padding_mask = audio_batch["attention_mask"].eq(0).to(device)
-
-    if tokenizer.bos_token_id is None or tokenizer.eos_token_id is None:
-        raise ValueError("The tokenizer must define BOS and EOS tokens.")
-
-    # ---------------------------------------------------------
-    # Generate from BOS and the language token; decode only new tokens.
-    # ---------------------------------------------------------
-    languages = [output_language] * len(audio) if isinstance(output_language, str) else output_language
-    if len(languages) != len(audio):
-        raise ValueError("Each audio clip must have one output language.")
-    prompts = [[tokenizer.bos_token_id, language_token_id(tokenizer, language)] for language in languages]
-    input_ids = torch.tensor(prompts, dtype=torch.long, device=device)
-    attention_mask = torch.ones_like(input_ids)
-    with torch.inference_mode():
-        generated_ids = model.generate(
-            input_values=input_values,
-            audio_padding_mask=audio_padding_mask,
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            max_new_tokens=config.max_new_tokens,
-            do_sample=False,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.eos_token_id,
-            use_cache=True,
-        )
-
-    transcription_ids = generated_ids[:, input_ids.shape[1] :]
-    texts = tokenizer.batch_decode(
-        transcription_ids,
-        skip_special_tokens=True,
-    )
-    # ---------------------------------------------------------
-    # Allocate batch latency equally across samples for history records.
-    # ---------------------------------------------------------
+    batch = prepare_transcription_batch(feature_extractor, tokenizer, config, audio, output_language)
+    results = transcribe_prepared_batch(model, tokenizer, config, device, batch)
     inference_seconds = (perf_counter() - inference_start) / len(audio)
-    return [
-        TranscriptionResult(
-            text=text.strip(),
-            audio_seconds=array.size / config.sampling_rate,
-            inference_seconds=inference_seconds,
-        )
-        for text, array in zip(texts, audio_arrays, strict=True)
-    ]
+    return [result.model_copy(update={"inference_seconds": inference_seconds}) for result in results]
 
 
 def iter_transcriptions(

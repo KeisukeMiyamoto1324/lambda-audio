@@ -3,6 +3,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import numpy as np
 import pyarrow as pa
@@ -10,6 +11,7 @@ import pyarrow.parquet as pq
 import pytest
 import soundfile as sf
 import torch
+from lightning.pytorch.plugins.precision import MixedPrecision
 from rich.console import Console
 from rich.progress import Progress
 from torch import nn
@@ -33,11 +35,13 @@ class DummyModel(nn.Module):
         super().__init__()
         self.generation_arguments: dict[str, Any] = {}
         self.batch_sizes: list[int] = []
+        self.autocast_states: list[bool] = []
 
     def generate(self, **kwargs: Any) -> torch.LongTensor:
         self.generation_arguments = kwargs
         batch_size = kwargs["input_ids"].shape[0]
         self.batch_sizes.append(batch_size)
+        self.autocast_states.append(torch.is_autocast_enabled("cpu"))
         return torch.cat([kwargs["input_ids"], torch.tensor([[4, 2]]).repeat(batch_size, 1)], dim=1)
 
 
@@ -277,7 +281,13 @@ def test_training_inference_batches_samples_and_preserves_history(
     progress = Progress(console=console, disable=True)
     monkeypatch.setattr(display_module, "Progress", lambda *columns, **kwargs: progress)
     barriers: list[str] = []
-    trainer = SimpleNamespace(datamodule=data_module, global_step=42, is_global_zero=True, strategy=SimpleNamespace(barrier=barriers.append))
+    trainer = SimpleNamespace(
+        datamodule=data_module,
+        global_step=42,
+        is_global_zero=True,
+        strategy=SimpleNamespace(barrier=barriers.append),
+        precision_plugin=MixedPrecision("bf16-mixed", device="cpu"),
+    )
     progress_bar = SimpleNamespace(progress=progress)
     monitor = ValidationInferenceMonitor(config, progress_bar)  # type: ignore[arg-type]
     monkeypatch.setattr("src.training.inference_monitor.load_multilingual_inference_samples", lambda path: samples)
@@ -301,6 +311,34 @@ def test_training_inference_batches_samples_and_preserves_history(
     assert "CER:" in rendered
     assert "Elapsed time:" in rendered
     assert barriers == ["validation_inference"]
+    assert model.autocast_states == [True, True]
+    assert not torch.is_autocast_enabled("cpu")
+
+    # ---------------------------------------------------------
+    # Reuse CPU inputs but run generation again at the next validation step.
+    # ---------------------------------------------------------
+    assert monitor.batches is not None
+    cached_inputs = [{name: tensor.clone() for name, tensor in batch.inputs.items()} for _, batch in monitor.batches]
+    monkeypatch.setattr("src.training.inference_monitor.load_multilingual_inference_samples", Mock(side_effect=AssertionError("Parquet was read twice")))
+    monkeypatch.setattr("src.shared.transcription.decode_audio", Mock(side_effect=AssertionError("Audio was decoded twice")))
+    monkeypatch.setattr(data_module.collator, "feature_extractor", Mock(side_effect=AssertionError("Audio was processed twice")))
+    monkeypatch.setattr(data_module.collator.tokenizer, "convert_tokens_to_ids", Mock(side_effect=AssertionError("Prompts were converted twice")))
+    trainer.global_step = 84
+    monitor.on_validation_end(trainer, module)  # type: ignore[arg-type]
+
+    assert model.batch_sizes == [2, 1, 2, 1]
+    assert model.autocast_states == [True] * 4
+    assert not torch.is_autocast_enabled("cpu")
+    for (_, batch), original_inputs in zip(monitor.batches, cached_inputs, strict=True):
+        for name, tensor in batch.inputs.items():
+            assert tensor.device.type == "cpu"
+            torch.testing.assert_close(tensor, original_inputs[name])
+    with monitor.history_path.open(encoding="utf-8", newline="") as file:
+        records = list(csv.DictReader(file))
+    assert [record["step"] for record in records] == ["42"] * 3 + ["84"] * 3
+    assert [record["audio"] for record in records] == ["0", "1", "2"] * 2
+    assert [record["lang"] for record in records] == ["ja", "en", "ar"] * 2
+    assert barriers == ["validation_inference"] * 2
 
 
 @pytest.mark.parametrize("audio_paths", [("a.flac", "b.flac"), (None, None), ("a.flac", None)])

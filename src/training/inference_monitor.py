@@ -1,10 +1,11 @@
 import csv
+from itertools import batched
 
 import lightning as L
 
 from src.shared.inference_display import display_inference
-from src.shared.samples import load_multilingual_inference_samples
-from src.shared.transcription import iter_transcriptions
+from src.shared.samples import InferenceSample, load_multilingual_inference_samples
+from src.shared.transcription import TranscriptionBatch, prepare_transcription_batch, transcribe_prepared_batch
 from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
 from src.training.lightning import LambdaAudioLightningModule
@@ -23,6 +24,7 @@ class ValidationInferenceMonitor(L.Callback):
         self.config = config
         self.progress_bar = progress_bar
         self.history_path = config.output_dir / "inference_history.csv"
+        self.batches: list[tuple[tuple[InferenceSample, ...], TranscriptionBatch]] | None = None
 
     def on_validation_end(
         self,
@@ -48,30 +50,49 @@ class ValidationInferenceMonitor(L.Callback):
         if not isinstance(data_module, LambdaAudioDataModule):
             raise TypeError("LambdaAudioDataModule is required.")
 
-        # ---------------------------------------------------------
-        # Transcribe samples and display aligned reference differences.
-        # ---------------------------------------------------------
-        samples = load_multilingual_inference_samples(self.config.inference_samples_path)
         if self.progress_bar.progress is None:
             raise RuntimeError("The training progress display is not initialized.")
 
+        # ---------------------------------------------------------
+        # Cache fixed samples and preprocessing on CPU for this training run.
+        # ---------------------------------------------------------
+        if self.batches is None:
+            samples = load_multilingual_inference_samples(self.config.inference_samples_path)
+            self.batches = [
+                (
+                    batch,
+                    prepare_transcription_batch(
+                        data_module.collator.feature_extractor,
+                        data_module.collator.tokenizer,
+                        self.config,
+                        [sample.audio for sample in batch],
+                        [sample.lang for sample in batch],
+                    ),
+                )
+                for batch in batched(samples, self.config.inference_batch_size)
+            ]
+
         model = pl_module.model
         model.eval()
-        results = iter_transcriptions(
-            model,
-            data_module.collator.feature_extractor,
-            data_module.collator.tokenizer,
-            self.config,
-            pl_module.device,
-            samples,
-            self.config.inference_batch_size,
+        results = (
+            (sample, result)
+            for samples, batch in self.batches
+            for sample, result in zip(
+                samples,
+                transcribe_prepared_batch(model, data_module.collator.tokenizer, self.config, pl_module.device, batch),
+                strict=True,
+            )
         )
-        completed = display_inference(
-            results,
-            len(samples),
-            f"Validation Inference — Step {trainer.global_step}",
-            console=self.progress_bar.progress.console,
-        )
+        # ---------------------------------------------------------
+        # Apply training precision while consuming lazy inference batches.
+        # ---------------------------------------------------------
+        with trainer.precision_plugin.forward_context():
+            completed = display_inference(
+                results,
+                sum(len(samples) for samples, _ in self.batches),
+                f"Validation Inference — Step {trainer.global_step}",
+                console=self.progress_bar.progress.console,
+            )
         records = [
             {
                 "step": trainer.global_step,
