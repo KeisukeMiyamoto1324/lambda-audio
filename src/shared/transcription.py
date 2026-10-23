@@ -1,5 +1,4 @@
 from collections.abc import Callable, Iterable, Iterator
-from functools import partial
 from io import BytesIO
 from itertools import batched
 from time import perf_counter
@@ -38,7 +37,7 @@ def transcribe(
     config: TranscriptionConfig,
     device: torch.device,
     audio: list[bytes],
-    output_language: OutputLanguage = "ja",
+    output_language: OutputLanguage | list[OutputLanguage] = "ja",
 ) -> list[TranscriptionResult]:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
@@ -62,8 +61,11 @@ def transcribe(
     # ---------------------------------------------------------
     # Generate from BOS and the language token; decode only new tokens.
     # ---------------------------------------------------------
-    prompt = [tokenizer.bos_token_id, language_token_id(tokenizer, output_language)]
-    input_ids = torch.tensor([prompt] * len(audio), dtype=torch.long, device=device)
+    languages = [output_language] * len(audio) if isinstance(output_language, str) else output_language
+    if len(languages) != len(audio):
+        raise ValueError("Each audio clip must have one output language.")
+    prompts = [[tokenizer.bos_token_id, language_token_id(tokenizer, language)] for language in languages]
+    input_ids = torch.tensor(prompts, dtype=torch.long, device=device)
     attention_mask = torch.ones_like(input_ids)
     with torch.inference_mode():
         generated_ids = model.generate(
@@ -105,13 +107,21 @@ def iter_transcriptions(
     device: torch.device,
     samples: Iterable[InferenceSample],
     batch_size: int,
-    output_language: OutputLanguage = "ja",
 ) -> Iterator[tuple[InferenceSample, TranscriptionResult]]:
     # ---------------------------------------------------------
     # Generate each batch together while preserving sample order.
     # ---------------------------------------------------------
-    transcribe_batch = partial(transcribe, model, feature_extractor, tokenizer, config, device, output_language=output_language)
-    yield from iter_batch_transcriptions(samples, batch_size, transcribe_batch)
+    for batch in batched(samples, batch_size):
+        results = transcribe(
+            model,
+            feature_extractor,
+            tokenizer,
+            config,
+            device,
+            [sample.audio for sample in batch],
+            output_language=[sample.lang for sample in batch],
+        )
+        yield from zip(batch, results, strict=True)
 
 
 def iter_batch_transcriptions(

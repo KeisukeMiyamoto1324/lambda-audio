@@ -21,7 +21,7 @@ from src.modeling.checkpoint import load_model_checkpoint
 from src.shared import inference_display as display_module
 from src.shared.device import select_device
 from src.shared.languages import OUTPUT_LANGUAGES, OutputLanguage
-from src.shared.samples import InferenceSample, load_inference_samples
+from src.shared.samples import InferenceSample, load_inference_samples, load_multilingual_inference_samples
 from src.shared.transcription import decode_audio, iter_transcriptions, transcribe
 from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
@@ -269,13 +269,13 @@ def test_training_inference_batches_samples_and_preserves_history(
     model = DummyModel()
     module = LambdaAudioLightningModule(model, config)  # type: ignore[arg-type]
     data_module = LambdaAudioDataModule(DummyFeatureExtractor(), DummyTokenizer(), config, "token")  # type: ignore[arg-type]
-    samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="日本語") for index in range(3)]
+    samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="日本語", lang=language) for index, language in enumerate(("ja", "en", "ar"))]
     tables: list[Table] = []
     barriers: list[str] = []
     trainer = SimpleNamespace(datamodule=data_module, global_step=42, is_global_zero=True, strategy=SimpleNamespace(barrier=barriers.append))
     progress_bar = SimpleNamespace(print_table=tables.append)
     monitor = ValidationInferenceMonitor(config, progress_bar)  # type: ignore[arg-type]
-    monkeypatch.setattr("src.training.inference_monitor.load_inference_samples", lambda path: samples)
+    monkeypatch.setattr("src.training.inference_monitor.load_multilingual_inference_samples", lambda path: samples)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
     monitor.on_validation_end(trainer, module)  # type: ignore[arg-type]
@@ -285,6 +285,10 @@ def test_training_inference_batches_samples_and_preserves_history(
     assert model.batch_sizes == [2, 1]
     assert [record["audio"] for record in records] == ["0", "1", "2"]
     assert [record["step"] for record in records] == ["42"] * 3
+    assert [record["lang"] for record in records] == ["ja", "en", "ar"]
+    assert model.generation_arguments["input_ids"].tolist() == [[1, 7]]
+    assert tables[0].columns[1].header == "Lang"
+    assert tables[0].columns[1]._cells == ["ja", "en", "ar"]
     assert records[0]["inference_seconds"] == records[1]["inference_seconds"]
     assert tables[0].row_count == 3
     assert "CER:" in str(tables[0].caption)
@@ -352,3 +356,49 @@ def test_load_inference_samples_rejects_empty_parquet(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="contains no samples"):
         load_inference_samples(input_path)
+
+
+def test_load_multilingual_samples_preserves_ids_languages_and_references(tmp_path: Path) -> None:
+    input_path = tmp_path / "samples.parquet"
+    rows = [
+        {"id": f"sample-{index}", "audio": {"bytes": language.encode(), "path": None}, "lang": language, "text": f"reference-{language}"}
+        for index, language in enumerate(OUTPUT_LANGUAGES)
+    ]
+    pq.write_table(pa.Table.from_pylist(rows), input_path)
+
+    samples = load_multilingual_inference_samples(input_path)
+
+    assert [sample.audio_name for sample in samples] == [row["id"] for row in rows]
+    assert [sample.lang for sample in samples] == list(OUTPUT_LANGUAGES)
+    assert [sample.audio for sample in samples] == [row["audio"]["bytes"] for row in rows]
+    assert [sample.reference for sample in samples] == [row["text"] for row in rows]
+
+
+def test_iter_transcriptions_uses_each_sample_language_in_one_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = DummyModel()
+    tokenizer = DummyTokenizer()
+    samples = [InferenceSample(audio_name=language, audio=b"audio", reference=language, lang=language) for language in OUTPUT_LANGUAGES]
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(160, dtype=np.float32))
+    results = list(
+        iter_transcriptions(
+            model,
+            DummyFeatureExtractor(),
+            tokenizer,
+            TrainingConfig(),
+            torch.device("cpu"),
+            samples,
+            9,
+        )
+    )  # type: ignore[arg-type]
+
+    assert [sample for sample, result in results] == samples
+    assert model.batch_sizes == [9]
+    assert model.generation_arguments["input_ids"].tolist() == [[1, tokenizer.convert_tokens_to_ids(f"<|target_{language}|>")] for language in OUTPUT_LANGUAGES]
+
+
+def test_transcribe_rejects_language_count_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = DummyModel()
+    monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(160, dtype=np.float32))
+    with pytest.raises(ValueError, match="one output language"):
+        transcribe(model, DummyFeatureExtractor(), DummyTokenizer(), TrainingConfig(), torch.device("cpu"), [b"audio"], output_language=[])  # type: ignore[arg-type]
+    assert model.batch_sizes == []

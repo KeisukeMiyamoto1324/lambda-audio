@@ -3,7 +3,7 @@ import csv
 import lightning as L
 
 from src.shared.inference_report import InferenceReport
-from src.shared.samples import load_inference_samples
+from src.shared.samples import load_multilingual_inference_samples
 from src.shared.transcription import iter_transcriptions
 from src.training.config import TrainingConfig
 from src.training.data_module import LambdaAudioDataModule
@@ -51,7 +51,7 @@ class ValidationInferenceMonitor(L.Callback):
         # ---------------------------------------------------------
         # Transcribe samples and display aligned reference differences.
         # ---------------------------------------------------------
-        samples = load_inference_samples(self.config.inference_samples_path)
+        samples = load_multilingual_inference_samples(self.config.inference_samples_path)
         report = InferenceReport(f"Validation Inference — Step {trainer.global_step}")
         records: list[dict[str, str | int | float]] = []
 
@@ -66,11 +66,12 @@ class ValidationInferenceMonitor(L.Callback):
             samples,
             self.config.inference_batch_size,
         ):
-            report.add_sample(sample.audio_name, sample.reference, result.text)
+            report.add_sample(sample.audio_name, sample.reference, result.text, sample.lang)
             records.append(
                 {
                     "step": trainer.global_step,
                     "audio": sample.audio_name,
+                    "lang": sample.lang,
                     "reference": sample.reference,
                     "prediction": result.text,
                     "audio_seconds": result.audio_seconds,

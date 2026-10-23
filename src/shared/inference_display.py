@@ -28,7 +28,7 @@ def display_inference(
     ) as progress:
         task_id = progress.add_task("Inference", total=total_samples, cer=report.cer_text, skipped=0)
         for sample, result in results:
-            report.add_sample(sample.audio_name, sample.reference, result.text)
+            report.add_sample(sample.audio_name, sample.reference, result.text, sample.lang)
             progress.update(task_id, advance=1, cer=report.cer_text, skipped=report.skipped_samples)
 
     elapsed_seconds = perf_counter() - inference_start
