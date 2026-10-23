@@ -20,6 +20,7 @@ from src.benchmark.config import BenchmarkConfig
 from src.modeling.checkpoint import load_model_checkpoint
 from src.shared import inference_display as display_module
 from src.shared.device import select_device
+from src.shared.languages import OUTPUT_LANGUAGES, OutputLanguage
 from src.shared.samples import InferenceSample, load_inference_samples
 from src.shared.transcription import decode_audio, iter_transcriptions, transcribe
 from src.training.config import TrainingConfig
@@ -38,7 +39,7 @@ class DummyModel(nn.Module):
         self.generation_arguments = kwargs
         batch_size = kwargs["input_ids"].shape[0]
         self.batch_sizes.append(batch_size)
-        return torch.tensor([[1, 4, 2]]).repeat(batch_size, 1)
+        return torch.cat([kwargs["input_ids"], torch.tensor([[4, 2]]).repeat(batch_size, 1)], dim=1)
 
 
 class DummyFeatureExtractor:
@@ -58,6 +59,10 @@ class DummyFeatureExtractor:
 class DummyTokenizer:
     bos_token_id = 1
     eos_token_id = 2
+    all_special_tokens = [f"<|target_{language}|>" for language in OUTPUT_LANGUAGES]
+
+    def convert_tokens_to_ids(self, token: str) -> int:
+        return self.all_special_tokens.index(token) + 5
 
     def batch_decode(
         self,
@@ -119,7 +124,9 @@ def test_load_checkpoint_weights_removes_lightning_prefix(tmp_path: Path) -> Non
         torch.testing.assert_close(source_parameter, target_parameter)
 
 
-def test_transcribe_generates_from_bos(
+@pytest.mark.parametrize("output_language", OUTPUT_LANGUAGES)
+def test_transcribe_generates_from_language_prompt(
+    output_language: OutputLanguage,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -142,11 +149,12 @@ def test_transcribe_generates_from_bos(
         config,
         torch.device("cpu"),
         [b"audio"],
+        output_language=output_language,
     )[0]
 
     assert result.text == "transcription"
     assert result.audio_seconds == 0.01
-    assert model.generation_arguments["input_ids"].tolist() == [[1]]
+    assert model.generation_arguments["input_ids"].tolist() == [[1, DummyTokenizer().convert_tokens_to_ids(f"<|target_{output_language}|>")]]
     assert not model.generation_arguments["audio_padding_mask"].any()
     assert model.generation_arguments["use_cache"] is True
 
@@ -184,7 +192,7 @@ def test_iter_transcriptions_batches_variable_length_audio_in_order(
     final_lengths = torch.arange(6 - final_batch_size, 6)
     expected_padding_mask = torch.arange(5).unsqueeze(0) >= final_lengths.unsqueeze(1)
     assert torch.equal(model.generation_arguments["audio_padding_mask"], expected_padding_mask)
-    assert model.generation_arguments["input_ids"].tolist() == [[1]] * final_batch_size
+    assert model.generation_arguments["input_ids"].tolist() == [[1, 5]] * final_batch_size
 
 
 def test_transcribe_rejects_overlong_audio_before_generation(

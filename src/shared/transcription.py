@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, NonNegativeFloat
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.modeling.lambda_audio import LambdaAudioModel
+from src.shared.languages import OutputLanguage, language_token_id
 from src.shared.samples import InferenceSample
 
 
@@ -37,6 +38,7 @@ def transcribe(
     config: TranscriptionConfig,
     device: torch.device,
     audio: list[bytes],
+    output_language: OutputLanguage = "ja",
 ) -> list[TranscriptionResult]:
     # ---------------------------------------------------------
     # Load mono audio at the encoder sampling rate and validate its length.
@@ -58,9 +60,10 @@ def transcribe(
         raise ValueError("The tokenizer must define BOS and EOS tokens.")
 
     # ---------------------------------------------------------
-    # Generate from BOS and decode only newly generated transcription tokens.
+    # Generate from BOS and the language token; decode only new tokens.
     # ---------------------------------------------------------
-    input_ids = torch.full((len(audio), 1), tokenizer.bos_token_id, dtype=torch.long, device=device)
+    prompt = [tokenizer.bos_token_id, language_token_id(tokenizer, output_language)]
+    input_ids = torch.tensor([prompt] * len(audio), dtype=torch.long, device=device)
     attention_mask = torch.ones_like(input_ids)
     with torch.inference_mode():
         generated_ids = model.generate(
@@ -102,11 +105,12 @@ def iter_transcriptions(
     device: torch.device,
     samples: Iterable[InferenceSample],
     batch_size: int,
+    output_language: OutputLanguage = "ja",
 ) -> Iterator[tuple[InferenceSample, TranscriptionResult]]:
     # ---------------------------------------------------------
     # Generate each batch together while preserving sample order.
     # ---------------------------------------------------------
-    transcribe_batch = partial(transcribe, model, feature_extractor, tokenizer, config, device)
+    transcribe_batch = partial(transcribe, model, feature_extractor, tokenizer, config, device, output_language=output_language)
     yield from iter_batch_transcriptions(samples, batch_size, transcribe_batch)
 
 

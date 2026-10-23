@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from src.benchmark.config import BenchmarkConfig
 from src.benchmark.registry import MODEL_LOADERS
+from src.shared.languages import OUTPUT_LANGUAGES
 
 
 def parse_arguments() -> BenchmarkConfig:
@@ -13,6 +14,7 @@ def parse_arguments() -> BenchmarkConfig:
     parser.add_argument("--model", choices=MODEL_LOADERS, required=True)
     parser.add_argument("--checkpoint", dest="checkpoint_path", type=Path)
     parser.add_argument("--input", dest="input_path", type=Path, default=defaults.input_path)
+    parser.add_argument("--output-language", choices=OUTPUT_LANGUAGES, default=defaults.output_language, help="Output language for PyTorch LambdaAudio (default: ja).")
     parser.add_argument("--batch-size", type=int, default=defaults.batch_size)
     parser.add_argument("--max-new-tokens", type=int, default=defaults.max_new_tokens)
     parser.add_argument("--show-table", action=argparse.BooleanOptionalAction, default=defaults.show_table, help="Show the transcription results table (default: enabled).")

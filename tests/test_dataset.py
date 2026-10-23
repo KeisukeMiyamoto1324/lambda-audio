@@ -14,6 +14,7 @@ def create_audio_example(
     return {
         "audio_array": np.ones(audio_samples, dtype=np.float32),
         "transcription": transcription,
+        "output_language": "ja",
     }
 
 

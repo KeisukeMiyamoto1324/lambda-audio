@@ -4,6 +4,7 @@ from typing import Self
 from pydantic import FilePath, PositiveInt, model_validator
 
 from src.modeling.config import ModelConfig
+from src.shared.languages import OutputLanguage
 
 
 class BenchmarkConfig(ModelConfig):
@@ -14,6 +15,7 @@ class BenchmarkConfig(ModelConfig):
     max_new_tokens: PositiveInt = 256
     max_audio_seconds: float = 30.0
     show_table: bool = True
+    output_language: OutputLanguage = "ja"
 
     @model_validator(mode="after")
     def validate_checkpoint(self) -> Self:

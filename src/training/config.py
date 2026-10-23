@@ -12,7 +12,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     output_dir: Path = Path("outputs/training")
     resume_checkpoint: FilePath | None = None
-    dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus")
+    dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus-multilingual")
     inference_samples_path: FilePath = Path("data/data.parquet")
 
     # ---------------------------------------------------------

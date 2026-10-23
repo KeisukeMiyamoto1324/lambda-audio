@@ -1,6 +1,7 @@
 from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
 from src.data.types import AudioTextBatch, TranscribedAudioExample
+from src.shared.languages import language_token_id
 
 
 class AudioTextCollator:
@@ -34,20 +35,24 @@ class AudioTextCollator:
         )
 
         # ---------------------------------------------------------
-        # Add explicit sequence boundaries and ignore padded labels.
+        # Add the language prompt and mask prompt and padded labels.
         # ---------------------------------------------------------
         texts = [example["transcription"] for example in examples]
         tokenized = self.tokenizer(
             texts,
             add_special_tokens=False,
         )
-        sequences = [[self.tokenizer.bos_token_id, *token_ids, self.tokenizer.eos_token_id] for token_ids in tokenized["input_ids"]]
+        sequences = [
+            [self.tokenizer.bos_token_id, language_token_id(self.tokenizer, example["output_language"]), *token_ids, self.tokenizer.eos_token_id]
+            for example, token_ids in zip(examples, tokenized["input_ids"], strict=True)
+        ]
         text_batch = self.tokenizer.pad(
             {"input_ids": sequences},
             padding=True,
             return_tensors="pt",
         )
         labels = text_batch["input_ids"].clone()
+        labels[:, :2] = -100
         labels.masked_fill_(text_batch["attention_mask"].eq(0), -100)
         target_token_count = labels[:, 1:].ne(-100).sum().item()
 

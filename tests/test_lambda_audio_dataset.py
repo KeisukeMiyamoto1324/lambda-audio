@@ -1,3 +1,4 @@
+import random
 from collections.abc import Iterator
 from io import BytesIO
 from pathlib import Path
@@ -12,14 +13,17 @@ from datasets import Dataset, IterableDataset
 from pytest import MonkeyPatch
 
 from src.data.lambda_audio_dataset import (
+    DATASET_COLUMNS,
     DATASET_ID,
     LambdaAudioDataset,
     TrainLambdaAudioDataset,
+    _read_examples,
     list_shard_files,
     list_validation_cache_files,
     load_lambda_audio_dataset,
     prepare_validation_dataset,
 )
+from src.shared.languages import OUTPUT_LANGUAGES
 
 
 class FakeDataset:
@@ -50,8 +54,8 @@ class FakeDataset:
 def test_lambda_audio_dataset_reads_audio_and_text_columns() -> None:
     audio_file = BytesIO()
     sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
-    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, "text": " 音声 ", "unused": 1}])
-    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
+    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, **dict.fromkeys(OUTPUT_LANGUAGES, " 音声 "), "id": "audio", "unused": 1}])
+    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000, 42)
 
     example = next(iter(dataset))
     dataset.set_epoch(3)
@@ -70,11 +74,11 @@ def test_lambda_audio_dataset_skips_invalid_audio() -> None:
     sf.write(audio_file, np.array([0.25, -0.5]), 16_000, format="FLAC")
     source = FakeDataset(
         [
-            {"audio": {"bytes": b"invalid"}, "text": "破損"},
-            {"audio": {"bytes": audio_file.getvalue()}, "text": "正常"},
+            {"audio": {"bytes": b"invalid"}, **dict.fromkeys(OUTPUT_LANGUAGES, "破損"), "id": "invalid"},
+            {"audio": {"bytes": audio_file.getvalue()}, **dict.fromkeys(OUTPUT_LANGUAGES, "正常"), "id": "valid"},
         ]
     )
-    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
+    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000, 42)
 
     examples = list(dataset)
 
@@ -133,15 +137,18 @@ def test_training_dataset_downloads_reads_and_deletes_temporary_shard(
             [
                 {
                     "audio": {"bytes": b"invalid", "path": "invalid.flac"},
-                    "text": "破損",
+                    **dict.fromkeys(OUTPUT_LANGUAGES, "破損"),
+                    "id": "invalid",
                 },
                 {
                     "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
-                    "text": " 音声 ",
+                    **dict.fromkeys(OUTPUT_LANGUAGES, " 音声 "),
+                    "id": "audio",
                 },
                 {
                     "audio": {"bytes": audio_file.getvalue(), "path": "audio.flac"},
-                    "text": " 続き ",
+                    **dict.fromkeys(OUTPUT_LANGUAGES, " 続き "),
+                    "id": "next",
                 },
             ]
         )
@@ -240,6 +247,7 @@ def test_validation_dataset_uses_cached_ten_percent(
         },
     ]
     assert iterable_shards == 8
+    assert source.selected_columns == DATASET_COLUMNS
 
 
 def test_validation_cache_selects_fixed_ten_percent_of_validation_shards(
@@ -294,8 +302,8 @@ def test_training_shards_select_only_train_parquet_files(
 def test_dataset_skips_unsupported_audio_format(sampling_rate: int, channels: int) -> None:
     audio_file = BytesIO()
     sf.write(audio_file, np.zeros((32, channels)), sampling_rate, format="FLAC")
-    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, "text": "音声"}])
-    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000)
+    source = FakeDataset([{"audio": {"bytes": audio_file.getvalue()}, **dict.fromkeys(OUTPUT_LANGUAGES, "音声"), "id": "audio"}])
+    dataset = LambdaAudioDataset(cast(IterableDataset, source), 16_000, 42)
 
     assert list(dataset) == []
 
@@ -329,8 +337,8 @@ def test_training_workers_partition_shards_and_change_order_each_epoch(monkeypat
     def download_stub(self: TrainLambdaAudioDataset, shard_file: str, directory: Path) -> Path:
         return directory / shard_file
 
-    def read_stub(self: TrainLambdaAudioDataset, shard_path: Path) -> Iterator[TranscribedAudioExample]:
-        yield {"audio_array": np.zeros(1, dtype=np.float32), "transcription": shard_path.name}
+    def read_stub(self: TrainLambdaAudioDataset, shard_path: Path, generator: random.Random) -> Iterator[TranscribedAudioExample]:
+        yield {"audio_array": np.zeros(1, dtype=np.float32), "transcription": shard_path.name, "output_language": "ja"}
 
     monkeypatch.setattr(TrainLambdaAudioDataset, "_download_shard", download_stub)
     monkeypatch.setattr(TrainLambdaAudioDataset, "_read_shard", read_stub)
@@ -351,3 +359,46 @@ def test_training_workers_partition_shards_and_change_order_each_epoch(monkeypat
     assert orders[0] == orders[1]
     assert orders[0] != orders[2]
     assert shards == [f"part-{index}.parquet" for index in range(11)]
+
+
+def test_validation_language_is_fixed_per_row_across_order_and_epoch() -> None:
+    audio_file = BytesIO()
+    sf.write(audio_file, np.ones(4), 16_000, format="FLAC")
+    rows = [{"id": str(index), "audio": {"bytes": audio_file.getvalue()}, **{language: f"{index}:{language}" for language in OUTPUT_LANGUAGES}} for index in range(40)]
+    dataset = LambdaAudioDataset(cast(IterableDataset, FakeDataset(rows)), 16_000, 42)
+    first = list(dataset)
+    dataset.set_epoch(7)
+    repeated = list(dataset)
+    reversed_rows = list(LambdaAudioDataset(cast(IterableDataset, FakeDataset(rows[::-1])), 16_000, 42))
+
+    assert [example["transcription"] for example in first] == [example["transcription"] for example in repeated]
+    assert [example["transcription"] for example in first] == [example["transcription"] for example in reversed_rows[::-1]]
+    assert 1 < len({example["output_language"] for example in first}) <= len(OUTPUT_LANGUAGES)
+    assert all(example["transcription"] == f"{index}:{example['output_language']}" for index, example in enumerate(first))
+
+
+def test_training_language_sampling_is_reproducible_and_changes_each_epoch(monkeypatch: MonkeyPatch) -> None:
+    audio_file = BytesIO()
+    sf.write(audio_file, np.ones(4), 16_000, format="FLAC")
+    rows = [{"id": str(index), "audio": {"bytes": audio_file.getvalue()}, **{language: language for language in OUTPUT_LANGUAGES}} for index in range(40)]
+
+    def download_stub(self: TrainLambdaAudioDataset, shard_file: str, directory: Path) -> Path:
+        return directory / shard_file
+
+    def read_stub(self: TrainLambdaAudioDataset, shard_path: Path, generator: random.Random) -> Iterator[dict[str, Any]]:
+        yield from _read_examples(rows, self.sampling_rate, shard_path.name, self.seed, generator)
+
+    monkeypatch.setattr(TrainLambdaAudioDataset, "_download_shard", download_stub)
+    monkeypatch.setattr(TrainLambdaAudioDataset, "_read_shard", read_stub)
+    dataset = TrainLambdaAudioDataset("token", ["part.parquet"], 16_000, 42, 0, 1)
+    sequences: list[list[str]] = []
+    for epoch in (0, 0, 1):
+        dataset.set_epoch(epoch)
+        examples = list(dataset)
+        assert len(examples) == len(rows)
+        assert all(example["transcription"] == example["output_language"] for example in examples)
+        sequences.append([example["output_language"] for example in examples])
+
+    assert sequences[0] == sequences[1]
+    assert sequences[0] != sequences[2]
+    assert 1 < len(set(sequences[0])) <= len(OUTPUT_LANGUAGES)

@@ -21,11 +21,13 @@ from torch.utils.data import get_worker_info
 
 from src.data.text import normalize_transcription
 from src.data.types import TranscribedAudioExample
+from src.shared.languages import OUTPUT_LANGUAGES, OutputLanguage
 
-DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus"
+DATASET_ID = "KeisukeMiyamoto/lambda-audio-courpus-multilingual"
 VALIDATION_CACHE_RATIO = 0.1
 VALIDATION_SELECTION_SEED = 42
 PARQUET_BATCH_SIZE = 128
+DATASET_COLUMNS = ["id", "audio", *OUTPUT_LANGUAGES]
 DatasetSplit = Literal["train", "validation"]
 LOGGER = logging.getLogger(__name__)
 
@@ -34,12 +36,13 @@ LOGGER = logging.getLogger(__name__)
 # Read cached validation data and temporary training shards.
 # ---------------------------------------------------------
 class LambdaAudioDataset:
-    def __init__(self, dataset: IterableDataset, sampling_rate: int) -> None:
+    def __init__(self, dataset: IterableDataset, sampling_rate: int, seed: int) -> None:
         self.dataset = dataset
         self.sampling_rate = sampling_rate
+        self.seed = seed
 
     def __iter__(self) -> Iterator[TranscribedAudioExample]:
-        yield from _read_examples(self.dataset, self.sampling_rate, "validation")
+        yield from _read_examples(self.dataset, self.sampling_rate, "validation", self.seed, None)
 
     def set_epoch(self, epoch: int) -> None:
         self.dataset.set_epoch(epoch)
@@ -82,6 +85,7 @@ class TrainLambdaAudioDataset:
         # Download the next shard while reading the current one.
         # Wait for downloads before removing the temporary directory.
         # ---------------------------------------------------------
+        generator = random.Random(f"{self.seed}:{self.epoch.value}:{self.global_rank}:{worker_id}")
         with TemporaryDirectory(prefix="lambda-audio-train-") as directory, ThreadPoolExecutor(max_workers=1) as executor:
             download_dir = Path(directory)
             pending = executor.submit(self._download_shard, shards[0], download_dir)
@@ -89,7 +93,7 @@ class TrainLambdaAudioDataset:
                 shard_path = pending.result()
                 if index + 1 < len(shards):
                     pending = executor.submit(self._download_shard, shards[index + 1], download_dir)
-                yield from self._read_shard(shard_path)
+                yield from self._read_shard(shard_path, generator)
 
     def _download_shard(self, shard_file: str, directory: Path) -> Path:
         with disable_progress_bars():
@@ -102,15 +106,15 @@ class TrainLambdaAudioDataset:
             )
         return Path(path)
 
-    def _read_shard(self, shard_path: Path) -> Iterator[TranscribedAudioExample]:
+    def _read_shard(self, shard_path: Path, generator: random.Random) -> Iterator[TranscribedAudioExample]:
         # ---------------------------------------------------------
         # Read bounded batches and delete the shard even on early exit.
         # ---------------------------------------------------------
         try:
             with pq.ParquetFile(shard_path) as parquet_file:
-                batches = parquet_file.iter_batches(batch_size=PARQUET_BATCH_SIZE, columns=["audio", "text"])
+                batches = parquet_file.iter_batches(batch_size=PARQUET_BATCH_SIZE, columns=DATASET_COLUMNS)
                 rows = chain.from_iterable(batch.to_pylist() for batch in batches)
-                yield from _read_examples(rows, self.sampling_rate, shard_path.name)
+                yield from _read_examples(rows, self.sampling_rate, shard_path.name, self.seed, generator)
         finally:
             shard_path.unlink()
 
@@ -144,10 +148,10 @@ def load_lambda_audio_dataset(
 
     cached = prepare_validation_dataset(token, cache_dir)
     dataset = cached.to_iterable_dataset(num_shards=world_size * num_workers)
-    dataset = dataset.select_columns(["audio", "text"])
+    dataset = dataset.select_columns(DATASET_COLUMNS)
     dataset = dataset.cast_column("audio", Audio(sampling_rate=sampling_rate, decode=False))
     dataset = split_dataset_by_node(dataset, global_rank, world_size)
-    return LambdaAudioDataset(dataset, sampling_rate)
+    return LambdaAudioDataset(dataset, sampling_rate, seed)
 
 
 def prepare_validation_dataset(token: str, cache_dir: Path) -> Dataset:
@@ -189,17 +193,25 @@ def _read_examples(
     rows: Iterable[dict[str, Any]],
     sampling_rate: int,
     source: str,
+    seed: int,
+    generator: random.Random | None,
 ) -> Iterator[TranscribedAudioExample]:
+    # ---------------------------------------------------------
+    # Sample training languages and keep validation choices stable by ID.
+    # ---------------------------------------------------------
     for index, row in enumerate(rows):
+        selector = random.Random(f"{seed}:{row['id']}") if generator is None else generator
+        language = selector.choice(OUTPUT_LANGUAGES)
+        text = normalize_transcription(row[language])
         try:
-            example = _decode_example(row["audio"]["bytes"], row["text"], sampling_rate)
+            example = _decode_example(row["audio"]["bytes"], text, language, sampling_rate)
         except (av.error.FFmpegError, ValueError, IndexError) as error:
             LOGGER.warning("Skipping invalid audio at %s row %s: %s", source, index, error)
             continue
         yield example
 
 
-def _decode_example(audio: bytes, text: str, sampling_rate: int) -> TranscribedAudioExample:
+def _decode_example(audio: bytes, text: str, language: OutputLanguage, sampling_rate: int) -> TranscribedAudioExample:
     # ---------------------------------------------------------
     # Require mono audio at the expected rate and decode to float32.
     # ---------------------------------------------------------
@@ -220,5 +232,6 @@ def _decode_example(audio: bytes, text: str, sampling_rate: int) -> TranscribedA
         raise ValueError("Audio is empty.")
     return {
         "audio_array": np.concatenate(arrays).astype(np.float32, copy=False),
-        "transcription": normalize_transcription(text),
+        "transcription": text,
+        "output_language": language,
     }
