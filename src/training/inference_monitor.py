@@ -2,7 +2,7 @@ import csv
 
 import lightning as L
 
-from src.shared.inference_report import InferenceReport
+from src.shared.inference_display import display_inference
 from src.shared.samples import load_multilingual_inference_samples
 from src.shared.transcription import iter_transcriptions
 from src.training.config import TrainingConfig
@@ -52,12 +52,12 @@ class ValidationInferenceMonitor(L.Callback):
         # Transcribe samples and display aligned reference differences.
         # ---------------------------------------------------------
         samples = load_multilingual_inference_samples(self.config.inference_samples_path)
-        report = InferenceReport(f"Validation Inference — Step {trainer.global_step}")
-        records: list[dict[str, str | int | float]] = []
+        if self.progress_bar.progress is None:
+            raise RuntimeError("The training progress display is not initialized.")
 
         model = pl_module.model
         model.eval()
-        for sample, result in iter_transcriptions(
+        results = iter_transcriptions(
             model,
             data_module.collator.feature_extractor,
             data_module.collator.tokenizer,
@@ -65,19 +65,25 @@ class ValidationInferenceMonitor(L.Callback):
             pl_module.device,
             samples,
             self.config.inference_batch_size,
-        ):
-            report.add_sample(sample.lang, sample.reference, result.text)
-            records.append(
-                {
-                    "step": trainer.global_step,
-                    "audio": sample.audio_name,
-                    "lang": sample.lang,
-                    "reference": sample.reference,
-                    "prediction": result.text,
-                    "audio_seconds": result.audio_seconds,
-                    "inference_seconds": result.inference_seconds,
-                }
-            )
+        )
+        completed = display_inference(
+            results,
+            len(samples),
+            f"Validation Inference — Step {trainer.global_step}",
+            console=self.progress_bar.progress.console,
+        )
+        records = [
+            {
+                "step": trainer.global_step,
+                "audio": sample.audio_name,
+                "lang": sample.lang,
+                "reference": sample.reference,
+                "prediction": result.text,
+                "audio_seconds": result.audio_seconds,
+                "inference_seconds": result.inference_seconds,
+            }
+            for sample, result in completed
+        ]
 
         # ---------------------------------------------------------
         # Append one row per sample to compare predictions across steps.
@@ -89,4 +95,3 @@ class ValidationInferenceMonitor(L.Callback):
             if write_header:
                 writer.writeheader()
             writer.writerows(records)
-        self.progress_bar.print_table(report.build_table())

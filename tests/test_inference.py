@@ -12,7 +12,6 @@ import soundfile as sf
 import torch
 from rich.console import Console
 from rich.progress import Progress
-from rich.table import Table
 from torch import nn
 
 from src.benchmark import runner as infer_module
@@ -247,7 +246,7 @@ def test_inference_progress_tracks_batched_results_and_cer(
     )
     monkeypatch.setattr(infer_module, "load_inference_samples", lambda path: samples)
     monkeypatch.setattr(display_module, "Console", lambda: console)
-    monkeypatch.setattr(display_module, "Progress", lambda *columns: progress)
+    monkeypatch.setattr(display_module, "Progress", lambda *columns, **kwargs: progress)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
     infer_module.main()
@@ -273,10 +272,13 @@ def test_training_inference_batches_samples_and_preserves_history(
     module = LambdaAudioLightningModule(model, config)  # type: ignore[arg-type]
     data_module = LambdaAudioDataModule(DummyFeatureExtractor(), DummyTokenizer(), config, "token")  # type: ignore[arg-type]
     samples = [InferenceSample(audio_name=str(index), audio=b"a" * (index + 1), reference="日本語", lang=language) for index, language in enumerate(("ja", "en", "ar"))]
-    tables: list[Table] = []
+    output = StringIO()
+    console = Console(file=output, width=100, color_system=None)
+    progress = Progress(console=console, disable=True)
+    monkeypatch.setattr(display_module, "Progress", lambda *columns, **kwargs: progress)
     barriers: list[str] = []
     trainer = SimpleNamespace(datamodule=data_module, global_step=42, is_global_zero=True, strategy=SimpleNamespace(barrier=barriers.append))
-    progress_bar = SimpleNamespace(print_table=tables.append)
+    progress_bar = SimpleNamespace(progress=progress)
     monitor = ValidationInferenceMonitor(config, progress_bar)  # type: ignore[arg-type]
     monkeypatch.setattr("src.training.inference_monitor.load_multilingual_inference_samples", lambda path: samples)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
@@ -290,11 +292,14 @@ def test_training_inference_batches_samples_and_preserves_history(
     assert [record["step"] for record in records] == ["42"] * 3
     assert [record["lang"] for record in records] == ["ja", "en", "ar"]
     assert model.generation_arguments["input_ids"].tolist() == [[1, 7]]
-    assert tables[0].columns[0].header == "Lang"
-    assert tables[0].columns[0]._cells == ["ja", "en", "ar"]
+    rendered = output.getvalue()
+    assert "Validation Inference — Step 42" in rendered
+    assert rendered.index("Lang") < rendered.index("正解") < rendered.index("推論")
+    assert all(language in rendered for language in ("ja", "en", "ar"))
     assert records[0]["inference_seconds"] == records[1]["inference_seconds"]
-    assert tables[0].row_count == 3
-    assert "CER:" in str(tables[0].caption)
+    assert progress.tasks[0].completed == 3
+    assert "CER:" in rendered
+    assert "Elapsed time:" in rendered
     assert barriers == ["validation_inference"]
 
 

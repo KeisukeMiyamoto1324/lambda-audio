@@ -4,7 +4,6 @@ from typing import Any
 import lightning as L
 import torch
 from lightning.pytorch.callbacks import RichProgressBar
-from rich.table import Table
 
 from src.data.types import AudioTextBatch
 
@@ -36,14 +35,6 @@ class TrainingProgressBar(RichProgressBar):
         if interval > 0 and (batch_idx + 1) % interval == 0:
             self.train_loss = float(trainer.callback_metrics["train_loss"].item())
         super().on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx)
-
-    def print_table(self, table: Table) -> None:
-        # ---------------------------------------------------------
-        # Print callback tables through the active progress console.
-        # ---------------------------------------------------------
-        if self.progress is None:
-            raise RuntimeError("The training progress display is not initialized.")
-        self.progress.console.print(table)
 
 
 def audio_batch_sizes(batch: AudioTextBatch) -> tuple[int, int]:
