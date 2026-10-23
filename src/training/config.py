@@ -13,7 +13,7 @@ class TrainingConfig(ModelConfig):
     output_dir: Path = Path("outputs/training")
     resume_checkpoint: FilePath | None = None
     dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus-multilingual")
-    inference_samples_path: FilePath = Path("data/data.parquet")
+    inference_samples_path: FilePath = Path("data.parquet")
 
     # ---------------------------------------------------------
     # Audio and generated text length limits.
