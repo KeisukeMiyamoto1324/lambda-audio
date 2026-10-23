@@ -226,9 +226,9 @@ def test_inference_progress_tracks_batched_results_and_cer(
     checkpoint.touch()
     config = BenchmarkConfig(checkpoint_path=checkpoint, input_path=checkpoint, batch_size=2)
     samples = [
-        InferenceSample(audio_name="first", audio=b"a", reference="あいう"),
-        InferenceSample(audio_name="second", audio=b"aa", reference="かきくけこ"),
-        InferenceSample(audio_name="third", audio=b"aaa", reference=""),
+        InferenceSample(audio_name="first.wav", audio=b"a", reference="あいう"),
+        InferenceSample(audio_name="second.wav", audio=b"aa", reference="かきくけこ"),
+        InferenceSample(audio_name="third.wav", audio=b"aaa", reference=""),
     ]
     model = DummyModel()
     tokenizer = DummyTokenizer()
@@ -257,6 +257,9 @@ def test_inference_progress_tracks_batched_results_and_cer(
     assert progress.tasks[0].fields == {"cer": "12.50%", "skipped": 1}
     assert "CER: 12.50%" in output.getvalue()
     assert "Elapsed time:" in output.getvalue()
+    assert "first.wav" not in output.getvalue()
+    assert "second.wav" not in output.getvalue()
+    assert "third.wav" not in output.getvalue()
 
 
 def test_training_inference_batches_samples_and_preserves_history(
@@ -287,8 +290,8 @@ def test_training_inference_batches_samples_and_preserves_history(
     assert [record["step"] for record in records] == ["42"] * 3
     assert [record["lang"] for record in records] == ["ja", "en", "ar"]
     assert model.generation_arguments["input_ids"].tolist() == [[1, 7]]
-    assert tables[0].columns[1].header == "Lang"
-    assert tables[0].columns[1]._cells == ["ja", "en", "ar"]
+    assert tables[0].columns[0].header == "Lang"
+    assert tables[0].columns[0]._cells == ["ja", "en", "ar"]
     assert records[0]["inference_seconds"] == records[1]["inference_seconds"]
     assert tables[0].row_count == 3
     assert "CER:" in str(tables[0].caption)

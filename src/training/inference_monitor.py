@@ -66,7 +66,7 @@ class ValidationInferenceMonitor(L.Callback):
             samples,
             self.config.inference_batch_size,
         ):
-            report.add_sample(sample.audio_name, sample.reference, result.text, sample.lang)
+            report.add_sample(sample.lang, sample.reference, result.text)
             records.append(
                 {
                     "step": trainer.global_step,

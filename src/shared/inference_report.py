@@ -9,16 +9,15 @@ from src.shared.text_diff import create_text_diff
 class InferenceReport:
     def __init__(self, title: str) -> None:
         self._table = Table(title=title, caption_justify="left")
-        self._table.add_column("Audio", no_wrap=True)
         self._table.add_column("Lang", no_wrap=True)
         self._table.add_column("正解", overflow="fold", ratio=1)
         self._table.add_column("推論", overflow="fold", ratio=1)
         self._metric = CerMetric()
         self.skipped_samples = 0
 
-    def add_sample(self, audio_name: str, reference: str, prediction: str, lang: OutputLanguage = "ja") -> None:
+    def add_sample(self, lang: OutputLanguage, reference: str, prediction: str) -> None:
         reference_text, prediction_text = create_text_diff(reference, prediction)
-        self._table.add_row(audio_name, lang, reference_text, prediction_text)
+        self._table.add_row(lang, reference_text, prediction_text)
         if should_skip_text(reference):
             self.skipped_samples += 1
             return
