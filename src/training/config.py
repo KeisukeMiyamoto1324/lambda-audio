@@ -20,7 +20,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     max_audio_seconds: PositiveFloat = 30.0
     max_new_tokens: PositiveInt = 256
-    inference_batch_size: PositiveInt = 8
+    inference_batch_size: PositiveInt = 16
 
     # ---------------------------------------------------------
     # Data loading, batching, and gradient accumulation.
