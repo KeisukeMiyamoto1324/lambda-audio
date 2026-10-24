@@ -52,7 +52,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     log_steps: PositiveInt = 10
     evaluation_steps: PositiveInt = 2000
-    save_steps: PositiveInt = 500
+    save_steps: PositiveInt = 2000
     early_stopping_patience: PositiveInt = 5
     early_stopping_min_delta: NonNegativeFloat = 0.01
 
