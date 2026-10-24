@@ -42,19 +42,15 @@ def test_create_app_transcribes_when_recording_stops(
     monkeypatch.setattr("src.app.app.select_device", lambda: torch.device("cpu"))
     monkeypatch.setattr("src.app.app.load_model_components", lambda config, token: components)
     monkeypatch.setattr("src.app.app.load_model_checkpoint", lambda loaded_model, path: None)
-    selected_languages: list[str] = []
     monkeypatch.setattr(
         "src.app.app.transcribe",
-        lambda loaded_model, feature_extractor, tokenizer, config, device, audio, output_language: (
-            selected_languages.append(output_language)
-            or [
-                type(
-                    "Result",
-                    (),
-                    {"text": "テスト"},
-                )()
-            ]
-        ),
+        lambda loaded_model, feature_extractor, tokenizer, config, device, audio: [
+            type(
+                "Result",
+                (),
+                {"text": "テスト"},
+            )()
+        ],
     )
 
     app = create_app(AppConfig(checkpoint_path=checkpoint_path))
@@ -65,12 +61,10 @@ def test_create_app_transcribes_when_recording_stops(
                 {
                     "path": str(audio_path),
                     "meta": {"_type": "gradio.FileData"},
-                },
-                "en",
+                }
             ],
             explicit_call=True,
         )
     )
 
     assert result["data"] == ["テスト"]
-    assert selected_languages == ["en"]

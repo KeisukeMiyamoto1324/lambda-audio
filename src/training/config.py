@@ -12,7 +12,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     output_dir: Path = Path("outputs/training")
     resume_checkpoint: FilePath | None = None
-    dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus-multilingual")
+    dataset_cache_dir: Path = Path("outputs/datasets/lambda-audio-courpus")
     inference_samples_path: FilePath = Path("data/data.parquet")
 
     # ---------------------------------------------------------
@@ -20,7 +20,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     max_audio_seconds: PositiveFloat = 30.0
     max_new_tokens: PositiveInt = 256
-    inference_batch_size: PositiveInt = 16
+    inference_batch_size: PositiveInt = 8
 
     # ---------------------------------------------------------
     # Data loading, batching, and gradient accumulation.
@@ -52,7 +52,7 @@ class TrainingConfig(ModelConfig):
     # ---------------------------------------------------------
     log_steps: PositiveInt = 10
     evaluation_steps: PositiveInt = 2000
-    save_steps: PositiveInt = 2000
+    save_steps: PositiveInt = 500
     early_stopping_patience: PositiveInt = 5
     early_stopping_min_delta: NonNegativeFloat = 0.01
 

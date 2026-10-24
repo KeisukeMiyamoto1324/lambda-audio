@@ -14,11 +14,8 @@ def display_inference(
     total_samples: int,
     title: str,
     show_table: bool = True,
-    console: Console | None = None,
-) -> list[tuple[InferenceSample, TranscriptionResult]]:
-    console = Console() if console is None else console
+) -> None:
     report = InferenceReport(title)
-    completed: list[tuple[InferenceSample, TranscriptionResult]] = []
     inference_start = perf_counter()
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -28,15 +25,14 @@ def display_inference(
         TextColumn("CER: {task.fields[cer]}"),
         TextColumn("Skipped: {task.fields[skipped]}"),
         TimeRemainingColumn(),
-        console=console,
     ) as progress:
         task_id = progress.add_task("Inference", total=total_samples, cer=report.cer_text, skipped=0)
         for sample, result in results:
-            completed.append((sample, result))
-            report.add_sample(sample.lang, sample.reference, result.text)
+            report.add_sample(sample.audio_name, sample.reference, result.text)
             progress.update(task_id, advance=1, cer=report.cer_text, skipped=report.skipped_samples)
 
     elapsed_seconds = perf_counter() - inference_start
+    console = Console()
     if show_table:
         table = report.build_table()
         table.caption = None
@@ -44,4 +40,3 @@ def display_inference(
     console.print(f"Model name: {title}")
     console.print(f"CER: {report.cer_text}")
     console.print(f"Elapsed time: {elapsed_seconds:.2f} seconds")
-    return completed

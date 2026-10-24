@@ -4,13 +4,10 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from src.shared.languages import OutputLanguage
-
 
 class TranscribedAudioExample(TypedDict):
     audio_array: NDArray[np.float32]
     transcription: str
-    output_language: OutputLanguage
 
 
 class AudioTextBatch(TypedDict):

@@ -15,4 +15,4 @@ def load_model(config: BenchmarkConfig, device: torch.device, token: str) -> Ben
     components = load_model_components(config, token)
     load_model_checkpoint(components.model, config.checkpoint_path)
     components.model.to(device).eval()
-    return partial(transcribe, components.model, components.feature_extractor, components.tokenizer, config, device, output_language=config.output_language)
+    return partial(transcribe, components.model, components.feature_extractor, components.tokenizer, config, device)

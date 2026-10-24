@@ -9,5 +9,5 @@ class ModelConfig(BaseModel):
     )
 
     encoder_model_id: str = "KeisukeMiyamoto/zipformer-cpt"
-    decoder_model_id: str = "KeisukeMiyamoto/lfm-cpt-multilingual"
+    decoder_model_id: str = "KeisukeMiyamoto/lfm2.5-230m-cpt"
     sampling_rate: PositiveInt = 16_000

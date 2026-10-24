@@ -13,7 +13,6 @@ from src.data.lambda_audio_dataset import (
     load_lambda_audio_dataset,
     prepare_validation_dataset,
 )
-from src.data.validation import CachedValidationDataset
 from src.training.config import TrainingConfig
 
 
@@ -37,7 +36,7 @@ class LambdaAudioDataModule(L.LightningDataModule):
             config.sampling_rate,
         )
         self.training_dataset: AudioBatchDataset | None = None
-        self.validation_dataset: CachedValidationDataset | None = None
+        self.validation_dataset: AudioBatchDataset | None = None
 
     def prepare_data(self) -> None:
         # ---------------------------------------------------------
@@ -76,9 +75,9 @@ class LambdaAudioDataModule(L.LightningDataModule):
             training_source,
             self.config.max_batch_padded_audio_seconds,
         )
-        self.validation_dataset = CachedValidationDataset(
-            self._batch_dataset(validation_source, self.config.max_batch_padded_audio_seconds),
-            self.collator,
+        self.validation_dataset = self._batch_dataset(
+            validation_source,
+            self.config.max_batch_padded_audio_seconds,
         )
 
     def train_dataloader(self) -> DataLoader[Any]:
@@ -89,19 +88,19 @@ class LambdaAudioDataModule(L.LightningDataModule):
             raise RuntimeError("Training dataset is not initialized.")
         return self._data_loader(
             self.training_dataset,
-            collator=self.collator,
+            persistent_workers=True,
             in_order=False,
         )
 
     def val_dataloader(self) -> DataLoader[Any]:
         # ---------------------------------------------------------
-        # Keep worker-local validation preprocessing across evaluation passes.
+        # Configure ordered validation batches without persistent workers.
         # ---------------------------------------------------------
         if self.validation_dataset is None:
             raise RuntimeError("Validation dataset is not initialized.")
         return self._data_loader(
             self.validation_dataset,
-            collator=None,
+            persistent_workers=False,
             in_order=True,
         )
 
@@ -127,8 +126,8 @@ class LambdaAudioDataModule(L.LightningDataModule):
 
     def _data_loader(
         self,
-        dataset: AudioBatchDataset | CachedValidationDataset,
-        collator: AudioTextCollator | None,
+        dataset: AudioBatchDataset,
+        persistent_workers: bool,
         in_order: bool,
     ) -> DataLoader[Any]:
         # ---------------------------------------------------------
@@ -137,10 +136,10 @@ class LambdaAudioDataModule(L.LightningDataModule):
         return DataLoader(
             dataset,
             batch_size=None,
-            collate_fn=collator,
+            collate_fn=self.collator,
             pin_memory=True,
             num_workers=self.config.num_workers,
-            persistent_workers=True,
+            persistent_workers=persistent_workers,
             prefetch_factor=self.config.prefetch_factor,
             in_order=in_order,
         )

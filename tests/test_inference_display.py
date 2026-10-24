@@ -15,15 +15,14 @@ def test_table_visibility_preserves_metrics_and_progress(show_table: bool, monke
     console = Console(file=output, width=100, color_system=None)
     progress = Progress(console=console, disable=True)
     monkeypatch.setattr(inference_display, "Console", lambda: console)
-    monkeypatch.setattr(inference_display, "Progress", lambda *columns, **kwargs: progress)
+    monkeypatch.setattr(inference_display, "Progress", lambda *columns: progress)
     sample = InferenceSample(audio_name="example.wav", audio=b"audio", reference="あいう")
     result = TranscriptionResult(text="あいえ", audio_seconds=1.0, inference_seconds=0.1)
 
-    completed = inference_display.display_inference(iter([(sample, result)]), 1, "Test", show_table=show_table)
+    inference_display.display_inference([(sample, result)], 1, "Test", show_table=show_table)
 
     rendered = output.getvalue()
-    assert completed == [(sample, result)]
-    assert "example.wav" not in rendered
+    assert ("example.wav" in rendered) is show_table
     assert ("正解" in rendered) is show_table
     assert rendered.count("CER: 33.33%") == 1
     assert rendered.index("Model name: Test") < rendered.index("CER: 33.33%") < rendered.index("Elapsed time:")

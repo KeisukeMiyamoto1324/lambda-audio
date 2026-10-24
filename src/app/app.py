@@ -9,7 +9,6 @@ from src.modeling.checkpoint import load_model_checkpoint
 from src.modeling.config import ModelConfig
 from src.modeling.loading import load_model_components
 from src.shared.device import select_device
-from src.shared.languages import OUTPUT_LANGUAGES, OutputLanguage
 from src.shared.transcription import transcribe
 
 
@@ -26,7 +25,7 @@ def create_app(config: AppConfig) -> gr.Blocks:
     components.model.to(device)
     components.model.eval()
 
-    def transcribe_recording(audio_path: str, output_language: OutputLanguage) -> str:
+    def transcribe_recording(audio_path: str) -> str:
         result = transcribe(
             components.model,
             components.feature_extractor,
@@ -34,7 +33,6 @@ def create_app(config: AppConfig) -> gr.Blocks:
             config,
             device,
             [Path(audio_path).read_bytes()],
-            output_language=output_language,
         )[0]
         return result.text
 
@@ -49,11 +47,10 @@ def create_app(config: AppConfig) -> gr.Blocks:
             format="wav",
             label="録音",
         )
-        language = gr.Dropdown(choices=list(OUTPUT_LANGUAGES), value="ja", label="出力言語")
-        output = gr.Textbox(label="出力", interactive=False)
+        output = gr.Textbox(label="文字起こし", interactive=False)
         audio.stop_recording(
             fn=transcribe_recording,
-            inputs=[audio, language],
+            inputs=audio,
             outputs=output,
         )
     return app

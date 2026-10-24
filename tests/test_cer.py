@@ -1,5 +1,3 @@
-import pytest
-
 from src.shared.cer_metric import CerMetric
 from src.shared.cer_text import normalize_cer_text, should_skip_text
 
@@ -23,11 +21,7 @@ def test_normalize_cer_text_removes_whitespace() -> None:
     assert normalize_cer_text("日 本\t語\nです") == "日本語です"
 
 
-@pytest.mark.parametrize("text", ["日本a1234567", "English text", "مرحبا", "안녕하세요", "1234567", "「日本語です。」"])
-def test_should_skip_text_accepts_all_languages(text: str) -> None:
-    assert not should_skip_text(text)
-
-
-@pytest.mark.parametrize("text", ["", " \t\n", "!? 。"])
-def test_should_skip_text_rejects_empty_normalized_text(text: str) -> None:
-    assert should_skip_text(text)
+def test_should_skip_text_uses_non_japanese_ratio() -> None:
+    assert should_skip_text("日本a1234567")
+    assert not should_skip_text("日abc")
+    assert not should_skip_text("「日本語です。」")

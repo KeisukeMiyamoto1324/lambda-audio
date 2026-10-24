@@ -129,7 +129,7 @@ def test_whisper_entrypoint_uses_hf_token_and_shared_progress(
     monkeypatch.setattr(benchmark_module, "WhisperProcessor", SimpleNamespace(from_pretrained=load_processor))
     monkeypatch.setattr(runner_module, "load_inference_samples", lambda path: samples)
     monkeypatch.setattr(display_module, "Console", lambda: console)
-    monkeypatch.setattr(display_module, "Progress", lambda *columns, **kwargs: progress)
+    monkeypatch.setattr(display_module, "Progress", lambda *columns: progress)
     monkeypatch.setattr("src.shared.transcription.decode_audio", lambda audio, sampling_rate: np.ones(len(audio), dtype=np.float32))
 
     runner_module.main()
