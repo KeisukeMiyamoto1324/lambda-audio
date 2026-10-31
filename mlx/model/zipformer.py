@@ -1,9 +1,9 @@
 import mlx.core as mx
 import mlx.nn as nn
 
+from mlx.config import ZipformerConfig
 from mlx.kernel.normalization import masked_group_norm
 from mlx.model.zipformer_layers import Bypass, Downsample, EncoderLayer, positional_encoding
-from src.modeling.zipformer.configuration_zipformer import ZipformerConfig
 
 
 class FeatureConv(nn.Module):

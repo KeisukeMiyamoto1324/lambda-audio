@@ -2,17 +2,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
 pytest.importorskip("mlx.core")
 
 import mlx.core as mx  # noqa: E402
 from mlx.utils import tree_flatten  # noqa: E402
 
+from mlx.config import Lfm2Config, ZipformerConfig  # noqa: E402
 from mlx.inference.checkpoint import CHECKPOINT_METADATA, load_checkpoint, save_checkpoint  # noqa: E402
 from mlx.inference.transcription import generate  # noqa: E402
 from mlx.model import LambdaAudioModel  # noqa: E402
-from src.modeling.zipformer.configuration_zipformer import ZipformerConfig  # noqa: E402
 
 
 @pytest.fixture

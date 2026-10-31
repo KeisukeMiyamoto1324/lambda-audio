@@ -1,11 +1,12 @@
 from time import perf_counter
 
 import mlx.core as mx
-from transformers import PreTrainedTokenizerBase, SequenceFeatureExtractor
 
+from mlx.config import TranscriptionConfig
+from mlx.inference.audio import TranscriptionResult, decode_audio_batch
+from mlx.inference.preprocessing import FeatureExtractor, Tokenizer
 from mlx.model import LambdaAudioModel
 from mlx.model.lfm2 import LayerCache
-from src.shared.transcription import TranscriptionConfig, TranscriptionResult, decode_audio_batch
 
 
 def generate(model: LambdaAudioModel, input_values: mx.array, padding_mask: mx.array, bos_token_id: int, eos_token_id: int, max_new_tokens: int) -> list[list[int]]:
@@ -41,8 +42,8 @@ def generate(model: LambdaAudioModel, input_values: mx.array, padding_mask: mx.a
 
 def transcribe(
     model: LambdaAudioModel,
-    feature_extractor: SequenceFeatureExtractor,
-    tokenizer: PreTrainedTokenizerBase,
+    feature_extractor: FeatureExtractor,
+    tokenizer: Tokenizer,
     config: TranscriptionConfig,
     audio: list[bytes],
 ) -> list[TranscriptionResult]:

@@ -1,7 +1,7 @@
 import mlx.core as mx
 import mlx.nn as nn
-from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
+from mlx.config import Lfm2Config
 from mlx.kernel.convolution import short_conv
 
 LayerCache = tuple[mx.array, mx.array] | mx.array | None

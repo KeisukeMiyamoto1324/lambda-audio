@@ -2,11 +2,10 @@ import re
 
 import mlx.core as mx
 import mlx.nn as nn
-from transformers.models.lfm2.configuration_lfm2 import Lfm2Config
 
+from mlx.config import Lfm2Config, ZipformerConfig
 from mlx.model.lfm2 import AudioLfm2ForCausalLM
 from mlx.model.zipformer import ZipformerModel
-from src.modeling.zipformer.configuration_zipformer import ZipformerConfig
 
 
 class AudioAdapter(nn.Module):
