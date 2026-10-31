@@ -99,3 +99,6 @@ python -m mlx.benchmark \
 MLXのメモリ再利用キャッシュは観測した各時点で0 bytes、使用中メモリのピークは1.330 GBでした。詳細は `outputs/diagnostics/mlx-whisper-turbo-q4-batch1.json` に保存しています。
 
 Ruffチェック・整形と追加ファイルの型チェックは通過しました。pytestは既存のTriton依存2ファイルを除いて208件通過しました。通常のpytestの収集エラー2件と、全体のpyrightのTriton importエラー13件は既存のものです。
+
+---
+
