@@ -102,3 +102,23 @@ Ruffチェック・整形と追加ファイルの型チェックは通過しま�
 
 ---
 
+(venv) keisukemiyamoto@KeisukenoMacBook-Pro-2 LambdaAudio %                              
+python -m mlx.benchmark \
+  --input data/fleurs_ja_test.parquet \
+  --batch-size 1 \
+  --max-new-tokens 256 \
+  --no-show-table
+Inference ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 650/650 CER: 6.12% Skipped: 0 0:00:00
+Model name: lambda-audio-mlx
+CER: 6.12%
+Elapsed time: 135.65 seconds
+
+python -m whisper.benchmark \
+  --input data/fleurs_ja_test.parquet \
+  --batch-size 1 \
+  --max-new-tokens 256 \
+  --no-show-table
+Inference ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 650/650 CER: 5.57% Skipped: 0 0:00:00
+Model name: mlx-community/whisper-large-v3-turbo-4bit
+CER: 5.57%
+Elapsed time: 729.58 seconds
