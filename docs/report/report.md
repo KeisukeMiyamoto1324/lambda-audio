@@ -81,25 +81,13 @@ Table 1 に各モデルの CER と文字起こしにかかった合計時間を�
 
 Table 1: 3つの日本語 test データセットにおける CER と処理時間の比較。形式は CER (%) / 時間 (s)
 
-![Figure 3: ReazonSpeech benchmark](/Users/keisukemiyamoto/Project/LambdaAudio/docs/plots/reazonspeech_test.png)
+Table 1 では、CER と処理時間のいずれも値が小さいほど良い結果を示す。
 
-Figure 3: ReazonSpeech test における CER と処理時間の比較。
+ReazonSpeech では、lambda-audio の CER は10.75%であり、Whisper の11.42%、Kotoba-Whisper の11.70%より低かった。処理時間も121.55秒と、Whisper の354.04秒に対して約65.7%短かった。一方、Cohere Transcribe は6.45%と最も低い CER を示し、Parakeet は lambda-audio と近い CER の10.62%を55.10秒で達成した。
 
-![Figure 4: Common Voice 25 Japanese benchmark](/Users/keisukemiyamoto/Project/LambdaAudio/docs/plots/common_voice_25_ja_test.png)
+Common Voice 25 ja では、lambda-audio の CER は23.87%であり、Whisper の26.40%より低かった。処理時間は167.84秒と、Whisper の592.25秒に対して約71.7%短かった。Kotoba-Whisper と Cohere Transcribe は lambda-audio より低い CER を示したが、処理時間は長かった。Parakeet は CER が19.99%、処理時間が82.28秒であり、lambda-audio より低い CER と短い処理時間を示した。
 
-Figure 4: Common Voice 25 の日本語 test における CER と処理時間の比較。
-
-![Figure 5: FLEURS Japanese benchmark](/Users/keisukemiyamoto/Project/LambdaAudio/docs/plots/fleurs_ja_test.png)
-
-Figure 5: FLEURS の日本語 test における CER と処理時間の比較。
-
-Figure 3〜5 は、Table 1 の結果を散布図で示したものである。横軸はデータセット全体の処理時間、縦軸は CER であり、左下に位置するほど短い処理時間で高い認識精度を達成している。緑の点は lambda-audio を示し、各モデル名の後の括弧内はパラメータ数を表す。
-
-Figure 3 の ReazonSpeech では、lambda-audio の CER は10.75%であり、Whisper の11.42%、Kotoba-Whisper の11.70%より低かった。処理時間も121.55秒と、Whisper の354.04秒に対して約65.7%短く、散布図では両モデルより左下に位置している。一方、Cohere Transcribe は6.45%と最も低い CER を示し、Parakeet は lambda-audio と近い CER の10.62%を55.10秒で達成した。
-
-Figure 4 の Common Voice では、lambda-audio の CER は23.87%であり、Whisper の26.40%より低かった。処理時間は167.84秒と、Whisper の592.25秒に対して約71.7%短かった。Kotoba-Whisper と Cohere Transcribe は lambda-audio より低い CER を示したが、処理時間は長かった。Parakeet は CER が19.99%、処理時間が82.28秒であり、lambda-audio より左下に位置している。今回の比較では Parakeet が最も低い CER を示した。
-
-Figure 5 の FLEURS では、lambda-audio の CER は6.05%であり、Whisper の5.83%、Parakeet の5.94%と近い値となった。Whisper と比べて CER は0.22 percentage point 高かったが、処理時間は47.82秒から20.75秒へ約56.6%短縮した。また、Kotoba-Whisper に対しては CER と処理時間の両方で上回った。Cohere Transcribe は4.36%と最も低い CER を示したが、処理時間は lambda-audio より約48.3%長かった。
+FLEURS ja では、lambda-audio の CER は6.05%であり、Whisper の5.83%、Parakeet の5.94%と近い値となった。lambda-audio のCERはWhisper と比べて 0.22% 高かったが、処理時間は47.82秒から20.75秒へ約56.6%短縮した。また、Kotoba-Whisper に対しては CER と処理時間の両方で上回った。Cohere Transcribe は4.36%と最も低い CER を示したが、処理時間は lambda-audio より約48.3%長かった。
 
 これらの結果から、lambda-audio は Whisper large-v3-turbo と比べ、3つのデータセットすべてで処理時間を短縮し、ReazonSpeech と Common Voice では CER も改善した。一方、Parakeet は3つのデータセットすべてで lambda-audio より低い CER と短い処理時間を示しており、精度と速度には依然として改善の余地があることがわかった。
 
