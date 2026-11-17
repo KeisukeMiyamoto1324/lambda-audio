@@ -79,7 +79,7 @@ Table 1 に各モデルの CER と文字起こしにかかった合計時間を�
 | Parakeet tdt_ctc-0.6b-ja | 10.62 / 55.10 | 19.99 / 82.28 | 5.94 / 9.74 |
 | Cohere Transcribe 03-2026 | 6.45 / 176.00 | 21.58 / 227.42 | 4.36 / 30.77 |
 
-Table 1: 3つの日本語 test データセットにおける CER と処理時間の比較。
+Table 1: 3つの日本語 test データセットにおける CER と処理時間の比較。形式は CER (%) / 時間 (s)
 
 ![Figure 3: ReazonSpeech benchmark](/Users/keisukemiyamoto/Project/LambdaAudio/docs/plots/reazonspeech_test.png)
 
