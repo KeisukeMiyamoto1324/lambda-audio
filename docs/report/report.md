@@ -101,7 +101,7 @@ Figure 4 の Common Voice では、lambda-audio の CER は23.87%であり、Whi
 
 Figure 5 の FLEURS では、lambda-audio の CER は6.05%であり、Whisper の5.83%、Parakeet の5.94%と近い値となった。Whisper と比べて CER は0.22 percentage point 高かったが、処理時間は47.82秒から20.75秒へ約56.6%短縮した。また、Kotoba-Whisper に対しては CER と処理時間の両方で上回った。Cohere Transcribe は4.36%と最も低い CER を示したが、処理時間は lambda-audio より約48.3%長かった。
 
-これらの結果から、lambda-audio は Whisper large-v3-turbo と比べ、3つのデータセットすべてで処理時間を短縮し、ReazonSpeech と Common Voice では CER も改善した。一方、Parakeet は3つのデータセットすべてで lambda-audio より低い CER と短い処理時間を示しており、精度と速度には改善の余地がある。
+これらの結果から、lambda-audio は Whisper large-v3-turbo と比べ、3つのデータセットすべてで処理時間を短縮し、ReazonSpeech と Common Voice では CER も改善した。一方、Parakeet は3つのデータセットすべてで lambda-audio より低い CER と短い処理時間を示しており、精度と速度には依然として改善の余地があることがわかった。
 
 ## Conclusion (Summarize the topic, methodology, and advantages)
 
