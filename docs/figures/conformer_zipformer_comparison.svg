@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#4A4A4A"/></marker></defs><rect width="1920" height="1080" fill="#FFFFFF"/><g transform="translate(38 0) scale(0.96)" font-family="Arial" font-weight="400" fill="#4A4A4A">
+<text x="960" y="75" text-anchor="middle" font-size="54">Conformer vs. Zipformer</text>
+<text x="480" y="164" text-anchor="middle" font-size="42">Conformer</text>
+<text x="1390" y="164" text-anchor="middle" font-size="42">Zipformer</text>
+<text x="480" y="224" text-anchor="middle" font-size="32">8 frames × D dimensions</text>
+<text x="1390" y="224" text-anchor="middle" font-size="32">8 frames × D dimensions</text>
+<rect x="287.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="336.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="385.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="434.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="483.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="532.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="581.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="630.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1197.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1246.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1295.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1344.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1393.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1442.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1491.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1540.5" y="250" width="42" height="48" rx="6" fill="#EDEDED"/>
+<path d="M480,310 L480,348" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<text x="480" y="392" text-anchor="middle" font-size="32">Keep the frame count</text>
+<path d="M1390,310 L1390,335" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="1190" y="345" width="400" height="62" rx="6" fill="#EDEDED"/>
+<text x="1390" y="387" text-anchor="middle" font-size="32">Downsample ×2</text>
+<path d="M1390,414 L1390,440" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="1295.5" y="448" width="42" height="48" rx="6" fill="#67D465"/>
+<rect x="1344.5" y="448" width="42" height="48" rx="6" fill="#67D465"/>
+<rect x="1393.5" y="448" width="42" height="48" rx="6" fill="#67D465"/>
+<rect x="1442.5" y="448" width="42" height="48" rx="6" fill="#67D465"/>
+<text x="1390" y="536" text-anchor="middle" font-size="32">4 frames × D dimensions</text>
+<rect x="165" y="495" width="630" height="242" rx="6" fill="#EDEDED"/>
+<rect x="1075" y="565" width="630" height="242" rx="6" fill="#EDEDED"/>
+<rect x="195" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="535" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="553" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="571" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="589" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="607" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="625" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="643" width="16" height="16" fill="#FFFFFF"/>
+<rect x="195" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="213" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="231" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="249" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="267" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="285" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="303" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="321" y="661" width="16" height="16" fill="#FFFFFF"/>
+<rect x="1140" y="620" width="16" height="16" fill="#67D465"/>
+<rect x="1158" y="620" width="16" height="16" fill="#67D465"/>
+<rect x="1176" y="620" width="16" height="16" fill="#67D465"/>
+<rect x="1194" y="620" width="16" height="16" fill="#67D465"/>
+<rect x="1140" y="638" width="16" height="16" fill="#67D465"/>
+<rect x="1158" y="638" width="16" height="16" fill="#67D465"/>
+<rect x="1176" y="638" width="16" height="16" fill="#67D465"/>
+<rect x="1194" y="638" width="16" height="16" fill="#67D465"/>
+<rect x="1140" y="656" width="16" height="16" fill="#67D465"/>
+<rect x="1158" y="656" width="16" height="16" fill="#67D465"/>
+<rect x="1176" y="656" width="16" height="16" fill="#67D465"/>
+<rect x="1194" y="656" width="16" height="16" fill="#67D465"/>
+<rect x="1140" y="674" width="16" height="16" fill="#67D465"/>
+<rect x="1158" y="674" width="16" height="16" fill="#67D465"/>
+<rect x="1176" y="674" width="16" height="16" fill="#67D465"/>
+<rect x="1194" y="674" width="16" height="16" fill="#67D465"/>
+<text x="550" y="554" text-anchor="middle" font-size="34">Self-attention</text>
+<text x="550" y="618" text-anchor="middle" font-size="34">Convolution</text>
+<text x="550" y="682" text-anchor="middle" font-size="34">Feed-forward</text>
+<text x="1475" y="624" text-anchor="middle" font-size="34">Self-attention</text>
+<text x="1475" y="688" text-anchor="middle" font-size="34">Convolution</text>
+<text x="1475" y="752" text-anchor="middle" font-size="34">Feed-forward</text>
+<text x="480" y="780" text-anchor="middle" font-size="32">8 × 8 attention weights</text>
+<text x="1390" y="851" text-anchor="middle" font-size="32">4 × 4 attention weights</text>
+<path d="M480,798 L480,928" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<path d="M1390,865 L1390,881" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="1190" y="889" width="400" height="60" rx="6" fill="#EDEDED"/>
+<text x="1390" y="930" text-anchor="middle" font-size="32">Upsample ×2</text>
+<path d="M1390,955 L1390,985" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<rect x="287.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="336.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="385.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="434.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="483.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="532.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="581.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="630.5" y="948" width="42" height="48" rx="6" fill="#EDEDED"/>
+<text x="480" y="1042" text-anchor="middle" font-size="32">8 frames × D dimensions</text>
+<rect x="1197.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1246.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1295.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1344.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1393.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1442.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1491.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<rect x="1540.5" y="991" width="42" height="48" rx="6" fill="#EDEDED"/>
+<text x="1390" y="1072" text-anchor="middle" font-size="32">8 frames × D dimensions</text>
+<path d="M1608,274 L1790,274 L1790,1015 L1608,1015" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/>
+<text x="1835" y="650" text-anchor="middle" font-size="30" transform="rotate(90 1835 650)">Bypass</text>
+<path d="M480,415 L480,475" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/><path d="M1390,541 L1390,559" fill="none" stroke="#4A4A4A" stroke-width="2.5" marker-end="url(#arrow)"/></g></svg>
